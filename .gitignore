@@ -1,0 +1,29 @@
+# Build output directories
+regulon-c/build/
+regulon-c/build_*/
+regulon-rs/target/
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Coverage output
+coverage_html/
+coverage.info
+coverage_filtered.info
+*.lcov
+
+# Compiled objects and libraries
+*.o
+*.a
+*.so
+*.d
+
+# Compiler stack-usage files
+*.su
+
+# Test result files
+test_results*.xml
+junit.xml

@@ -1,0 +1,75 @@
+---
+# .clang-format — Regulon C11 library code style
+# Applied by: clang-format --dry-run --Werror (CI) or clang-format -i (local)
+# RON-IS-001 §3.4 | RON-QR-SR-030
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth:        4
+TabWidth:           4
+UseTab:             Never
+ContinuationIndentWidth: 4
+
+# Column limit
+ColumnLimit: 100
+
+# Braces — K&R style with Allman for functions
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction:       true
+  AfterControlStatement: false
+  AfterEnum:           false
+  AfterStruct:         false
+  AfterUnion:          false
+  AfterExternBlock:    false
+  BeforeElse:          false
+
+# Pointer alignment
+PointerAlignment: Right
+
+# Alignment
+AlignConsecutiveAssignments:  Consecutive
+AlignConsecutiveDeclarations: None
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+
+# Sorting and includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # System / standard headers first
+  - Regex:    '^<'
+    Priority: 1
+  # Then our own headers
+  - Regex:    '^"ron/'
+    Priority: 2
+  # Then test / local headers
+  - Regex:    '.*'
+    Priority: 3
+
+# Spaces
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInParentheses:     false
+SpacesInSquareBrackets:  false
+SpaceAfterCStyleCast:    true
+SpaceBeforeAssignmentOperators: true
+
+# Comments
+CommentPragmas: '^\s*(Satisfies:|Test:|@brief|@param|@return|@pre|@post|@file|@doc|@req|@module)'
+ReflowComments: false
+
+# Empty lines
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# Short constructs
+AllowShortFunctionsOnASingleLine:  None
+AllowShortBlocksOnASingleLine:     Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine:      false
+
+# C-specific
+Standard: c11
+...
