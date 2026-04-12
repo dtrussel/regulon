@@ -11,6 +11,42 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Rust-First PID Kickoff
+-----------------------------------
+
+Added
+~~~~~
+- ``regulon-rs/Cargo.toml`` and ``regulon-rs/.cargo/config.toml``: Rust
+  workspace scaffold and cross-target build configuration for the new
+  Rust-first implementation track.
+
+- ``regulon-rs/regulon/Cargo.toml`` and ``regulon-rs/regulon/src/``:
+  ``#![no_std]`` Rust crate with ``platform``, ``error``, and ``pid``
+  modules implementing the project kickoff PID baseline.
+
+- Rust PID public API centered on ``Pid`` and ``PidConfig`` with runtime
+  state encapsulation, configuration validation, manual/automatic mode
+  switching, normalization, saturation, rate limiting, anti-windup, fault
+  latching, and state snapshots.
+
+- Traceable Rust unit tests and Kani proof scaffolding for the PID and
+  safety baseline using ``RON-TC-PID-*`` and ``RON-TC-SAFE-*`` identifiers.
+
+- ``docs/plans/rust/rust-first-rollout.md``: rollout plan/status record for
+  the Rust-first implementation, iteration sequence, and current completion
+  state.
+
+- ``regulon-rs/regulon/src/filter/``: first reusable filter slice with a
+  first-order low-pass filter and standalone asymmetric rate limiter plus
+  traceable Rust tests.
+
+- Static-gain feed-forward support in the Rust PID module, including a
+  bounded feed-forward configuration surface, feed-forward diagnostics in
+  PID state/status, and traceable Rust tests for ``RON-TC-FF-002`` and
+  ``RON-TC-FF-008``.
+
+------------------------------------------------------------------------
+
 Unreleased — Sprint 1 (C11 Platform + Type Headers)
 ----------------------------------------------------
 
