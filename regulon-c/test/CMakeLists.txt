@@ -63,10 +63,13 @@ endmacro()
 # Sprint 1 — Type definitions and compile-time size assertions
 ron_add_test(test_ron_pid_types  unit/test_ron_pid_types.c)
 
-# Sprint 2 — PID config validation and core algorithm (TC-PID-001..014)
-# ron_add_test(test_ron_pid_core   unit/test_ron_pid_core.c)
+# Sprint 2 — PID core algorithm (TC-PID-001..014)
+ron_add_test(test_ron_pid_core   unit/test_ron_pid_core.c)
 
-# Sprint 3 — PID API, fault detection, anti-windup (TC-PID-015..039)
+# Sprint 2 — Fault manager, safe-state, NaN guards (TC-SAFE-007..013)
+ron_add_test(test_ron_pid_fault  unit/test_ron_pid_fault.c)
+
+# Sprint 3 — PID API runtime updates, bumpless transfer (TC-PID-015..039)
 # ron_add_test(test_ron_pid_api    unit/test_ron_pid_api.c)
 
 # Sprint 4 — Signal conditioning filters (TC-FILT-001..017)

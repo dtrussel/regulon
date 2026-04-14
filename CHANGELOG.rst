@@ -11,6 +11,61 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Sprint 2 (PID Core Algorithm + Fault Manager)
+-----------------------------------------------------------
+
+Added
+~~~~~
+- ``regulon-c/src/ron_pid_internal.h``: Private (intra-library) header
+  declaring ``ron_pid_core_step``, ``ron_pid_fault_set``, and
+  ``ron_pid_fault_safe_output``.  Not installed with the public API.
+
+- ``regulon-c/src/ron_pid_core.c``: Full 17-stage PID computation pipeline
+  per SADS §"Module Design: ron_pid_core" — input NaN/Inf guard,
+  manual-mode passthrough, input normalisation, setpoint filter,
+  setpoint-change integral reset, 2DOF error signals, proportional term,
+  derivative (DoE/DoM with Tustin-discretised LP filter), integral
+  (Euler/trapezoidal, back-calculation or conditional-clamping AW, hard
+  clamp), denormalisation, output NaN/Inf guard, saturation, rate limit,
+  integral overflow guard, state writeback, AW-active status bit.
+  Satisfies: RON-FR-001–007, RON-FR-010–013, RON-FR-020–022, RON-FR-025–027,
+  RON-FR-030–035, RON-FR-054, RON-FR-070.
+
+- ``regulon-c/src/ron_pid_fault.c``: Fault bit-latch manager.
+  ``ron_pid_fault_set`` ORs new fault bits into the sticky register,
+  asserts ``RON_STATUS_FAULT``, and invokes the optional user callback
+  once per newly-set bit (previously-latched bits do NOT re-fire).
+  ``ron_pid_fault_safe_output`` resolves the configured safe-state policy
+  (HOLD_LAST / ZERO / CONSTANT) with ``safe_value`` clamped to
+  ``[u_min, u_max]``.  Satisfies: RON-SR-010, RON-SR-011, RON-SR-013.
+
+- ``regulon-c/test/unit/test_ron_pid_core.c``: 14 Unity test cases —
+  RON-TC-PID-001 parallel form, RON-TC-PID-002 ISA equivalence,
+  RON-TC-PID-003 P-only, RON-TC-PID-004/005 Euler/trapezoidal integration,
+  RON-TC-PID-006/007 DoE/DoM derivative kick,
+  RON-TC-PID-008/009 derivative filter on/off,
+  RON-TC-PID-010 2DOF weights, RON-TC-PID-011/012/013/014 input
+  normalisation, scaling, output denormalisation, raw-domain bypass.
+
+- ``regulon-c/test/unit/test_ron_pid_fault.c``: 5 Unity test cases —
+  RON-TC-SAFE-007 callback single-shot, RON-TC-SAFE-008 safe-state
+  policies, RON-TC-SAFE-009 ``ron_pid_fault_clear``,
+  RON-TC-SAFE-011 NaN/Inf and invalid-``dt`` guards,
+  RON-TC-SAFE-013 integral overflow threshold trip.
+
+Changed
+~~~~~~~
+- ``regulon-c/src/ron_pid_api.c``: ``ron_pid_step`` no longer ships the
+  P-only stub.  After the NULL/init/fault-latch guards and a new
+  ``dt`` finiteness/positivity check (header precondition at
+  ``ron_pid.h:131``), execution delegates to ``ron_pid_core_step``.
+  Safe-state resolution moved into ``ron_pid_fault_safe_output``.
+
+- ``regulon-c/test/CMakeLists.txt``: Enabled the ``test_ron_pid_core`` and
+  ``test_ron_pid_fault`` Sprint 2 suites.
+
+------------------------------------------------------------------------
+
 Unreleased — Sprint 1 (C11 Platform + Type Headers)
 ----------------------------------------------------
 

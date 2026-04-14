@@ -14,11 +14,7 @@
  */
 
 #include "ron/ron_pid.h"
-
-/* Internal modules (implemented in Sprint 2 / Sprint 3). */
-/* Forward declarations only — these will be implemented in ron_pid_config.c
- * and ron_pid_core.c.  For now this file provides the public-facing entry
- * points with null-pointer guards. */
+#include "ron_pid_internal.h"
 
 /* =========================================================================
  * Internal helper: null-pointer guard + init-check
@@ -146,49 +142,21 @@ ron_fault_t ron_pid_step(ron_pid_instance_t *inst,
      * if faulted, apply safe-state and return immediately. */
     if (inst->state.fault_code != RON_FAULT_NONE)
     {
-        *status = (ron_status_t)(inst->state.status | (ron_status_t)RON_STATUS_FAULT);
-        switch (inst->config.safe_policy)
-        {
-            case RON_SAFE_ZERO:
-                *u_out = RON_FLOAT_C(0.0);
-                break;
-            case RON_SAFE_CONSTANT:
-                *u_out = ron_clamp(inst->config.safe_value,
-                                   inst->config.u_min, inst->config.u_max);
-                break;
-            case RON_SAFE_HOLD_LAST: /* fall-through */
-            default:
-                *u_out = inst->state.u_sat_prev;
-                break;
-        }
+        *status = (ron_status_t)(inst->state.status |
+                                 (ron_status_t)RON_STATUS_FAULT);
+        *u_out  = ron_pid_fault_safe_output(inst);
         return inst->state.fault_code;
     }
 
-    /* Delegate to core computation (implemented in ron_pid_core.c, Sprint 2).
-     * Stub: P-only controller so the test binary links. */
-    ron_float_t e = r - y;
-    ron_float_t u_raw = inst->config.Kp * e;
-
-    /* Apply saturation. */
-    ron_float_t u_sat = ron_clamp(u_raw, inst->config.u_min, inst->config.u_max);
-
-    ron_status_t st = RON_STATUS_OK;
-    if (u_sat != u_raw)
+    /* dt sanity check (error pattern step 4) —
+     * preconditions at ron_pid.h:131 require dt > 0 and finite. */
+    if (!RON_ISFINITE(dt) || (dt <= RON_FLOAT_C(0.0)))
     {
-        st = (ron_status_t)(st | (ron_status_t)RON_STATUS_SATURATED);
+        return RON_FAULT_CONFIG_INVALID;
     }
 
-    inst->state.u_sat_prev = u_sat;
-    inst->state.u_prev     = u_raw;
-    inst->state.status     = st;
-
-    *u_out  = u_sat;
-    *status = st;
-
-    (void)dt; /* dt used by the full implementation in Sprint 2. */
-    (void)y;
-
-    return RON_FAULT_NONE;
+    /* Delegate to the core computation pipeline (Sprint 2). */
+    return ron_pid_core_step(inst, r, y, dt, u_out, status);
 }
 
 /* =========================================================================
