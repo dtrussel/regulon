@@ -16,7 +16,8 @@
 
 /* Satisfies: RON-FR-001 – RON-FR-071 | Test: RON-TC-PID-001 – RON-TC-PID-039 */
 ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
-                              ron_float_t dt, ron_float_t *u_out, ron_status_t *status);
+                              ron_float_t dt, ron_float_t external_ff, ron_float_t *u_out,
+                              ron_status_t *status);
 
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007 */
 void ron_pid_fault_set(ron_pid_instance_t *inst, ron_fault_t code);

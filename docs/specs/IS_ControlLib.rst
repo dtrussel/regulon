@@ -694,6 +694,7 @@ specifications) live at the root.
    │   ├── cmake/
    │   │   ├── toolchains/
    │   │   │   ├── arm-none-eabi.cmake
+   │   │   │   ├── armv7-none-eabi-clang.cmake
    │   │   │   ├── riscv32-unknown-elf.cmake
    │   │   │   └── host-x86_64.cmake
    │   │   └── ron_options.cmake
@@ -960,6 +961,15 @@ Defines all public enumeration and structure types. This header has no dependenc
        RON_INTEG_TRAPEZOIDAL = 1  /**< Trapezoidal (Tustin) method.           */
    } ron_integ_method_t;
 
+   typedef enum
+   {
+       RON_FF_DISABLED     = 0, /**< Feed-forward disabled.                  */
+       RON_FF_STATIC_GAIN  = 1, /**< u_ff = gain * setpoint.                */
+       RON_FF_VELOCITY     = 2, /**< u_ff = gain * filtered velocity.       */
+       RON_FF_ACCELERATION = 3, /**< u_ff = gain * filtered acceleration.   */
+       RON_FF_EXTERNAL     = 4  /**< Caller supplies u_ff directly.         */
+   } ron_feedforward_mode_t;
+
    /* ================================================================== */
    /* Fault and status bitmasks                                          */
    /* ================================================================== */
@@ -996,6 +1006,7 @@ Defines all public enumeration and structure types. This header has no dependenc
    #define RON_STATUS_FAULT            ((ron_status_t)0x0010U) /**< Fault register is non-zero.  */
    #define RON_STATUS_SP_FILTER_ACTIVE ((ron_status_t)0x0020U) /**< Setpoint filter is active.   */
    #define RON_STATUS_NORMALISED       ((ron_status_t)0x0040U) /**< Normalisation is enabled.    */
+   #define RON_STATUS_FF_ACTIVE        ((ron_status_t)0x0080U) /**< Feed-forward contribution.   */
 
    /* ================================================================== */
    /* Fault handler callback type                                        */
@@ -1012,6 +1023,13 @@ Defines all public enumeration and structure types. This header has no dependenc
     * @param[in] fault  The newly detected fault code (single bit, not accumulated).
     */
    typedef void (*ron_fault_cb_t)(ron_fault_t fault);
+
+   typedef struct
+   {
+       ron_feedforward_mode_t mode; /**< Selected feed-forward source.        */
+       ron_float_t gain;            /**< Signed gain interpreted by mode.     */
+       ron_float_t N_ff;            /**< Independent FF derivative filter.    */
+   } ron_feedforward_config_t;
 
    /* ================================================================== */
    /* Configuration structure                                            */
@@ -1090,6 +1108,8 @@ Defines all public enumeration and structure types. This header has no dependenc
                                               <= 0 disables this feature.       */
 
        /* ── Fault handler callback ──────────────────────────────────── */
+       ron_feedforward_config_t feedforward; /**< Optional additive FF path.   */
+
        ron_fault_cb_t  fault_cb;   /**< Optional fault notification callback.
                                          NULL if not used.                      */
    } ron_pid_config_t;
@@ -1117,6 +1137,10 @@ Defines all public enumeration and structure types. This header has no dependenc
        ron_float_t   u_sat_prev;      /**< Previous saturated output.          */
        ron_float_t   u_prev;          /**< Previous pre-saturation output.     */
        ron_float_t   e_prev;          /**< Previous error (for trapezoidal).   */
+       ron_float_t   ff_r_prev;       /**< Previous FF setpoint input.         */
+       ron_float_t   ff_v_prev;       /**< Previous filtered FF velocity.      */
+       ron_float_t   ff_a_prev;       /**< Previous filtered FF acceleration.  */
+       ron_float_t   u_ff_prev;       /**< Previous feed-forward contribution. */
        ron_op_mode_t mode;            /**< Current operating mode.             */
        ron_fault_t   fault_code;      /**< Accumulated fault register.         */
        ron_status_t  status;          /**< Status word from last step.         */
@@ -1491,6 +1515,39 @@ This is the **only** header that library consumers include. It provides the comp
    #endif
 
    #endif /* RON_PID_H */
+
+------------------------------------------------------------------------
+
+Public API Header: ``ron_feedforward.h``
+=========================================
+
+This header exposes the optional PID feed-forward extension. It includes
+``ron_pid.h`` and keeps the existing ``ron_pid_step()`` signature unchanged.
+
+.. code-block:: c
+
+   #ifndef RON_FEEDFORWARD_H
+   #define RON_FEEDFORWARD_H
+
+   #include "ron/ron_pid.h"
+
+   ron_fault_t ron_feedforward_config_validate(const ron_feedforward_config_t *cfg);
+
+   ron_fault_t ron_pid_set_feedforward(ron_pid_instance_t *inst,
+                                       const ron_feedforward_config_t *cfg);
+
+   ron_fault_t ron_pid_step_feedforward(ron_pid_instance_t *inst,
+                                        ron_float_t         r,
+                                        ron_float_t         y,
+                                        ron_float_t         dt,
+                                        ron_float_t         external_ff,
+                                        ron_float_t        *u_out,
+                                        ron_status_t       *status);
+
+   ron_fault_t ron_pid_get_feedforward(const ron_pid_instance_t *inst,
+                                       ron_float_t *u_ff);
+
+   #endif /* RON_FEEDFORWARD_H */
 
 ------------------------------------------------------------------------
 
@@ -2155,6 +2212,32 @@ Example Toolchain File: ``regulon-c/cmake/toolchains/arm-none-eabi.cmake``
    set(CMAKE_SIZE              arm-none-eabi-size)
    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
    set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
+
+Example Toolchain File: ``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: cmake
+
+   # Usage: cmake -G Ninja \
+   #              -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/armv7-none-eabi-clang.cmake \
+   #              -B build_armv7_clang -S c/
+
+   set(CMAKE_SYSTEM_NAME       Generic)
+   set(CMAKE_SYSTEM_PROCESSOR  armv7)
+   set(CMAKE_C_COMPILER_TARGET armv7-none-eabi)
+   set(CMAKE_C_COMPILER        clang)
+   set(CMAKE_AR                llvm-ar)
+   set(CMAKE_RANLIB            llvm-ranlib)
+   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
+
+The Clang ARMv7 toolchain prefers a real Newlib target header set through
+``RON_ARM_CLANG_NEWLIB_INCLUDE``. CI passes ``/usr/include/newlib`` after
+installing ``libnewlib-arm-none-eabi`` and disables the local header fallback
+with ``RON_ARM_CLANG_ALLOW_HEADER_SHIM=OFF``. Windows developer builds
+auto-detect common Arm GNU Toolchain, GNU Arm Embedded, xPack, Scoop, and
+Chocolatey Newlib include locations; otherwise the verification script allows a
+declaration-only fallback for static-library object smoke builds.
 
 Example Toolchain File: ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

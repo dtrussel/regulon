@@ -14,6 +14,13 @@
 
 #include "ron_pid_internal.h"
 
+typedef struct {
+    ron_float_t u_ff;
+    ron_float_t r_prev;
+    ron_float_t v_prev;
+    ron_float_t a_prev;
+} pid_feedforward_update_t;
+
 /* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
 static bool pid_core_isfinite(ron_float_t value)
 {
@@ -72,6 +79,63 @@ static ron_float_t pid_derivative(const ron_pid_config_t *cfg, const ron_pid_sta
     }
 
     return derivative;
+}
+
+/* Satisfies: RON-FR-202 | Test: RON-TC-FF-006 */
+static ron_float_t pid_ff_filter(ron_float_t raw, ron_float_t previous, ron_float_t n_ff,
+                                 ron_float_t dt)
+{
+    ron_float_t filtered;
+
+    filtered = raw;
+    if (n_ff > RON_FLOAT_C(0.0)) {
+        ron_float_t coeff_n;
+
+        coeff_n  = n_ff * dt;
+        filtered = ((coeff_n / (RON_FLOAT_C(1.0) + coeff_n)) * raw) +
+                   ((RON_FLOAT_C(1.0) / (RON_FLOAT_C(1.0) + coeff_n)) * previous);
+    }
+
+    return filtered;
+}
+
+/* Satisfies: RON-FR-200 - RON-FR-202, RON-FR-204 | Test: RON-TC-FF-001 - RON-TC-FF-006, RON-TC-FF-008 */
+static pid_feedforward_update_t pid_feedforward(const ron_pid_config_t *cfg,
+                                                const ron_pid_state_t *state, ron_float_t r,
+                                                ron_float_t dt, ron_float_t external_ff)
+{
+    pid_feedforward_update_t update;
+
+    update.u_ff   = RON_FLOAT_C(0.0);
+    update.r_prev = state->ff_r_prev;
+    update.v_prev = state->ff_v_prev;
+    update.a_prev = state->ff_a_prev;
+
+    if (cfg->feedforward.mode == RON_FF_EXTERNAL) {
+        update.u_ff   = external_ff;
+        update.r_prev = r;
+    } else if ((cfg->feedforward.mode != RON_FF_DISABLED) &&
+               (cfg->feedforward.gain != RON_FLOAT_C(0.0))) {
+        update.r_prev = r;
+        if (cfg->feedforward.mode == RON_FF_STATIC_GAIN) {
+            update.u_ff = cfg->feedforward.gain * r;
+        } else {
+            ron_float_t velocity;
+
+            velocity      = pid_ff_filter((r - state->ff_r_prev) / dt, state->ff_v_prev,
+                                          cfg->feedforward.N_ff, dt);
+            update.v_prev = velocity;
+            if (cfg->feedforward.mode == RON_FF_VELOCITY) {
+                update.u_ff = cfg->feedforward.gain * velocity;
+            } else {
+                update.a_prev = pid_ff_filter((velocity - state->ff_v_prev) / dt, state->ff_a_prev,
+                                              cfg->feedforward.N_ff, dt);
+                update.u_ff   = cfg->feedforward.gain * update.a_prev;
+            }
+        }
+    }
+
+    return update;
 }
 
 /* Satisfies: RON-FR-004, RON-FR-030 – RON-FR-035 | Test: RON-TC-PID-004, RON-TC-PID-005, RON-TC-PID-021 – RON-TC-PID-026 */
@@ -229,7 +293,8 @@ static ron_fault_t pid_apply_output_limits(ron_pid_instance_t *inst, ron_float_t
 /* Satisfies: RON-FR-050, RON-FR-070 | Test: RON-TC-PID-030, RON-TC-PID-039 */
 static void pid_store_step(ron_pid_state_t *state, ron_float_t y_n, ron_float_t e, ron_float_t e_d,
                            ron_float_t d_term, ron_float_t r_f, ron_float_t i_term,
-                           ron_float_t u_raw, ron_float_t u_final, ron_status_t step_status)
+                           const pid_feedforward_update_t *ff, ron_float_t u_raw,
+                           ron_float_t u_final, ron_status_t step_status)
 {
     state->integral    = i_term;
     state->y_prev      = y_n;
@@ -239,12 +304,17 @@ static void pid_store_step(ron_pid_state_t *state, ron_float_t y_n, ron_float_t 
     state->u_sat_prev  = u_final;
     state->u_prev      = u_raw;
     state->e_prev      = e;
+    state->ff_r_prev   = ff->r_prev;
+    state->ff_v_prev   = ff->v_prev;
+    state->ff_a_prev   = ff->a_prev;
+    state->u_ff_prev   = ff->u_ff;
     state->status      = step_status;
 }
 
 /* Satisfies: RON-FR-001 – RON-FR-071 | Test: RON-TC-PID-001 – RON-TC-PID-039 */
 ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
-                              ron_float_t dt, ron_float_t *u_out, ron_status_t *status)
+                              ron_float_t dt, ron_float_t external_ff, ron_float_t *u_out,
+                              ron_status_t *status)
 {
     const ron_pid_config_t *cfg;
     ron_pid_state_t *state;
@@ -269,18 +339,23 @@ ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float
         ron_float_t p_term;
         ron_float_t d_term;
         ron_float_t i_term;
+        pid_feedforward_update_t ff_update;
         ron_float_t u_raw;
         ron_float_t u_final;
 
         pid_prepare_inputs(cfg, state, r, y, dt, &r_n, &y_n, &r_f, &step_status);
 
-        e      = r_f - y_n;
-        e_p    = (cfg->b * r_f) - y_n;
-        e_d    = (cfg->c * r_f) - y_n;
-        p_term = cfg->Kp * e_p;
-        d_term = pid_derivative(cfg, state, y_n, e_d, dt);
-        i_term = pid_integral(cfg, state, e, dt);
-        u_raw  = p_term + i_term + d_term;
+        e         = r_f - y_n;
+        e_p       = (cfg->b * r_f) - y_n;
+        e_d       = (cfg->c * r_f) - y_n;
+        p_term    = cfg->Kp * e_p;
+        d_term    = pid_derivative(cfg, state, y_n, e_d, dt);
+        i_term    = pid_integral(cfg, state, e, dt);
+        ff_update = pid_feedforward(cfg, state, r_f, dt, external_ff);
+        u_raw     = p_term + i_term + d_term + ff_update.u_ff;
+        if (ff_update.u_ff != RON_FLOAT_C(0.0)) {
+            step_status = (ron_status_t) (step_status | RON_STATUS_FF_ACTIVE);
+        }
         if (cfg->normalise) {
             u_raw = pid_denormalise(u_raw, cfg->out_min, cfg->out_max);
         }
@@ -288,7 +363,8 @@ ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float
         fault =
             pid_apply_output_limits(inst, dt, i_term, u_raw, &u_final, &step_status, u_out, status);
         if (fault == RON_FAULT_NONE) {
-            pid_store_step(state, y_n, e, e_d, d_term, r_f, i_term, u_raw, u_final, step_status);
+            pid_store_step(state, y_n, e, e_d, d_term, r_f, i_term, &ff_update, u_raw, u_final,
+                           step_status);
             *u_out  = u_final;
             *status = step_status;
         }

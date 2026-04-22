@@ -52,6 +52,14 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_feedforward.h`` and
+  ``regulon-c/src/ron_feedforward.c``: added the complete C11 Phase 2
+  feed-forward PID extension with static, velocity, acceleration, and
+  external feed-forward modes.
+
+- ``regulon-c/test/unit/test_ron_feedforward.c``: added traceable Unity tests
+  for ``RON-TC-FF-001`` through ``RON-TC-FF-009``.
+
 - ``regulon-c/include/ron/ron_filter.h`` and ``regulon-c/src/ron_filter.c``:
   added the complete C11 signal-conditioning filter slice with LP1,
   moving-average FIR, cascaded biquad IIR, coefficient helpers, notch
@@ -63,6 +71,11 @@ Added
 - ``regulon-c/test/formal/filter_*_proof.c``: added focused CBMC harnesses
   for filter null-pointer handling, bounded array access, bounded execution,
   and no-heap evidence.
+
+- ``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake``: added an
+  LLVM/Clang bare-metal ARMv7 cross-compile toolchain and CI/local verification
+  wiring for ``cross-arm-clang``, preferring Newlib target headers when
+  installed.
 
 - ``regulon-c/src/ron_pid_api.c``, ``regulon-c/src/ron_pid_core.c``,
   ``regulon-c/src/ron_pid_fault.c``, and ``regulon-c/src/ron_pid_internal.h``:
@@ -92,12 +105,13 @@ Added
 Changed
 ~~~~~~~
 - ``regulon-c/CMakeLists.txt`` and ``regulon-c/test/CMakeLists.txt``: enabled
-  the Phase 1 filter source and unit suite in the active C11 build without
-  enabling later placeholder modules.
+  the Phase 1 filter and Phase 2 feed-forward source/unit suites in the active
+  C11 build without enabling later placeholder modules.
 
 - ``regulon-c/scripts/verify_pid.ps1`` and ``.github/workflows/ci_c.yml``:
-  extended active-source verification from PID-only to PID plus filters for
-  format, static analysis, complexity, coverage, and CBMC source lists.
+  extended active-source verification from PID-only to PID plus filters and
+  feed-forward for format, static analysis, complexity, coverage, and CBMC
+  source lists.
 
 - ``docs/specs/IS_ControlLib.rst`` and ``docs/specs/TP_ControlLib.rst``:
   reconciled the filter API with ``get_state`` operations, shared
@@ -105,12 +119,13 @@ Changed
   ``RON-TC-FILT-*`` test scenarios.
 
 - ``docs/plans/c/c11-rollout.md`` and ``docs/plans/c11-roadmap.md``:
-  recorded Phase 0 PID closure acceptance and Phase 1 filter completion, with
-  Phase 2 feed-forward identified as the next C11 roadmap item.
+  recorded Phase 0 PID closure acceptance, Phase 1 filter completion, and
+  Phase 2 feed-forward completion, with Phase 3 gain scheduling identified as
+  the next C11 roadmap item.
 
 - ``regulon-c/CMakeLists.txt``: keeps the active C build limited to accepted
-  slices, now PID plus filters, so later placeholder modules do not pollute
-  host builds and quality evidence.
+  slices, now PID plus filters plus feed-forward, so later placeholder modules
+  do not pollute host builds and quality evidence.
 
 - ``regulon-c/test/CMakeLists.txt``: fixed the Windows/MSVC host-test build by
   making ``m`` linkage conditional and enabling the PID core/API suites.

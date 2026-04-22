@@ -89,3 +89,21 @@ All non-PID modules remain present in the repository but stay out of the active 
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps msvc,double,clang`: passes
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps format,complexity,cppcheck`: passes
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage
+
+## Phase 2 Feed-Forward Opening Evidence
+
+- `ron_feedforward.h` and `ron_feedforward.c` are now active in the default
+  C11 build.
+- `test_ron_feedforward.c` covers `RON-TC-FF-001` through `RON-TC-FF-009`,
+  including static, velocity, acceleration, external, disabled-path,
+  output-limit, and diagnostic scenarios.
+- The existing `ron_pid_step()` signature is preserved. External
+  feed-forward input is exposed through `ron_pid_step_feedforward()`.
+- Local evidence after enabling feed-forward:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON`: passes
+  - `cmake --build regulon-c/build --config Debug`: passes
+  - `ctest --test-dir regulon-c/build -C Debug --output-on-failure`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps format,complexity,cppcheck`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps msvc,double,clang`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps probe,cross-arm,cross-arm-clang,cbmc`: passes with local `cross-arm-clang` evidence, `cross-arm` skipped because `arm-none-eabi-gcc` is unavailable, and `cbmc` skipped because CBMC is unavailable

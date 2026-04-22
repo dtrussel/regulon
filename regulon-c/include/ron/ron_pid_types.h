@@ -5,6 +5,7 @@
  * @doc      RON-IS-001
  * @req      RON-FR-001, RON-FR-004, RON-FR-005, RON-FR-030, RON-FR-040,
  *           RON-FR-050, RON-FR-060, RON-FR-070,
+ *           RON-FR-200, RON-FR-201, RON-FR-202, RON-FR-205,
  *           RON-SR-010, RON-SR-011, RON-SR-012, RON-SR-013,
  *           RON-PR-021
  * @version  1.0.0
@@ -85,6 +86,20 @@ typedef enum {
     RON_INTEG_TRAPEZOIDAL = 1  /**< Trapezoidal (Tustin) method.              */
 } ron_integ_method_t;
 
+/**
+ * @brief Feed-forward contribution source.
+ *
+ * Satisfies: RON-FR-201.
+ */
+/* Satisfies: RON-FR-201 | Test: RON-TC-FF-002 - RON-TC-FF-005 */
+typedef enum {
+    RON_FF_DISABLED     = 0, /**< Feed-forward path disabled.                 */
+    RON_FF_STATIC_GAIN  = 1, /**< u_ff = gain * setpoint.                    */
+    RON_FF_VELOCITY     = 2, /**< u_ff = gain * filtered setpoint velocity.  */
+    RON_FF_ACCELERATION = 3, /**< u_ff = gain * filtered setpoint accel.     */
+    RON_FF_EXTERNAL     = 4  /**< Caller supplies u_ff directly.             */
+} ron_feedforward_mode_t;
+
 /* =========================================================================
  * Fault register type and bitmasks
  * ========================================================================= */
@@ -127,6 +142,7 @@ typedef uint16_t ron_status_t;
 #define RON_STATUS_FAULT ((ron_status_t) 0x0010U)            /**< Fault latched.*/
 #define RON_STATUS_SP_FILTER_ACTIVE ((ron_status_t) 0x0020U) /**< SP filter on. */
 #define RON_STATUS_NORMALISED ((ron_status_t) 0x0040U)       /**< Normalisation enabled. */
+#define RON_STATUS_FF_ACTIVE ((ron_status_t) 0x0080U)        /**< FF contribution nonzero. */
 
 /* =========================================================================
  * Fault handler callback type
@@ -147,6 +163,22 @@ typedef uint16_t ron_status_t;
  */
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007 */
 typedef void (*ron_fault_cb_t)(ron_fault_t fault);
+
+/**
+ * @brief Feed-forward configuration.
+ *
+ * The gain is interpreted by the selected mode and may be signed. N_ff is the
+ * independent low-pass filter coefficient for velocity and acceleration
+ * estimates; 0 disables feed-forward derivative filtering.
+ *
+ * Satisfies: RON-FR-201, RON-FR-202.
+ */
+/* Satisfies: RON-FR-201, RON-FR-202 | Test: RON-TC-FF-002 - RON-TC-FF-006 */
+typedef struct {
+    ron_feedforward_mode_t mode; /**< Selected feed-forward source.      */
+    ron_float_t gain;            /**< Signed gain interpreted by mode.   */
+    ron_float_t N_ff;            /**< Independent FF derivative filter.  */
+} ron_feedforward_config_t;
 
 /* =========================================================================
  * Configuration structure
@@ -222,6 +254,9 @@ typedef struct {
     ron_float_t sp_reset_threshold; /**< |Δr| > this resets the integral.
                                            <= 0 disables.                      */
 
+    /* Feed-forward extension */
+    ron_feedforward_config_t feedforward; /**< Optional additive FF path.      */
+
     /* ── Fault handler callback ──────────────────────────────────────── */
     ron_fault_cb_t fault_cb; /**< Optional fault notification callback.
                                     NULL = not used.                           */
@@ -250,6 +285,10 @@ typedef struct {
     ron_float_t u_sat_prev;  /**< Previous saturated output (for AW).     */
     ron_float_t u_prev;      /**< Previous pre-saturation output.         */
     ron_float_t e_prev;      /**< Previous error (for trapezoidal).       */
+    ron_float_t ff_r_prev;   /**< Previous FF setpoint input.             */
+    ron_float_t ff_v_prev;   /**< Previous filtered FF velocity.          */
+    ron_float_t ff_a_prev;   /**< Previous filtered FF acceleration.      */
+    ron_float_t u_ff_prev;   /**< Previous feed-forward contribution.     */
     ron_op_mode_t mode;      /**< Current operating mode.                 */
     ron_fault_t fault_code;  /**< Accumulated fault register (sticky).    */
     ron_status_t status;     /**< Status word from the last step.         */

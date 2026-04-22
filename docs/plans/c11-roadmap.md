@@ -25,15 +25,19 @@ Ground-truth inputs:
 
 ## Current Baseline
 
-The active C11 implementation now contains the closed PID baseline plus the
-Phase 1 signal-conditioning filter module. The current public surface is:
+The active C11 implementation now contains the closed PID baseline, the
+Phase 1 signal-conditioning filter module, and the Phase 2 feed-forward PID
+extension. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
 - `regulon-c/include/ron/ron_pid.h`
 - `regulon-c/include/ron/ron_filter.h`
+- `regulon-c/include/ron/ron_feedforward.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
+Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
+unit tests for `RON-TC-FF-001` through `RON-TC-FF-009`.
 
 ## Sequencing Strategy
 
@@ -112,7 +116,9 @@ Exit criteria:
 
 ## Phase 2: Feed-Forward PID Extension
 
-Status: Next active C11 roadmap phase. Do not start until the Phase 1 filter slice is accepted.
+Status: Complete. The C11 feed-forward public API, implementation, PID core
+integration, unit tests, build wiring, CI wiring, changelog, and test-plan
+details are in place.
 
 Requirement scope:
 
@@ -151,6 +157,9 @@ Exit criteria:
 - Feed-forward tests cover each mode and diagnostic path.
 
 ## Phase 3: Gain Scheduling
+
+Status: Next active C11 roadmap phase. Do not start until the Phase 2
+feed-forward slice is accepted.
 
 Requirement scope:
 

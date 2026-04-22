@@ -138,12 +138,14 @@ jobs:
       - name: Check formatting
         run: |
           clang-format --dry-run --Werror \
+            regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
             regulon-c/src/ron_pid_api.c \
             regulon-c/src/ron_pid_config.c \
             regulon-c/src/ron_pid_core.c \
             regulon-c/src/ron_pid_fault.c \
             regulon-c/src/ron_pid_internal.h \
+            regulon-c/include/ron/ron_feedforward.h \
             regulon-c/include/ron/ron_filter.h \
             regulon-c/include/ron/ron_platform.h \
             regulon-c/include/ron/ron_pid_types.h \
@@ -176,6 +178,7 @@ jobs:
                    --suppress=misra-c2012-15.7 \
                    --suppress=misra-c2012-20.10 \
                    -I regulon-c/include \
+                   regulon-c/src/ron_feedforward.c \
                    regulon-c/src/ron_filter.c \
                    regulon-c/src/ron_pid_api.c \
                    regulon-c/src/ron_pid_config.c \
@@ -186,6 +189,7 @@ jobs:
       - name: Run complexity check
         run: |
           python3 -m lizard -C 10 \
+            regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
             regulon-c/src/ron_pid_api.c \
             regulon-c/src/ron_pid_config.c \
@@ -249,6 +253,7 @@ jobs:
           done
 
           source_args=(
+            -sources regulon-c/src/ron_feedforward.c
             -sources regulon-c/src/ron_filter.c
             -sources regulon-c/src/ron_pid_api.c
             -sources regulon-c/src/ron_pid_config.c
@@ -312,7 +317,34 @@ jobs:
         run: cmake --build regulon-c/build_arm --parallel
 
   # ---------------------------------------------------------------------------
-  # Job 8: CBMC Formal Verification (RON-TP-001)
+  # Job 8: ARMv7 Clang bare-metal cross-compile smoke build (RON-TC-QUAL-022)
+  # ---------------------------------------------------------------------------
+  cross-arm-clang:
+    name: Cross Compile (ARMv7 Clang)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build clang llvm libnewlib-arm-none-eabi
+
+      - name: Configure ARMv7 Clang PID build
+        run: |
+          cmake -G Ninja -B regulon-c/build_armv7_clang -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF \
+                -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake \
+                -DRON_ARM_CLANG_NEWLIB_INCLUDE=/usr/include/newlib \
+                -DRON_ARM_CLANG_ALLOW_HEADER_SHIM=OFF
+
+      - name: Build ARMv7 Clang PID library
+        run: cmake --build regulon-c/build_armv7_clang --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 9: CBMC Formal Verification (RON-TP-001)
   # ---------------------------------------------------------------------------
   formal-verification:
     name: CBMC Formal Proofs
@@ -342,6 +374,7 @@ jobs:
                  --unwind 32 --unwinding-assertions \
                  --bounds-check --pointer-check \
                  "$harness" \
+                 regulon-c/src/ron_feedforward.c \
                  regulon-c/src/ron_filter.c \
                  regulon-c/src/ron_pid_api.c \
                  regulon-c/src/ron_pid_config.c \

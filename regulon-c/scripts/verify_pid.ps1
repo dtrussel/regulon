@@ -1,5 +1,5 @@
 param(
-    [string[]]$Steps = @("probe", "msvc", "double", "format", "cppcheck", "complexity", "coverage", "clang", "cross-arm", "cbmc"),
+    [string[]]$Steps = @("probe", "msvc", "double", "format", "cppcheck", "complexity", "coverage", "clang", "cross-arm", "cross-arm-clang", "cbmc"),
     [switch]$FailOnMissing
 )
 
@@ -95,6 +95,46 @@ function Show-Or-Missing {
     return $Value
 }
 
+function Find-NewlibInclude {
+    $Candidates = @(
+        $env:RON_ARM_CLANG_NEWLIB_INCLUDE,
+        "C:\Program Files\Arm GNU Toolchain arm-none-eabi",
+        "C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi",
+        "C:\Program Files\GNU Arm Embedded Toolchain",
+        "C:\Program Files (x86)\GNU Arm Embedded Toolchain"
+    )
+
+    foreach ($candidate in $Candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        if ((Test-Path -LiteralPath (Join-Path $candidate "math.h"))) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    $Patterns = @(
+        "C:\Program Files\Arm GNU Toolchain arm-none-eabi\*\arm-none-eabi\include",
+        "C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi\*\arm-none-eabi\include",
+        "C:\Program Files\GNU Arm Embedded Toolchain\*\arm-none-eabi\include",
+        "C:\Program Files (x86)\GNU Arm Embedded Toolchain\*\arm-none-eabi\include",
+        (Join-Path $env:USERPROFILE "AppData\Roaming\xPacks\@xpack-dev-tools\arm-none-eabi-gcc\*\.content\arm-none-eabi\include"),
+        (Join-Path $env:USERPROFILE "scoop\apps\gcc-arm-none-eabi\current\arm-none-eabi\include"),
+        "C:\ProgramData\chocolatey\lib\gcc-arm-embedded\tools\*\arm-none-eabi\include"
+    )
+
+    foreach ($pattern in $Patterns) {
+        $matches = @(Get-Item -Path $pattern -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "math.h") } |
+            Sort-Object -Property FullName -Descending)
+        if ($matches.Count -gt 0) {
+            return $matches[0].FullName
+        }
+    }
+
+    return $null
+}
+
 function Test-CoverageSummary {
     param([string]$SummaryJson)
 
@@ -118,12 +158,14 @@ function Test-CoverageSummary {
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $RegulonC = Join-Path $RepoRoot "regulon-c"
 $ActiveSources = @(
+    (Join-Path $RegulonC "src\ron_feedforward.c"),
     (Join-Path $RegulonC "src\ron_filter.c"),
     (Join-Path $RegulonC "src\ron_pid_api.c"),
     (Join-Path $RegulonC "src\ron_pid_config.c"),
     (Join-Path $RegulonC "src\ron_pid_core.c"),
     (Join-Path $RegulonC "src\ron_pid_fault.c"),
     (Join-Path $RegulonC "src\ron_pid_internal.h"),
+    (Join-Path $RegulonC "include\ron\ron_feedforward.h"),
     (Join-Path $RegulonC "include\ron\ron_filter.h"),
     (Join-Path $RegulonC "include\ron\ron_platform.h"),
     (Join-Path $RegulonC "include\ron\ron_pid_types.h"),
@@ -141,6 +183,10 @@ $Clang = Find-CommandPath -Names @("clang")
 $ClangCl = Find-CommandPath -Names @("clang-cl")
 $LlvmCov = Find-CommandPath -Names @("llvm-cov")
 $LlvmProfdata = Find-CommandPath -Names @("llvm-profdata")
+$LlvmAr = Find-CommandPath -Names @("llvm-ar")
+$LlvmRanlib = Find-CommandPath -Names @("llvm-ranlib")
+$LlvmSize = Find-CommandPath -Names @("llvm-size")
+$NewlibInclude = Find-NewlibInclude
 $Ninja = Find-CommandPath -Names @("ninja") -FallbackPaths @(
     "C:\Program Files\Ninja\ninja.exe",
     "C:\Program Files\LLVM\bin\ninja.exe",
@@ -172,7 +218,7 @@ $MissingRequired = $false
 foreach ($step in $Steps) {
     switch ($step) {
         "probe" {
-            Add-Result $Results "probe" "ok" ("cmake={0}; ctest={1}; python={2}; cppcheck={3}; misra={4}; clang-format={5}; clang={6}; clang-cl={7}; llvm-cov={8}; llvm-profdata={9}; ninja={10}; vs-clangcl-toolset={11}; arm-none-eabi-gcc={12}; cbmc={13}" -f `
+            Add-Result $Results "probe" "ok" ("cmake={0}; ctest={1}; python={2}; cppcheck={3}; misra={4}; clang-format={5}; clang={6}; clang-cl={7}; llvm-cov={8}; llvm-profdata={9}; llvm-ar={10}; llvm-ranlib={11}; llvm-size={12}; newlib-include={13}; ninja={14}; vs-clangcl-toolset={15}; arm-none-eabi-gcc={16}; cbmc={17}" -f `
                 (Show-Or-Missing $CMake),
                 (Show-Or-Missing $CTest),
                 (Show-Or-Missing $Python),
@@ -183,6 +229,10 @@ foreach ($step in $Steps) {
                 (Show-Or-Missing $ClangCl),
                 (Show-Or-Missing $LlvmCov),
                 (Show-Or-Missing $LlvmProfdata),
+                (Show-Or-Missing $LlvmAr),
+                (Show-Or-Missing $LlvmRanlib),
+                (Show-Or-Missing $LlvmSize),
+                (Show-Or-Missing $NewlibInclude),
                 (Show-Or-Missing $Ninja),
                 (Show-Or-Missing $VsClangClToolset),
                 (Show-Or-Missing $ArmGcc),
@@ -243,6 +293,7 @@ foreach ($step in $Steps) {
                 "--suppress=misra-c2012-15.7",
                 "--suppress=misra-c2012-20.10",
                 "-I", (Join-Path $RegulonC "include"),
+                (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
@@ -260,6 +311,7 @@ foreach ($step in $Steps) {
             }
 
             Invoke-External "lizard complexity pass" $Python @("-m", "lizard", "-C", "10",
+                (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
@@ -310,6 +362,7 @@ foreach ($step in $Steps) {
                 }
             }
             $CoverageSources = @(
+                (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
@@ -365,6 +418,39 @@ foreach ($step in $Steps) {
             Invoke-External "Build ARM cross-compile" $CMake @("--build", $BuildDir)
             Add-Result $Results "cross-arm" "ok" $BuildDir
         }
+        "cross-arm-clang" {
+            if (($null -eq $Clang) -or ($null -eq $LlvmAr) -or ($null -eq $LlvmRanlib) -or
+                ($null -eq $CMake) -or ($null -eq $Ninja)) {
+                Add-Result $Results "cross-arm-clang" "skip" "clang, llvm-ar, llvm-ranlib, cmake, or ninja not available"
+                $MissingRequired = $MissingRequired -or $FailOnMissing
+                continue
+            }
+
+            $BuildDir = Join-Path $RegulonC "build\verify-armv7-clang"
+            $Toolchain = Join-Path $RegulonC "cmake\toolchains\armv7-none-eabi-clang.cmake"
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $BuildDir
+            $ConfigureArgs = @(
+                "-G", "Ninja",
+                "-B", $BuildDir,
+                "-S", $RegulonC,
+                "-DRON_BUILD_TESTS=OFF",
+                "-DCMAKE_TOOLCHAIN_FILE=$Toolchain",
+                "-DCMAKE_C_COMPILER=$Clang",
+                "-DCMAKE_MAKE_PROGRAM=$Ninja")
+            if ($null -ne $NewlibInclude) {
+                $ConfigureArgs += @("-DRON_ARM_CLANG_NEWLIB_INCLUDE=$NewlibInclude", "-DRON_ARM_CLANG_ALLOW_HEADER_SHIM=OFF")
+            } else {
+                $ConfigureArgs += @("-DRON_ARM_CLANG_ALLOW_HEADER_SHIM=ON")
+            }
+            Invoke-External "Configure ARMv7 Clang cross-compile" $CMake @(
+                $ConfigureArgs)
+            Invoke-External "Build ARMv7 Clang cross-compile" $CMake @("--build", $BuildDir)
+            if ($null -ne $NewlibInclude) {
+                Add-Result $Results "cross-arm-clang" "ok" "$BuildDir; newlib=$NewlibInclude"
+            } else {
+                Add-Result $Results "cross-arm-clang" "ok" "$BuildDir; freestanding header fallback"
+            }
+        }
         "cbmc" {
             if ($null -eq $Cbmc) {
                 Add-Result $Results "cbmc" "skip" "cbmc not available"
@@ -384,6 +470,7 @@ foreach ($step in $Steps) {
                     "--bounds-check",
                     "--pointer-check",
                     $harness,
+                    (Join-Path $RegulonC "src\ron_feedforward.c"),
                     (Join-Path $RegulonC "src\ron_filter.c"),
                     (Join-Path $RegulonC "src\ron_pid_api.c"),
                     (Join-Path $RegulonC "src\ron_pid_config.c"),

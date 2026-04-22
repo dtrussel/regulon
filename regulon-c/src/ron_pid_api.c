@@ -44,6 +44,10 @@ static void pid_reset_state(ron_pid_state_t *state)
     state->u_sat_prev  = RON_FLOAT_C(0.0);
     state->u_prev      = RON_FLOAT_C(0.0);
     state->e_prev      = RON_FLOAT_C(0.0);
+    state->ff_r_prev   = RON_FLOAT_C(0.0);
+    state->ff_v_prev   = RON_FLOAT_C(0.0);
+    state->ff_a_prev   = RON_FLOAT_C(0.0);
+    state->u_ff_prev   = RON_FLOAT_C(0.0);
     state->fault_code  = RON_FAULT_NONE;
 }
 
@@ -120,8 +124,11 @@ ron_fault_t ron_pid_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
     if ((dt <= RON_FLOAT_C(0.0)) || !pid_api_isfinite(dt)) {
         return RON_FAULT_CONFIG_INVALID;
     }
+    if (inst->config.feedforward.mode == RON_FF_EXTERNAL) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
 
-    fault = ron_pid_core_step(inst, r, y, dt, u_out, status);
+    fault = ron_pid_core_step(inst, r, y, dt, RON_FLOAT_C(0.0), u_out, status);
     return fault;
 }
 

@@ -80,4 +80,7 @@ ron_add_test(test_ron_pid_api    unit/test_ron_pid_api.c)
 # Sprint 4 — Signal conditioning filters (TC-FILT-001..017)
 ron_add_test(test_ron_filter     unit/test_ron_filter.c)
 
+# Sprint 5 - Feed-forward PID extension (TC-FF-001..009)
+ron_add_test(test_ron_feedforward unit/test_ron_feedforward.c)
+
 # (Uncomment as each sprint's test files are added.)

@@ -1875,6 +1875,28 @@ and ``RON-TC-FILT-016-FV``.
 Feed-Forward Tests (RON-TC-FF-xxx)
 ====================================
 
+RON-TC-FF-001 - Additive Feed-Forward Path
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-200
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=2.0`, :math:`K_i=0.0`, :math:`K_d=0.0`,
+       static feed-forward gain :math:`K_{FF}=0.5`.
+   * - **Stimulus**
+     - :math:`r=2.0`, :math:`y=1.0`, :math:`dt=0.01`.
+   * - **Expected Output**
+     - PID contribution is :math:`2.0`; feed-forward contribution is
+       :math:`1.0`; total output is :math:`3.0`.
+   * - **Pass Criterion**
+     - ``fabs(u - 3.0) < 4 * FLT_EPSILON`` and the feed-forward diagnostic
+       reports :math:`1.0`.
+
 RON-TC-FF-002 — Static Gain Feed-Forward
 -----------------------------------------
 
@@ -1895,6 +1917,119 @@ RON-TC-FF-002 — Static Gain Feed-Forward
    * - **Pass Criterion**
      - ``fabs(u - 3.0) < 4 * FLT_EPSILON``.
 
+RON-TC-FF-003 - Velocity Feed-Forward
+-------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-201 (mode b)
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=0.0`, velocity feed-forward gain :math:`K_{FF,v}=0.25`,
+       derivative filter disabled.
+   * - **Stimulus**
+     - Step sequence: first call :math:`r=1.0`, second call :math:`r=1.2`,
+       :math:`y=0.0`, :math:`dt=0.1`.
+   * - **Expected Output**
+     - Second-step velocity estimate is :math:`2.0`, so
+       :math:`u=0.5`.
+   * - **Pass Criterion**
+     - ``fabs(u - 0.5) < 1e-6`` on the second step.
+
+RON-TC-FF-004 - Acceleration Feed-Forward
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-201 (mode c)
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=0.0`, acceleration feed-forward gain
+       :math:`K_{FF,a}=0.1`, derivative filter disabled.
+   * - **Stimulus**
+     - Step sequence :math:`r=[0.0, 0.1, 0.3]`, :math:`y=0.0`,
+       :math:`dt=0.1`.
+   * - **Expected Output**
+     - Third-step acceleration estimate is :math:`10.0`, so
+       :math:`u=1.0`.
+   * - **Pass Criterion**
+     - ``fabs(u - 1.0) < 1e-6`` on the third step.
+
+RON-TC-FF-005 - External Feed-Forward Input
+-------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-201 (mode d)
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=1.0`, external feed-forward mode configured.
+   * - **Stimulus**
+     - Call ``ron_pid_step_feedforward()`` with :math:`r=2.0`,
+       :math:`y=1.0`, :math:`u_{FF}=0.75`, :math:`dt=0.01`.
+   * - **Expected Output**
+     - PID contribution is :math:`1.0`; external feed-forward contribution is
+       :math:`0.75`; total output is :math:`1.75`.
+   * - **Pass Criterion**
+     - ``fabs(u - 1.75) < 1e-6``. Calling ``ron_pid_step()`` with external
+       mode configured returns ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-FF-006 - Independent Feed-Forward Derivative Filter
+----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-202
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - PID derivative gain is zero, velocity feed-forward gain is nonzero,
+       and :math:`N_{FF}` is configured independently from the PID
+       derivative filter coefficient.
+   * - **Stimulus**
+     - Run two controllers across the same setpoint ramp: one with
+       :math:`N_{FF}=0`, one with :math:`N_{FF}=1`.
+   * - **Expected Output**
+     - The feed-forward contributions differ according to the independent
+       feed-forward filter state while the PID derivative state remains zero.
+   * - **Pass Criterion**
+     - ``last_D == 0`` for both controllers and the filtered controller
+       reports a smaller nonzero feed-forward contribution.
+
+RON-TC-FF-007 - Feed-Forward Output Limiting
+--------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-203
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Static feed-forward creates an output above :math:`u_{max}` and the
+       PID output rate limit is enabled.
+   * - **Stimulus**
+     - Call the PID step function with a large setpoint and nonzero
+       feed-forward gain.
+   * - **Expected Output**
+     - The summed PID plus feed-forward output is saturated and then rate
+       limited by the existing PID output constraints.
+   * - **Pass Criterion**
+     - Output equals the allowed rate-limited value and status includes both
+       ``RON_STATUS_SATURATED`` and ``RON_STATUS_RATE_LIMITED``.
+
 RON-TC-FF-008 — Zero Overhead When FF Disabled
 -----------------------------------------------
 
@@ -1913,6 +2048,28 @@ RON-TC-FF-008 — Zero Overhead When FF Disabled
    * - **Pass Criterion**
      - Identical outputs (within FLT_EPSILON). Verifies that disabled FF
        does not alter the PID output.
+
+RON-TC-FF-009 - Feed-Forward Diagnostics
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-205
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Static feed-forward gain is configured so the feed-forward contribution
+       is nonzero.
+   * - **Stimulus**
+     - Execute one PID step and call ``ron_pid_get_feedforward()``.
+   * - **Expected Output**
+     - Status includes ``RON_STATUS_FF_ACTIVE`` and the diagnostic getter
+       reports the same feed-forward value used in the controller sum.
+   * - **Pass Criterion**
+     - Diagnostic value matches the expected feed-forward contribution within
+       ``4 * FLT_EPSILON``.
 
 ------------------------------------------------------------------------
 
