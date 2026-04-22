@@ -333,7 +333,7 @@ test -- --format json`` output and in ``cargo-nextest`` reports:
 .. code-block:: rust
 
    /// RON-TC-PID-015-FV | RON-FR-020, RON-SR-010
-   /// Formal: output is always within [u_min, u_max] for any finite input.
+   /// Formal: output is always within [u_min, u_max] for bounded finite input.
    #[cfg(kani)]
    #[kani::proof]
    fn ron_tc_pid_015_fv() {
@@ -1449,11 +1449,13 @@ RON-TC-PID-015-FV — Saturation Formal Proof
    * - **Level**
      - FV / ENV-FV
    * - **Property**
-     - For all finite :math:`r`, :math:`y`, :math:`dt > 0`: output
-       :math:`u \in [u_{min}, u_{max}]`.
+     - For bounded finite :math:`r`, :math:`y`, and :math:`dt` satisfying
+       RON-ASM-02 / RON-ASM-03, with harness bounds
+       :math:`|r| \leq 1000`, :math:`|y| \leq 1000`, and
+       :math:`0 < dt \leq 1`: output :math:`u \in [u_{min}, u_{max}]`.
    * - **Tool**
      - Kani (Rust): ``#[kani::proof]`` with ``kani::any::<f32>()`` inputs
-       and ``kani::assume(r.is_finite() && y.is_finite() && dt > 0.0)``.
+       and assumptions for finite bounded signals plus ``dt > 0.0``.
        CBMC (C): loop-free bounded harness with ``__CPROVER_assume``.
    * - **Pass Criterion**
      - No assertion violation reported by the model checker.
@@ -2429,7 +2431,7 @@ expected property proofs.
    * - RON-TC-PID-015-FV
      - Kani / CBMC
      - 32
-     - ``u ∈ [u_min, u_max]`` for all finite inputs
+     - ``u ∈ [u_min, u_max]`` for bounded finite inputs
    * - RON-TC-PID-022-FV
      - Kani / CBMC
      - 32
