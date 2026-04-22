@@ -33,8 +33,7 @@ static bool pid_cfg_positive(ron_float_t value)
 /* Satisfies: RON-FR-007 | Test: RON-TC-PID-010 */
 static bool pid_cfg_unit_interval(ron_float_t value)
 {
-    return pid_cfg_isfinite(value) && (value >= RON_FLOAT_C(0.0)) &&
-           (value <= RON_FLOAT_C(1.0));
+    return pid_cfg_isfinite(value) && (value >= RON_FLOAT_C(0.0)) && (value <= RON_FLOAT_C(1.0));
 }
 
 /* Satisfies: RON-FR-021, RON-FR-035 | Test: RON-TC-PID-016, RON-TC-PID-026 */
@@ -107,8 +106,7 @@ static bool pid_cfg_valid_overflow_threshold(const ron_pid_config_t *cfg)
     bool valid;
 
     valid = true;
-    if ((cfg->I_overflow_thresh != RON_FLOAT_C(0.0)) &&
-        !pid_cfg_positive(cfg->I_overflow_thresh)) {
+    if ((cfg->I_overflow_thresh != RON_FLOAT_C(0.0)) && !pid_cfg_positive(cfg->I_overflow_thresh)) {
         valid = false;
     }
 
