@@ -27,6 +27,12 @@ static ron_fault_t pid_check_inst(const ron_pid_instance_t *inst)
     return RON_FAULT_NONE;
 }
 
+/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
+static bool pid_api_isfinite(ron_float_t value)
+{
+    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
+}
+
 /* Satisfies: RON-FR-050, RON-FR-051 | Test: RON-TC-PID-030, RON-TC-PID-031 */
 static void pid_reset_state(ron_pid_state_t *state)
 {
@@ -111,7 +117,7 @@ ron_fault_t ron_pid_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
         *status = inst->state.status;
         return inst->state.fault_code;
     }
-    if ((dt <= RON_FLOAT_C(0.0)) || !RON_ISFINITE(dt)) {
+    if ((dt <= RON_FLOAT_C(0.0)) || !pid_api_isfinite(dt)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -198,7 +204,7 @@ ron_fault_t ron_pid_set_mode(ron_pid_instance_t *inst, ron_op_mode_t mode, ron_f
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if (!RON_ISFINITE(manual_out)) {
+    if (!pid_api_isfinite(manual_out)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -227,7 +233,7 @@ ron_fault_t ron_pid_set_integral(ron_pid_instance_t *inst, ron_float_t value)
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if (!RON_ISFINITE(value)) {
+    if (!pid_api_isfinite(value)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
