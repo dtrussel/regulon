@@ -26,18 +26,6 @@ add_library(regulon STATIC
     src/ron_pid_core.c
     src/ron_pid_fault.c
     src/ron_pid_api.c
-    src/ron_filter.c
-    src/ron_feedforward.c
-    src/ron_gain_sched.c
-    src/ron_cascade.c
-    src/ron_trajectory_trap.c
-    src/ron_trajectory_scurve.c
-    src/ron_kalman.c
-    src/ron_statespace.c
-    src/ron_observer.c
-    src/ron_autotune.c
-    src/ron_health.c
-    src/ron_metrics.c
 )
 
 target_include_directories(regulon
@@ -55,6 +43,9 @@ target_compile_options(regulon PRIVATE
     $<$<C_COMPILER_ID:Clang>:
         -Wall -Wextra -Wpedantic -Werror
         -Wconversion -Wshadow -Wundef
+    >
+    $<$<C_COMPILER_ID:MSVC>:
+        /W4 /WX
     >
 )
 

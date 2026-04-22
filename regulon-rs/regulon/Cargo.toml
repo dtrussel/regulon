@@ -1,0 +1,16 @@
+[package]
+name = "regulon"
+version = "0.1.0"
+edition = "2021"
+description = "Regulon Control Systems Library - Rust-first PID baseline"
+license = "MIT"
+
+[features]
+default = []
+std = []
+double_precision = []
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ["cfg(kani)"] }
+
+[dependencies]

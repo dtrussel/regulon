@@ -35,7 +35,11 @@ target_compile_options(unity PRIVATE
 # ---------------------------------------------------------------------------
 macro(ron_add_test test_name)
     add_executable(${test_name} ${ARGN})
-    target_link_libraries(${test_name} PRIVATE regulon unity m)
+    target_link_libraries(${test_name} PRIVATE
+        regulon
+        unity
+        $<$<NOT:$<C_COMPILER_ID:MSVC>>:m>
+    )
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/framework/unity
@@ -48,6 +52,9 @@ macro(ron_add_test test_name)
         $<$<C_COMPILER_ID:Clang>:
             -Wall -Wextra -Wpedantic -Werror
             -Wconversion -Wshadow
+        >
+        $<$<C_COMPILER_ID:MSVC>:
+            /W4 /WX /wd4127
         >
     )
     add_test(NAME ${test_name} COMMAND ${test_name})
@@ -64,10 +71,10 @@ endmacro()
 ron_add_test(test_ron_pid_types  unit/test_ron_pid_types.c)
 
 # Sprint 2 — PID config validation and core algorithm (TC-PID-001..014)
-# ron_add_test(test_ron_pid_core   unit/test_ron_pid_core.c)
+ron_add_test(test_ron_pid_core   unit/test_ron_pid_core.c)
 
 # Sprint 3 — PID API, fault detection, anti-windup (TC-PID-015..039)
-# ron_add_test(test_ron_pid_api    unit/test_ron_pid_api.c)
+ron_add_test(test_ron_pid_api    unit/test_ron_pid_api.c)
 
 # Sprint 4 — Signal conditioning filters (TC-FILT-001..017)
 # ron_add_test(test_ron_filter     unit/test_ron_filter.c)

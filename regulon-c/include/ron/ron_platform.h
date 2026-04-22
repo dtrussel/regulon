@@ -19,10 +19,10 @@
 #ifndef RON_PLATFORM_H
 #define RON_PLATFORM_H
 
-#include <stdint.h>  /* uint8_t, uint16_t, uint32_t, int32_t … */
-#include <stddef.h>  /* NULL, size_t, ptrdiff_t                  */
-#include <stdbool.h> /* bool, true, false                        */
 #include <float.h>   /* FLT_MAX, FLT_EPSILON, DBL_MAX …         */
+#include <stdbool.h> /* bool, true, false                        */
+#include <stddef.h>  /* NULL, size_t, ptrdiff_t                  */
+#include <stdint.h>  /* uint8_t, uint16_t, uint32_t, int32_t … */
 
 /* =========================================================================
  * Floating-point precision selection
@@ -36,23 +36,23 @@
 
 typedef double ron_float_t;
 
-#define RON_FLOAT_MAX      DBL_MAX
-#define RON_FLOAT_MIN      (-DBL_MAX)
-#define RON_FLOAT_EPSILON  DBL_EPSILON
+#define RON_FLOAT_MAX DBL_MAX
+#define RON_FLOAT_MIN (-DBL_MAX)
+#define RON_FLOAT_EPSILON DBL_EPSILON
 
 /* Literal suffix: no suffix needed for double (plain floating literal is double). */
-#define RON_FLOAT_C(x)     (x)
+#define RON_FLOAT_C(x) (x)
 
 #else /* default: single precision */
 
 typedef float ron_float_t;
 
-#define RON_FLOAT_MAX      FLT_MAX
-#define RON_FLOAT_MIN      (-FLT_MAX)
-#define RON_FLOAT_EPSILON  FLT_EPSILON
+#define RON_FLOAT_MAX FLT_MAX
+#define RON_FLOAT_MIN (-FLT_MAX)
+#define RON_FLOAT_EPSILON FLT_EPSILON
 
 /* Literal suffix: append 'F' for float literals (MISRA C:2023 Rule 7.3). */
-#define RON_FLOAT_C(x)     (x##F)
+#define RON_FLOAT_C(x) (x##F)
 
 #endif /* RON_USE_DOUBLE */
 
@@ -65,12 +65,10 @@ typedef float ron_float_t;
  * ========================================================================= */
 
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
-    #define RON_STATIC_ASSERT(cond, msg) \
-        _Static_assert((cond), msg)
+#define RON_STATIC_ASSERT(cond, msg) _Static_assert((cond), msg)
 #else
-    /* C99 fallback */
-    #define RON_STATIC_ASSERT(cond, msg) \
-        typedef char ron_static_assert_##__LINE__[(cond) ? 1 : -1]
+/* C99 fallback */
+#define RON_STATIC_ASSERT(cond, msg) typedef char ron_static_assert_##__LINE__[(cond) ? 1 : -1]
 #endif
 
 /* =========================================================================
@@ -85,7 +83,7 @@ typedef float ron_float_t;
  * ========================================================================= */
 
 #ifndef RON_ASSERT
-    #define RON_ASSERT(cond)  ((void)(cond))
+#define RON_ASSERT(cond) ((void) (cond))
 #endif
 
 /* =========================================================================
@@ -104,15 +102,15 @@ typedef float ron_float_t;
 
 /** @brief Non-zero iff x is a NaN (Not-a-Number). */
 /* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-#define RON_ISNAN(x)     ((x) != (x))
+#define RON_ISNAN(x) ((x) != (x))
 
 /** @brief Non-zero iff x is positive or negative infinity. */
 /* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-#define RON_ISINF(x)     (((x) > RON_FLOAT_MAX) || ((x) < RON_FLOAT_MIN))
+#define RON_ISINF(x) (((x) > RON_FLOAT_MAX) || ((x) < RON_FLOAT_MIN))
 
 /** @brief Non-zero iff x is a normal, subnormal, or zero value (not NaN/Inf). */
 /* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-#define RON_ISFINITE(x)  (!RON_ISNAN(x) && !RON_ISINF(x))
+#define RON_ISFINITE(x) (!RON_ISNAN(x) && !RON_ISINF(x))
 
 /* =========================================================================
  * Inline utility functions
@@ -129,17 +127,13 @@ typedef float ron_float_t;
  * Satisfies: RON-FR-020 | Test: RON-TC-PID-015
  */
 /* Satisfies: RON-FR-020 | Test: RON-TC-PID-015 */
-static inline ron_float_t ron_clamp(ron_float_t x,
-                                    ron_float_t lo,
-                                    ron_float_t hi)
+static inline ron_float_t ron_clamp(ron_float_t x, ron_float_t lo, ron_float_t hi)
 {
     ron_float_t result = x;
-    if (result < lo)
-    {
+    if (result < lo) {
         result = lo;
     }
-    if (result > hi)
-    {
+    if (result > hi) {
         result = hi;
     }
     return result;
@@ -167,23 +161,23 @@ static inline ron_float_t ron_fabs(ron_float_t x)
  * warnings in callers.
  */
 #if defined(__GNUC__) || defined(__clang__)
-    #define RON_NORETURN  __attribute__((noreturn))
+#define RON_NORETURN __attribute__((noreturn))
 #elif defined(_MSC_VER)
-    #define RON_NORETURN  __declspec(noreturn)
+#define RON_NORETURN __declspec(noreturn)
 #else
-    #define RON_NORETURN  /* unsupported — omit attribute */
+#define RON_NORETURN /* unsupported — omit attribute */
 #endif
 
 /** @brief Inline suggestion for performance-critical utilities. */
-#define RON_INLINE  static inline
+#define RON_INLINE static inline
 
 /* =========================================================================
  * Version information
  * ========================================================================= */
 
-#define RON_VERSION_MAJOR  1U
-#define RON_VERSION_MINOR  0U
-#define RON_VERSION_PATCH  0U
+#define RON_VERSION_MAJOR 1U
+#define RON_VERSION_MINOR 0U
+#define RON_VERSION_PATCH 0U
 
 /* =========================================================================
  * Compile-time array dimension constants
@@ -196,74 +190,68 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 
 /** Maximum moving-average window length (RON-FR-116). */
 #ifndef RON_MA_MAX_WINDOW
-#  define RON_MA_MAX_WINDOW          64U
+#define RON_MA_MAX_WINDOW 64U
 #endif
 
 /** Maximum number of cascaded biquad sections (RON-FR-121). */
 #ifndef RON_BIQUAD_MAX_SECTIONS
-#  define RON_BIQUAD_MAX_SECTIONS     8U
+#define RON_BIQUAD_MAX_SECTIONS 8U
 #endif
 
 /** Maximum number of gain-scheduling breakpoints (RON-FR-301). */
 #ifndef RON_GS_MAX_BREAKPOINTS
-#  define RON_GS_MAX_BREAKPOINTS     16U
+#define RON_GS_MAX_BREAKPOINTS 16U
 #endif
 
 /** Maximum Kalman state dimension n (RON-FR-601). */
 #ifndef RON_KF_MAX_STATES
-#  define RON_KF_MAX_STATES           8U
+#define RON_KF_MAX_STATES 8U
 #endif
 
 /** Maximum Kalman measurement dimension m (RON-FR-601). */
 #ifndef RON_KF_MAX_MEASUREMENTS
-#  define RON_KF_MAX_MEASUREMENTS     4U
+#define RON_KF_MAX_MEASUREMENTS 4U
 #endif
 
 /** Maximum Kalman input dimension p (RON-FR-601). */
 #ifndef RON_KF_MAX_INPUTS
-#  define RON_KF_MAX_INPUTS           4U
+#define RON_KF_MAX_INPUTS 4U
 #endif
 
 /** Maximum state-space state dimension (RON-FR-700). */
 #ifndef RON_SS_MAX_STATES
-#  define RON_SS_MAX_STATES           8U
+#define RON_SS_MAX_STATES 8U
 #endif
 
 /** Maximum state-space output dimension (RON-FR-700). */
 #ifndef RON_SS_MAX_OUTPUTS
-#  define RON_SS_MAX_OUTPUTS          4U
+#define RON_SS_MAX_OUTPUTS 4U
 #endif
 
 /** Maximum state-space input dimension (RON-FR-700). */
 #ifndef RON_SS_MAX_INPUTS
-#  define RON_SS_MAX_INPUTS           4U
+#define RON_SS_MAX_INPUTS 4U
 #endif
 
 /** Minimum relay oscillation cycles before Ku/Tu estimate is valid (RON-FR-802). */
 #ifndef RON_AT_MIN_CYCLES
-#  define RON_AT_MIN_CYCLES           3U
+#define RON_AT_MIN_CYCLES 3U
 #endif
 
 /** Oscillation detection window length (RON-FR-901). */
 #ifndef RON_HEALTH_OSC_WINDOW
-#  define RON_HEALTH_OSC_WINDOW      32U
+#define RON_HEALTH_OSC_WINDOW 32U
 #endif
 
 /* =========================================================================
  * Compile-time sanity checks on dimension constants
  * ========================================================================= */
 
-RON_STATIC_ASSERT(RON_MA_MAX_WINDOW >= 2U,
-    "RON_MA_MAX_WINDOW must be at least 2");
-RON_STATIC_ASSERT(RON_BIQUAD_MAX_SECTIONS >= 1U,
-    "RON_BIQUAD_MAX_SECTIONS must be at least 1");
-RON_STATIC_ASSERT(RON_GS_MAX_BREAKPOINTS >= 2U,
-    "RON_GS_MAX_BREAKPOINTS must be at least 2");
-RON_STATIC_ASSERT(RON_KF_MAX_STATES >= 1U,
-    "RON_KF_MAX_STATES must be at least 1");
-RON_STATIC_ASSERT(RON_AT_MIN_CYCLES >= 1U,
-    "RON_AT_MIN_CYCLES must be at least 1");
-RON_STATIC_ASSERT(RON_HEALTH_OSC_WINDOW >= 4U,
-    "RON_HEALTH_OSC_WINDOW must be at least 4");
+RON_STATIC_ASSERT(RON_MA_MAX_WINDOW >= 2U, "RON_MA_MAX_WINDOW must be at least 2");
+RON_STATIC_ASSERT(RON_BIQUAD_MAX_SECTIONS >= 1U, "RON_BIQUAD_MAX_SECTIONS must be at least 1");
+RON_STATIC_ASSERT(RON_GS_MAX_BREAKPOINTS >= 2U, "RON_GS_MAX_BREAKPOINTS must be at least 2");
+RON_STATIC_ASSERT(RON_KF_MAX_STATES >= 1U, "RON_KF_MAX_STATES must be at least 1");
+RON_STATIC_ASSERT(RON_AT_MIN_CYCLES >= 1U, "RON_AT_MIN_CYCLES must be at least 1");
+RON_STATIC_ASSERT(RON_HEALTH_OSC_WINDOW >= 4U, "RON_HEALTH_OSC_WINDOW must be at least 4");
 
 #endif /* RON_PLATFORM_H */

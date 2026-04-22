@@ -81,7 +81,11 @@ This document, together with RON-SRS-001 and RON-SADS-001, forms the complete sp
 Scope
 -----
 
-This document covers the Regulon PID module only. It does not cover test code, documentation tooling, or future library modules, although conventions established here shall be followed by all future modules.
+This document covers the Regulon PID module only. The current active C11 build
+is intentionally narrowed to the PID vertical slice while future modules remain
+specified but inactive. It does not cover test code or documentation tooling
+except where a concrete verification entrypoint is needed to reproduce the
+active PID quality gates.
 
 Parent Documents
 ----------------
@@ -263,7 +267,7 @@ RON-SR-030.
 - **Advisory** guidelines: shall be satisfied where practical; non-conformances
   reviewed and recorded.
 
-Deviation records are maintained in ``c/docs/deviations/MISRA_deviations.rst``.
+Deviation records are maintained in ``docs/deviations/MISRA_C_deviations.rst``.
 Each record shall contain: rule number and text, file/line range, justification,
 compensating measures, and reviewer sign-off.
 
@@ -365,6 +369,11 @@ C Toolchain and Free Tools
        host and on-target execution. **CMocka** (Apache 2.0) as alternative.
    * - **Build system**
      - CMake 3.21+ (BSD licence).
+   * - **Local verification entrypoint**
+     - ``regulon-c/scripts/verify_pid.ps1`` on Windows for the active PID
+       slice. It probes the local toolchain, runs the PID-only MSVC and
+       double-precision builds, and executes any available static/formal
+       checks without widening scope to future modules.
    * - **Documentation**
      - Doxygen (GPL) for API reference. Sphinx + ``breathe`` for integration
        with ``.rst`` documentation (both free).
@@ -724,7 +733,7 @@ Header Inclusion Model (C Track)
 ---------------------------------
 
 Consumers of the C library **shall** include only the relevant public header(s)
-under ``c/include/ron/``. For PID-only use:
+under ``regulon-c/include/ron/``. For PID-only use:
 
 .. code-block:: c
 
@@ -2034,7 +2043,7 @@ The C implementation **shall** use **CMake** (version ≥ 3.21) located under
 ``c/``. CMake is free, open-source (BSD licence), and supported by all major
 embedded IDEs and CI environments.
 
-``c/CMakeLists.txt``
+``regulon-c/CMakeLists.txt``
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
@@ -2058,19 +2067,12 @@ embedded IDEs and CI environments.
        src/ron_pid_core.c
        src/ron_pid_fault.c
        src/ron_pid_api.c
-       src/ron_filter.c
-       src/ron_feedforward.c
-       src/ron_gain_sched.c
-       src/ron_cascade.c
-       src/ron_trajectory_trap.c
-       src/ron_trajectory_scurve.c
-       src/ron_kalman.c
-       src/ron_statespace.c
-       src/ron_observer.c
-       src/ron_autotune.c
-       src/ron_health.c
-       src/ron_metrics.c
    )
+
+   # During the PID verification-closure iteration, only the PID slice is
+   # linked into the active library target. Future modules remain specified in
+   # this document but stay out of the active CMake build until their own
+   # implementations and traceability evidence exist.
 
    target_include_directories(regulon
        PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -2101,7 +2103,7 @@ embedded IDEs and CI environments.
    install(TARGETS regulon ARCHIVE DESTINATION lib)
    install(DIRECTORY include/ron DESTINATION include)
 
-``c/cmake/ron_options.cmake``
+``regulon-c/cmake/ron_options.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
@@ -2116,7 +2118,7 @@ embedded IDEs and CI environments.
        )
    endif()
 
-Example Toolchain File: ``c/cmake/toolchains/arm-none-eabi.cmake``
+Example Toolchain File: ``regulon-c/cmake/toolchains/arm-none-eabi.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
@@ -2134,7 +2136,7 @@ Example Toolchain File: ``c/cmake/toolchains/arm-none-eabi.cmake``
    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
    set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
 
-Example Toolchain File: ``c/cmake/toolchains/riscv32-unknown-elf.cmake``
+Example Toolchain File: ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
