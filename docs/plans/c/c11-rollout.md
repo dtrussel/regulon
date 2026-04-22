@@ -1,6 +1,6 @@
 # C11 PID Rollout Status
 
-Date: 2026-04-12
+Date: 2026-04-22
 
 ## Scope
 
@@ -31,6 +31,24 @@ All non-PID modules remain present in the repository but stay out of the active 
   - `RON-TC-PID-036-FV`
   - `RON-TC-SAFE-006-FV`
 
+## Implemented In Verification Closure
+
+- `regulon-c/scripts/verify_pid.ps1` now includes an LLVM `coverage` step, dynamic CBMC harness discovery, `--unwinding-assertions`, and clean skip reporting for missing coverage, cross, formal, and Clang toolchain components.
+- The Clang verification step now uses standalone Clang with Ninja when available and only uses Visual Studio `ClangCL` when the VS Platform Toolset is installed.
+- C formal harness coverage was expanded for:
+  - `RON-TC-SAFE-001-FV`
+  - `RON-TC-SAFE-002-FV`
+  - `RON-TC-SAFE-003-FV`
+  - `RON-TC-SAFE-004-FV`
+  - `RON-TC-SAFE-005-FV`
+  - `RON-TC-SAFE-007-FV`
+  - `RON-TC-SAFE-011-FV`
+  - `RON-TC-SAFE-013-FV`
+  - `RON-TC-PERF-002-FV`
+  - `RON-TC-PERF-004-FV`
+  - `RON-TC-QUAL-016-FV`
+- `.github/workflows/ci_c.yml` now enforces 100% statement and branch coverage with Clang/LLVM coverage, uploads raw and rendered coverage artifacts, runs the ARM Cortex-M cross-compile smoke build, and uploads CBMC proof logs.
+
 ## Local Evidence
 
 - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON`: passes
@@ -38,13 +56,15 @@ All non-PID modules remain present in the repository but stay out of the active 
 - `ctest --test-dir regulon-c/build --output-on-failure -C Debug`: passes
 - `regulon-c/scripts/verify_pid.ps1 -Steps probe,format,complexity,cppcheck`: passes
 - `regulon-c/scripts/verify_pid.ps1 -Steps msvc,double`: passes
-- `regulon-c/scripts/verify_pid.ps1 -Steps probe,clang,cross-arm,cbmc`: reports the current local tool gaps without execution failure
+- `regulon-c/scripts/verify_pid.ps1 -Steps probe,clang`: passes with a clean `clang` skip because this host has standalone LLVM and `clang-cl`, but no Ninja or Visual Studio `ClangCL` Platform Toolset.
+- `regulon-c/scripts/verify_pid.ps1 -Steps coverage,cross-arm,cbmc`: reports the current local tool gaps without execution failure.
+- `clang -std=c11 -Wall -Wextra -Werror -fsyntax-only` over all `regulon-c/test/formal/*_proof.c`: passes.
 
 ## Remaining Gaps
 
-- No local coverage report has been generated yet, so the `RON-QR-022` target is still unproven.
-- The local Windows environment now has `cppcheck`, `clang-format`, Python, and `lizard`, but still lacks `clang-cl`, `arm-none-eabi-gcc`, and `cbmc` on `PATH`; those remain explicit environment gaps for full closure.
-- No embedded cross-compile build has been rerun against the narrowed PID-only target yet because the local ARM toolchain is not installed.
-- No local CBMC execution evidence has been produced yet because `cbmc` is not installed on this machine.
+- No local coverage report has been generated yet because `ninja.exe` is not visible to this PowerShell process; `RON-QR-022` is now enforced by the local script with Clang/LLVM coverage when Ninja is visible and by CI on Ubuntu.
+- No local embedded cross-compile build has been rerun because `arm-none-eabi-gcc` is not installed on this machine; CI now contains the ARM Cortex-M cross-compile smoke build.
+- No local CBMC execution evidence has been produced yet because `cbmc` is not installed on this machine; the full harness inventory is now discovered dynamically by the local script and CI.
+- Local Clang host evidence is still unavailable because this host lacks Ninja and the Visual Studio `ClangCL` Platform Toolset, despite having standalone LLVM binaries on `PATH`.
 - The RAM budget checks in `ron_pid_types.h` and `test_ron_pid_types.c` are now explicitly scoped to the single-precision configuration, matching `RON-PR-021` as written in the SRS; the double-precision regression build now executes successfully.
 - The anti-windup host test has been narrowed to an implementation-level open-loop recovery contrast. Closed-loop settling-time benefit still requires plant-coupled verification beyond the current host unit slice.

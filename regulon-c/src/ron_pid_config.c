@@ -18,6 +18,12 @@ static bool pid_cfg_nonnegative(ron_float_t value)
     return RON_ISFINITE(value) && (value >= RON_FLOAT_C(0.0));
 }
 
+/* Satisfies: RON-SR-001, RON-SR-002 | Test: RON-TC-SAFE-001 */
+static bool pid_cfg_positive(ron_float_t value)
+{
+    return RON_ISFINITE(value) && (value > RON_FLOAT_C(0.0));
+}
+
 /* Satisfies: RON-FR-007 | Test: RON-TC-PID-010 */
 static bool pid_cfg_unit_interval(ron_float_t value)
 {
@@ -80,8 +86,7 @@ static bool pid_cfg_valid_aw_threshold(const ron_pid_config_t *cfg)
     bool valid;
 
     valid = true;
-    if ((cfg->aw_mode == RON_AW_BACK_CALC) &&
-        (!pid_cfg_nonnegative(cfg->T_aw) || (cfg->T_aw <= RON_FLOAT_C(0.0)))) {
+    if ((cfg->aw_mode == RON_AW_BACK_CALC) && !pid_cfg_positive(cfg->T_aw)) {
         valid = false;
     }
 
@@ -95,8 +100,7 @@ static bool pid_cfg_valid_overflow_threshold(const ron_pid_config_t *cfg)
 
     valid = true;
     if ((cfg->I_overflow_thresh != RON_FLOAT_C(0.0)) &&
-        (!pid_cfg_nonnegative(cfg->I_overflow_thresh) ||
-         (cfg->I_overflow_thresh <= RON_FLOAT_C(0.0)))) {
+        !pid_cfg_positive(cfg->I_overflow_thresh)) {
         valid = false;
     }
 
@@ -110,8 +114,7 @@ static bool pid_cfg_valid_sp_reset_threshold(const ron_pid_config_t *cfg)
 
     valid = true;
     if ((cfg->sp_reset_threshold != RON_FLOAT_C(0.0)) &&
-        (!pid_cfg_nonnegative(cfg->sp_reset_threshold) ||
-         (cfg->sp_reset_threshold <= RON_FLOAT_C(0.0)))) {
+        !pid_cfg_positive(cfg->sp_reset_threshold)) {
         valid = false;
     }
 

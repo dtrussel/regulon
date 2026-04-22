@@ -8,12 +8,18 @@ on:
     branches: ["**"]
     paths:
       - "regulon-c/**"
+      - "docs/specs/**"
+      - "docs/plans/c/**"
+      - "CHANGELOG.rst"
       - ".clang-format"
       - ".github/workflows/ci_c.yml"
   pull_request:
     branches: [main]
     paths:
       - "regulon-c/**"
+      - "docs/specs/**"
+      - "docs/plans/c/**"
+      - "CHANGELOG.rst"
       - ".clang-format"
       - ".github/workflows/ci_c.yml"
 
@@ -37,7 +43,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y cmake gcc clang clang-format cppcheck \
-               lcov gcovr python3 python3-pip
+               python3 python3-pip
 
       - name: Configure (GCC, tests enabled, sanitisers)
         run: |
@@ -193,7 +199,7 @@ jobs:
   # Job 6: Code coverage (must reach 100% statement + branch - RON-QR-022)
   # ---------------------------------------------------------------------------
   coverage:
-    name: Code Coverage (lcov)
+    name: Code Coverage (LLVM)
     runs-on: ubuntu-24.04
     needs: build-and-test
 
@@ -203,49 +209,106 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y cmake gcc lcov
+          sudo apt-get install -y cmake clang llvm ninja-build python3
 
-      - name: Configure with coverage instrumentation
+      - name: Configure with LLVM coverage instrumentation
         run: |
-          cmake -B ${{ env.BUILD_DIR_COV }} -S ${{ env.SRC_DIR }} \
+          cmake -G Ninja -B ${{ env.BUILD_DIR_COV }} -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=ON \
-                -DCMAKE_C_COMPILER=gcc \
-                -DCMAKE_C_FLAGS="-O0 -g --coverage"
+                -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_C_FLAGS="-O0 -g -fprofile-instr-generate -fcoverage-mapping"
 
       - name: Build
         run: cmake --build ${{ env.BUILD_DIR_COV }} --parallel
 
       - name: Run tests
         run: |
+          mkdir -p ${{ env.BUILD_DIR_COV }}/profiles
+          export LLVM_PROFILE_FILE="${{ env.BUILD_DIR_COV }}/profiles/%p.profraw"
           cd ${{ env.BUILD_DIR_COV }}
           ctest --output-on-failure
 
       - name: Collect coverage
         run: |
-          lcov --rc branch_coverage=1 --capture \
-               --directory ${{ env.BUILD_DIR_COV }} \
-               --output-file coverage.info
-          lcov --rc branch_coverage=1 --remove coverage.info '/usr/*' '*/test/*' '*/unity/*' \
-               '*/ron_filter.c' '*/ron_feedforward.c' '*/ron_gain_sched.c' \
-               '*/ron_cascade.c' '*/ron_trajectory_trap.c' \
-               '*/ron_trajectory_scurve.c' '*/ron_kalman.c' \
-               '*/ron_statespace.c' '*/ron_observer.c' '*/ron_autotune.c' \
-               '*/ron_health.c' '*/ron_metrics.c' \
-               --ignore-errors unused \
-               --output-file coverage_filtered.info
-          lcov --rc branch_coverage=1 --summary coverage_filtered.info
-          genhtml coverage_filtered.info \
-               --output-directory coverage_html \
-               --branch-coverage
+          llvm-profdata merge -sparse \
+            ${{ env.BUILD_DIR_COV }}/profiles/*.profraw \
+            -o ${{ env.BUILD_DIR_COV }}/coverage.profdata
+
+          mapfile -t test_bins < <(find ${{ env.BUILD_DIR_COV }} -type f -executable -name 'test_ron_pid*' | sort)
+          if [ "${#test_bins[@]}" -eq 0 ]; then
+            echo "No PID test executables found"
+            exit 1
+          fi
+
+          object_args=("${test_bins[0]}")
+          for bin in "${test_bins[@]:1}"; do
+            object_args+=("-object" "$bin")
+          done
+
+          source_args=(
+            -sources regulon-c/src/ron_pid_api.c
+            -sources regulon-c/src/ron_pid_config.c
+            -sources regulon-c/src/ron_pid_core.c
+            -sources regulon-c/src/ron_pid_fault.c
+          )
+
+          llvm-cov export "${object_args[@]}" \
+            -instr-profile ${{ env.BUILD_DIR_COV }}/coverage.profdata \
+            -format=text -summary-only -show-branch-summary \
+            "${source_args[@]}" > coverage.json
+
+          llvm-cov show "${object_args[@]}" \
+            -instr-profile ${{ env.BUILD_DIR_COV }}/coverage.profdata \
+            -format=html -output-dir coverage_html -show-branch-summary \
+            "${source_args[@]}"
+
+          python3 - <<'PY'
+          import json
+          with open("coverage.json", encoding="utf-8") as f:
+              totals = json.load(f)["data"][0]["totals"]
+          line_pct = totals["lines"]["percent"]
+          branch_pct = totals["branches"]["percent"]
+          print(f"LLVM coverage: lines={line_pct:.1f}%; branches={branch_pct:.1f}%")
+          if line_pct != 100.0 or branch_pct != 100.0:
+              raise SystemExit(1)
+          PY
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage_html/
+          path: |
+            coverage_html/
+            coverage.json
+            ${{ env.BUILD_DIR_COV }}/coverage.profdata
 
   # ---------------------------------------------------------------------------
-  # Job 7: CBMC Formal Verification (when harnesses exist - RON-TP-001 §2.2)
+  # Job 7: ARM cross-compile smoke build (RON-TC-QUAL-022)
+  # ---------------------------------------------------------------------------
+  cross-arm:
+    name: Cross Compile (ARM Cortex-M)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends cmake gcc-arm-none-eabi
+
+      - name: Configure ARM PID build
+        run: |
+          cmake -B regulon-c/build_arm -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF \
+                -DCMAKE_TOOLCHAIN_FILE=regulon-c/cmake/toolchains/arm-none-eabi.cmake \
+                -DCMAKE_C_FLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb"
+
+      - name: Build ARM PID library
+        run: cmake --build regulon-c/build_arm --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 8: CBMC Formal Verification (RON-TP-001)
   # ---------------------------------------------------------------------------
   formal-verification:
     name: CBMC Formal Proofs
@@ -261,6 +324,8 @@ jobs:
 
       - name: Run CBMC proofs (if any harnesses exist)
         run: |
+          set -o pipefail
+          mkdir -p cbmc-results
           PROOFS=$(find regulon-c/test/formal -name "*_proof.c" 2>/dev/null || true)
           if [ -z "$PROOFS" ]; then
             echo "No CBMC harnesses yet - skipping formal verification."
@@ -277,5 +342,14 @@ jobs:
                  regulon-c/src/ron_pid_config.c \
                  regulon-c/src/ron_pid_core.c \
                  regulon-c/src/ron_pid_fault.c \
-                 -I regulon-c/include
+                 -I regulon-c/include \
+                 -I regulon-c/test/formal \
+                 2>&1 | tee "cbmc-results/${entry}.txt"
           done
+
+      - name: Upload CBMC results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cbmc-results
+          path: cbmc-results/

@@ -38,10 +38,11 @@ macro(ron_add_test test_name)
     target_link_libraries(${test_name} PRIVATE
         regulon
         unity
-        $<$<NOT:$<C_COMPILER_ID:MSVC>>:m>
+        $<$<AND:$<NOT:$<C_COMPILER_ID:MSVC>>,$<NOT:$<PLATFORM_ID:Windows>>>:m>
     )
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/framework/unity
     )
     target_compile_options(${test_name} PRIVATE
