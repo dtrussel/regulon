@@ -118,11 +118,13 @@ function Test-CoverageSummary {
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $RegulonC = Join-Path $RepoRoot "regulon-c"
 $ActiveSources = @(
+    (Join-Path $RegulonC "src\ron_filter.c"),
     (Join-Path $RegulonC "src\ron_pid_api.c"),
     (Join-Path $RegulonC "src\ron_pid_config.c"),
     (Join-Path $RegulonC "src\ron_pid_core.c"),
     (Join-Path $RegulonC "src\ron_pid_fault.c"),
     (Join-Path $RegulonC "src\ron_pid_internal.h"),
+    (Join-Path $RegulonC "include\ron\ron_filter.h"),
     (Join-Path $RegulonC "include\ron\ron_platform.h"),
     (Join-Path $RegulonC "include\ron\ron_pid_types.h"),
     (Join-Path $RegulonC "include\ron\ron_pid.h")
@@ -241,6 +243,7 @@ foreach ($step in $Steps) {
                 "--suppress=misra-c2012-15.7",
                 "--suppress=misra-c2012-20.10",
                 "-I", (Join-Path $RegulonC "include"),
+                (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -257,6 +260,7 @@ foreach ($step in $Steps) {
             }
 
             Invoke-External "lizard complexity pass" $Python @("-m", "lizard", "-C", "10",
+                (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -293,11 +297,11 @@ foreach ($step in $Steps) {
             }
             Invoke-External "Merge LLVM coverage profiles" $LlvmProfdata (@("merge", "-sparse") + $ProfileInputs + @("-o", $CoverageProfdata))
 
-            $TestExecutables = @(Get-ChildItem -Path $BuildDir -Recurse -Filter "test_ron_pid*.exe" |
+            $TestExecutables = @(Get-ChildItem -Path $BuildDir -Recurse -Filter "test_ron_*.exe" |
                 Sort-Object -Property FullName |
                 ForEach-Object { $_.FullName })
             if ($TestExecutables.Count -eq 0) {
-                throw "No PID test executables found in LLVM coverage build."
+                throw "No Regulon test executables found in LLVM coverage build."
             }
             $CoverageObjects = @($TestExecutables[0])
             if ($TestExecutables.Count -gt 1) {
@@ -306,6 +310,7 @@ foreach ($step in $Steps) {
                 }
             }
             $CoverageSources = @(
+                (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -379,6 +384,7 @@ foreach ($step in $Steps) {
                     "--bounds-check",
                     "--pointer-check",
                     $harness,
+                    (Join-Path $RegulonC "src\ron_filter.c"),
                     (Join-Path $RegulonC "src\ron_pid_api.c"),
                     (Join-Path $RegulonC "src\ron_pid_config.c"),
                     (Join-Path $RegulonC "src\ron_pid_core.c"),

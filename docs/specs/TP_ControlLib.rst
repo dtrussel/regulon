@@ -1551,6 +1551,77 @@ RON-TC-PID-035 — Multi-Instance Independence (Integration)
 Signal Conditioning Filter Tests (RON-TC-FILT-xxx)
 ====================================================
 
+RON-TC-FILT-001 - Filters as First-Class Components
+---------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-100
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Initialise LP1, moving-average, and rate-limiter instances without any
+       PID instance. Step each instance with the same input.
+   * - **Pass Criterion**
+     - Each filter produces its own deterministic output and reports
+       ``RON_FAULT_NONE`` independently of controller modules.
+
+RON-TC-FILT-002 - Filter Instance/Configuration/State Model
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-101
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for no-heap claim
+   * - **Stimulus**
+     - Initialise a caller-allocated filter from a configuration object, mutate
+       the caller's original configuration, then step and inspect state.
+   * - **Pass Criterion**
+     - The instance uses its copied configuration, exposes bounded state, and
+       no heap allocation is reachable in ``RON-TC-FILT-002-FV``.
+
+RON-TC-FILT-003 - Filter Lifecycle API
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-102
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for null-pointer guards
+   * - **Stimulus**
+     - For each filter family, call ``init``, one ``step``, ``reset``, and
+       ``get_state``. Exercise representative null-pointer calls in
+       ``RON-TC-FILT-003-FV``.
+   * - **Pass Criterion**
+     - Reset clears dynamic state without changing configuration, state can be
+       inspected through ``get_state``, and null pointers return
+       ``RON_FAULT_NULL_POINTER`` before state access.
+
+RON-TC-FILT-004 - Filter Coefficient and Input Validation
+---------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-103
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Attempt invalid LP1 alpha, invalid moving-average window length,
+       unstable biquad denominator, invalid rate limits, and non-finite runtime
+       input.
+   * - **Pass Criterion**
+     - Invalid configurations return ``RON_FAULT_CONFIG_INVALID`` and
+       non-finite runtime input latches ``RON_FAULT_INPUT_NAN``.
+
 RON-TC-FILT-005 — First-Order LP Filter Step Response
 ------------------------------------------------------
 
@@ -1590,6 +1661,76 @@ RON-TC-FILT-006 — LP1 Frequency-Domain Configuration
    * - **Pass Criterion**
      - Outputs differ by < 0.1% across all 500 steps.
 
+RON-TC-FILT-007 - LP1 Cutoff Configuration Validation
+-----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-111
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Call ``ron_lp1_init_fc`` with null instance, non-positive cutoff
+       frequency, and non-positive sample period.
+   * - **Pass Criterion**
+     - Null instance returns ``RON_FAULT_NULL_POINTER``; invalid numerical
+       parameters return ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-FILT-008 - Moving-Average Boxcar Mean
+--------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-115
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Window length ``M = 4``.
+   * - **Stimulus**
+     - Apply input sequence 1, 2, 3, 4.
+   * - **Pass Criterion**
+     - Outputs are 0.25, 0.75, 1.5, and 2.5, reflecting the causal boxcar
+       mean with zero-filled initial history.
+
+RON-TC-FILT-009 - Moving-Average Static Buffer Bound
+----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-116
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded array access
+   * - **Stimulus**
+     - Initialise with ``M = RON_MA_MAX_WINDOW`` and reject ``M`` above that
+       bound. Run ``RON-TC-FILT-009-FV`` over a valid step.
+   * - **Pass Criterion**
+     - Maximum configured window is accepted, oversized window is rejected,
+       and proof execution has no out-of-bounds buffer access.
+
+RON-TC-FILT-010 - Moving-Average Sliding Sum
+--------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-117
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded execution
+   * - **Preconditions**
+     - Window length ``M = 3``.
+   * - **Stimulus**
+     - Apply input sequence 3, 6, 9, 12 and inspect running sum.
+   * - **Pass Criterion**
+     - Final output is 9 and the running sum is 27, demonstrating subtract
+       oldest/add newest update without full-window summation.
+
 RON-TC-FILT-011 — Biquad IIR Correctness (Known Transfer Function)
 -------------------------------------------------------------------
 
@@ -1611,6 +1752,57 @@ RON-TC-FILT-011 — Biquad IIR Correctness (Known Transfer Function)
    * - **Pass Criterion**
      - RMS ratio of output/input within specified dB bounds.
 
+RON-TC-FILT-012 - Cascaded Biquad Sections
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-121
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded section access
+   * - **Stimulus**
+     - Configure two stable feed-through sections with gain 0.5 each and step
+       input 4. Run ``RON-TC-FILT-012-FV`` over a valid cascade step.
+   * - **Pass Criterion**
+     - Output is 1.0 and proof execution has no out-of-bounds section-state
+       access.
+
+RON-TC-FILT-013 - Biquad Coefficient Helper Generation
+------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-122
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Generate low-pass, high-pass, band-pass, and notch coefficients for
+       valid cutoff/centre frequencies, sample period, and quality factor.
+   * - **Pass Criterion**
+     - Each helper returns ``RON_FAULT_NONE`` and produces finite,
+       stable-section coefficients accepted by ``ron_biquad_init``.
+
+RON-TC-FILT-014 - Biquad Coefficient Helper Validation
+------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-122
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Call coefficient helpers with null output section, zero frequency, zero
+       ``Q``, zero sample period, and frequency at or above Nyquist.
+   * - **Pass Criterion**
+     - Null output returns ``RON_FAULT_NULL_POINTER``; invalid numerical
+       parameters return ``RON_FAULT_CONFIG_INVALID``.
+
 RON-TC-FILT-015 — Notch Runtime Update (No State Discontinuity)
 ----------------------------------------------------------------
 
@@ -1630,6 +1822,53 @@ RON-TC-FILT-015 — Notch Runtime Update (No State Discontinuity)
    * - **Pass Criterion**
      - No output spike > 3× the signal amplitude at the update step.
        Output converges to attenuating 120 Hz within 20 steps post-update.
+
+RON-TC-FILT-016 - Standalone Rate Limiter
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-130
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded execution
+   * - **Preconditions**
+     - Symmetric rise/fall limits of 2 units/s and initial output 0.
+   * - **Stimulus**
+     - Step input from 0 to 10 with ``dt = 0.5``. Run
+       ``RON-TC-FILT-016-FV`` over a valid rate-limiter step.
+   * - **Pass Criterion**
+     - Output is clamped to 1.0 and status reports
+       ``RON_STATUS_RATE_LIMITED``.
+
+RON-TC-FILT-017 - Asymmetric Rate Limits
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-131
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Rise limit 4 units/s, fall limit 1 unit/s, initial output 0.
+   * - **Stimulus**
+     - Step to +10 with ``dt = 0.5`` and then to -10 with ``dt = 0.5``.
+   * - **Pass Criterion**
+     - Rising output is 2.0; falling output is 1.5, showing independent
+       positive and negative slew limits.
+
+Filter Formal Variant Inventory
+-------------------------------
+
+The C11 filter proof harness set may use formal variants of the unit-test IDs
+when a property is better checked by CBMC than by host assertions. Active
+variants are ``RON-TC-FILT-002-FV``, ``RON-TC-FILT-003-FV``,
+``RON-TC-FILT-005-FV``, ``RON-TC-FILT-008-FV``, ``RON-TC-FILT-009-FV``,
+``RON-TC-FILT-010-FV``, ``RON-TC-FILT-011-FV``, ``RON-TC-FILT-012-FV``,
+and ``RON-TC-FILT-016-FV``.
 
 ------------------------------------------------------------------------
 

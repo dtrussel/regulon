@@ -62,9 +62,30 @@ All non-PID modules remain present in the repository but stay out of the active 
 
 ## Remaining Gaps
 
-- No local coverage report has been generated yet because `ninja.exe` is not visible to this PowerShell process; `RON-QR-022` is now enforced by the local script with Clang/LLVM coverage when Ninja is visible and by CI on Ubuntu.
-- No local embedded cross-compile build has been rerun because `arm-none-eabi-gcc` is not installed on this machine; CI now contains the ARM Cortex-M cross-compile smoke build.
-- No local CBMC execution evidence has been produced yet because `cbmc` is not installed on this machine; the full harness inventory is now discovered dynamically by the local script and CI.
-- Local Clang host evidence is still unavailable because this host lacks Ninja and the Visual Studio `ClangCL` Platform Toolset, despite having standalone LLVM binaries on `PATH`.
+- Phase 0 PID closure is accepted for opening the first non-PID module. Local
+  MSVC, double-precision, standalone Clang, format, complexity, cppcheck/MISRA,
+  and LLVM coverage gates now run through the repo script for the active source
+  set.
+- Local LLVM coverage now reaches 100% statement and branch coverage for the
+  active C11 source set.
+- Local Clang host evidence is available through standalone Clang plus Ninja.
+- No local embedded cross-compile build has been rerun because
+  `arm-none-eabi-gcc` is not installed on this machine; CI contains the ARM
+  Cortex-M cross-compile smoke build.
+- No local CBMC execution evidence has been produced yet because `cbmc` is not
+  installed on this machine; the full harness inventory is discovered
+  dynamically by the local script and CI.
 - The RAM budget checks in `ron_pid_types.h` and `test_ron_pid_types.c` are now explicitly scoped to the single-precision configuration, matching `RON-PR-021` as written in the SRS; the double-precision regression build now executes successfully.
 - The anti-windup host test has been narrowed to an implementation-level open-loop recovery contrast. Closed-loop settling-time benefit still requires plant-coupled verification beyond the current host unit slice.
+
+## Phase 1 Filter Opening Evidence
+
+- `ron_filter.h` and `ron_filter.c` are now active in the default C11 build.
+- `test_ron_filter.c` covers `RON-TC-FILT-001` through `RON-TC-FILT-017`.
+- Filter-focused CBMC harnesses were added for null-pointer, bounded execution,
+  bounded array access, and no-heap evidence; local CBMC remains unavailable on
+  this host.
+- Local evidence after enabling filters:
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps msvc,double,clang`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps format,complexity,cppcheck`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage

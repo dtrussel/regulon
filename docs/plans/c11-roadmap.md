@@ -25,13 +25,15 @@ Ground-truth inputs:
 
 ## Current Baseline
 
-The active C11 implementation is PID-only. The current public surface is:
+The active C11 implementation now contains the closed PID baseline plus the
+Phase 1 signal-conditioning filter module. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
 - `regulon-c/include/ron/ron_pid.h`
+- `regulon-c/include/ron/ron_filter.h`
 
-The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Before opening the first non-PID module, the PID closure evidence in `docs/plans/c/c11-rollout.md` should be accepted in CI, including coverage, formal harness inventory, ARM cross-compile, and toolchain reliability.
+The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 
 ## Sequencing Strategy
 
@@ -46,6 +48,8 @@ Implement modules in dependency order:
 This order keeps each slice testable in isolation and avoids coupling later modules to incomplete support libraries.
 
 ## Phase 0: PID Closure And Baseline Freeze
+
+Status: Complete. PID closure evidence is recorded in `docs/plans/c/c11-rollout.md`; residual local ARM/CBMC gaps are tool-availability gaps covered by CI wiring.
 
 Requirement scope:
 
@@ -67,6 +71,8 @@ Exit criteria:
 - A reusable checklist exists for opening and closing non-PID slices.
 
 ## Phase 1: Signal Conditioning Filters
+
+Status: Complete. The C11 filter public API, implementation, unit tests, formal harness inventory, build wiring, CI wiring, changelog, and test-plan details are in place.
 
 Requirement scope:
 
@@ -105,6 +111,8 @@ Exit criteria:
 - Test plan includes `RON-TC-FILT-*` entries already defined in `TP_ControlLib.rst`.
 
 ## Phase 2: Feed-Forward PID Extension
+
+Status: Next active C11 roadmap phase. Do not start until the Phase 1 filter slice is accepted.
 
 Requirement scope:
 
@@ -503,4 +511,3 @@ Before declaring any roadmap phase complete:
 - ARM cross-compile passes.
 - Formal/inspection evidence is current or a justified TP update records why it is not applicable.
 - `git diff --check` is clean.
-

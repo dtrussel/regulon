@@ -896,7 +896,7 @@ Defines all public enumeration and structure types. This header has no dependenc
    #ifndef RON_PID_TYPES_H
    #define RON_PID_TYPES_H
 
-   #include "ron/ron_platform.h"
+   #include "ron/ron_pid_types.h"
 
    /* ================================================================== */
    /* Enumerations                                                        */
@@ -1576,7 +1576,9 @@ established for ``ron_pid.h`` apply equally to all headers.
 
    /* ── First-order IIR low-pass ─────────────────────────────── */
    typedef struct { ron_float_t alpha;              } ron_lp1_config_t;
-   typedef struct { ron_float_t y_prev;
+   typedef struct { ron_float_t  y_prev;
+                    ron_fault_t  fault_code;
+                    ron_status_t status;
                     bool         is_initialised;     } ron_lp1_state_t;
    typedef struct { ron_lp1_config_t cfg;
                     ron_lp1_state_t  state;         } ron_lp1_t;
@@ -1585,13 +1587,18 @@ established for ``ron_pid.h`` apply equally to all headers.
    ron_fault_t ron_lp1_init_fc (ron_lp1_t *f, ron_float_t fc, ron_float_t dt);
    ron_fault_t ron_lp1_reset   (ron_lp1_t *f);
    ron_fault_t ron_lp1_step    (ron_lp1_t *f, ron_float_t x, ron_float_t *y);
+   ron_fault_t ron_lp1_get_state(const ron_lp1_t *f, ron_lp1_state_t *state);
 
    /* ── Moving average ───────────────────────────────────────── */
    typedef struct { uint8_t M;                       } ron_ma_config_t;
    typedef struct {
        ron_float_t buf[RON_MA_MAX_WINDOW];
        ron_float_t sum;
+       ron_float_t y_prev;
        uint8_t      idx;
+       uint8_t      count;
+       ron_fault_t  fault_code;
+       ron_status_t status;
        bool         is_initialised;
    } ron_ma_state_t;
    typedef struct { ron_ma_config_t cfg;
@@ -1600,6 +1607,7 @@ established for ``ron_pid.h`` apply equally to all headers.
    ron_fault_t ron_ma_init  (ron_ma_t *f, const ron_ma_config_t *cfg);
    ron_fault_t ron_ma_reset (ron_ma_t *f);
    ron_fault_t ron_ma_step  (ron_ma_t *f, ron_float_t x, ron_float_t *y);
+   ron_fault_t ron_ma_get_state(const ron_ma_t *f, ron_ma_state_t *state);
 
    /* ── Biquad IIR (cascaded SOS) ────────────────────────────── */
    typedef struct {
@@ -1614,6 +1622,9 @@ established for ``ron_pid.h`` apply equally to all headers.
    typedef struct {
        ron_float_t w1[RON_BIQUAD_MAX_SECTIONS];
        ron_float_t w2[RON_BIQUAD_MAX_SECTIONS];
+       ron_float_t y_prev;
+       ron_fault_t fault_code;
+       ron_status_t status;
        bool         is_initialised;
    } ron_biquad_state_t;
 
@@ -1625,12 +1636,17 @@ established for ``ron_pid.h`` apply equally to all headers.
    ron_fault_t ron_biquad_reset        (ron_biquad_t *f);
    ron_fault_t ron_biquad_step         (ron_biquad_t *f,
                                            ron_float_t x, ron_float_t *y);
+   ron_fault_t ron_biquad_get_state    (const ron_biquad_t *f,
+                                           ron_biquad_state_t *state);
 
    /* Coefficient generation helpers (write into an ron_biquad_section_t) */
    ron_fault_t ron_biquad_coeff_lp     (ron_biquad_section_t *s,
                                            ron_float_t fc, ron_float_t Q,
                                            ron_float_t dt);
    ron_fault_t ron_biquad_coeff_hp     (ron_biquad_section_t *s,
+                                           ron_float_t fc, ron_float_t Q,
+                                           ron_float_t dt);
+   ron_fault_t ron_biquad_coeff_bp     (ron_biquad_section_t *s,
                                            ron_float_t fc, ron_float_t Q,
                                            ron_float_t dt);
    ron_fault_t ron_biquad_coeff_notch  (ron_biquad_section_t *s,
@@ -1648,6 +1664,8 @@ established for ``ron_pid.h`` apply equally to all headers.
 
    typedef struct {
        ron_float_t y_prev;
+       ron_fault_t fault_code;
+       ron_status_t status;
        bool         is_initialised;
    } ron_ratelim_state_t;
 
@@ -1659,6 +1677,8 @@ established for ``ron_pid.h`` apply equally to all headers.
    ron_fault_t ron_ratelim_reset (ron_ratelim_t *f);
    ron_fault_t ron_ratelim_step  (ron_ratelim_t *f, ron_float_t x,
                                      ron_float_t dt, ron_float_t *y);
+   ron_fault_t ron_ratelim_get_state(const ron_ratelim_t *f,
+                                     ron_ratelim_state_t *state);
 
    #ifdef __cplusplus
    }
