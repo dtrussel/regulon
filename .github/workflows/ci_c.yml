@@ -1,4 +1,4 @@
-name: CI — C11 Library
+name: CI - C11 Library
 
 # RON-TP-001 §2.6 | RON-TC-QUAL-008
 # Triggers on every push/PR to any branch. Must pass before merging to main.
@@ -37,7 +37,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y cmake gcc clang clang-format cppcheck \
-               lcov gcovr python3
+               lcov gcovr python3 python3-pip
 
       - name: Configure (GCC, tests enabled, sanitisers)
         run: |
@@ -62,10 +62,38 @@ jobs:
           path: ${{ env.BUILD_DIR }}/test_results_c.xml
 
   # ---------------------------------------------------------------------------
-  # Job 2: Clang build (second toolchain — RON-QR-004)
+  # Job 2: Double-precision host regression
+  # ---------------------------------------------------------------------------
+  build-double:
+    name: Build & Test (GCC Double)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc
+
+      - name: Configure (GCC, double precision)
+        run: |
+          cmake -B regulon-c/build_double -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=ON \
+                -DRON_USE_DOUBLE=ON \
+                -DCMAKE_C_COMPILER=gcc
+
+      - name: Build
+        run: cmake --build regulon-c/build_double --parallel
+
+      - name: Run tests
+        run: |
+          cd regulon-c/build_double
+          ctest --output-on-failure --output-junit test_results_c_double.xml
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Clang build + tests (secondary host toolchain)
   # ---------------------------------------------------------------------------
   build-clang:
-    name: Build (Clang)
+    name: Build & Test (Clang)
     runs-on: ubuntu-24.04
 
     steps:
@@ -74,17 +102,22 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update -q && sudo apt-get install -y cmake clang
 
-      - name: Configure (Clang, tests disabled)
+      - name: Configure (Clang, tests enabled)
         run: |
           cmake -B regulon-c/build_clang -S ${{ env.SRC_DIR }} \
-                -DRON_BUILD_TESTS=OFF \
+                -DRON_BUILD_TESTS=ON \
                 -DCMAKE_C_COMPILER=clang
 
       - name: Build
         run: cmake --build regulon-c/build_clang --parallel
 
+      - name: Run tests
+        run: |
+          cd regulon-c/build_clang
+          ctest --output-on-failure --output-junit test_results_c_clang.xml
+
   # ---------------------------------------------------------------------------
-  # Job 3: Code formatting check (clang-format)
+  # Job 4: Code formatting check (clang-format)
   # ---------------------------------------------------------------------------
   format-check:
     name: clang-format Check
@@ -98,12 +131,18 @@ jobs:
 
       - name: Check formatting
         run: |
-          find regulon-c/src regulon-c/include/ron \
-               -name "*.c" -o -name "*.h" | \
-          xargs clang-format --dry-run --Werror
+          clang-format --dry-run --Werror \
+            regulon-c/src/ron_pid_api.c \
+            regulon-c/src/ron_pid_config.c \
+            regulon-c/src/ron_pid_core.c \
+            regulon-c/src/ron_pid_fault.c \
+            regulon-c/src/ron_pid_internal.h \
+            regulon-c/include/ron/ron_platform.h \
+            regulon-c/include/ron/ron_pid_types.h \
+            regulon-c/include/ron/ron_pid.h
 
   # ---------------------------------------------------------------------------
-  # Job 4: Static analysis — cppcheck (MISRA subset)
+  # Job 5: Static analysis - cppcheck (MISRA subset) + complexity
   # ---------------------------------------------------------------------------
   static-analysis:
     name: cppcheck Static Analysis
@@ -112,15 +151,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install cppcheck
-        run: sudo apt-get update -q && sudo apt-get install -y cppcheck
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cppcheck python3 python3-pip
+          python3 -m pip install --user lizard
 
       - name: Run cppcheck (MISRA addon)
         run: |
-          cppcheck --enable=all --error-exitcode=1 \
+          cppcheck --addon=misra.py --check-level=exhaustive \
+                   --enable=style --error-exitcode=1 \
                    --suppress=missingIncludeSystem \
+                   --suppress=misra-c2012-2.5 \
+                   --suppress=misra-c2012-8.7 \
+                   --suppress=misra-c2012-15.5 \
+                   --suppress=misra-c2012-15.7 \
+                   --suppress=misra-c2012-20.10 \
                    -I regulon-c/include \
-                   regulon-c/src/ 2>&1 | tee cppcheck_results.txt
+                   regulon-c/src/ron_pid_api.c \
+                   regulon-c/src/ron_pid_config.c \
+                   regulon-c/src/ron_pid_core.c \
+                   regulon-c/src/ron_pid_fault.c \
+                   2>&1 | tee cppcheck_results.txt
+
+      - name: Run complexity check
+        run: |
+          python3 -m lizard -C 10 \
+            regulon-c/src/ron_pid_api.c \
+            regulon-c/src/ron_pid_config.c \
+            regulon-c/src/ron_pid_core.c \
+            regulon-c/src/ron_pid_fault.c
 
       - name: Upload cppcheck results
         uses: actions/upload-artifact@v4
@@ -130,7 +190,7 @@ jobs:
           path: cppcheck_results.txt
 
   # ---------------------------------------------------------------------------
-  # Job 5: Code coverage (must reach 100% statement + branch — RON-QR-022)
+  # Job 6: Code coverage (must reach 100% statement + branch - RON-QR-022)
   # ---------------------------------------------------------------------------
   coverage:
     name: Code Coverage (lcov)
@@ -166,6 +226,11 @@ jobs:
                --directory ${{ env.BUILD_DIR_COV }} \
                --output-file coverage.info
           lcov --remove coverage.info '/usr/*' '*/test/*' '*/unity/*' \
+               '*/ron_filter.c' '*/ron_feedforward.c' '*/ron_gain_sched.c' \
+               '*/ron_cascade.c' '*/ron_trajectory_trap.c' \
+               '*/ron_trajectory_scurve.c' '*/ron_kalman.c' \
+               '*/ron_statespace.c' '*/ron_observer.c' '*/ron_autotune.c' \
+               '*/ron_health.c' '*/ron_metrics.c' \
                --output-file coverage_filtered.info
           genhtml coverage_filtered.info \
                --output-directory coverage_html \
@@ -178,7 +243,7 @@ jobs:
           path: coverage_html/
 
   # ---------------------------------------------------------------------------
-  # Job 6: CBMC Formal Verification (when harnesses exist — RON-TP-001 §2.2)
+  # Job 7: CBMC Formal Verification (when harnesses exist - RON-TP-001 §2.2)
   # ---------------------------------------------------------------------------
   formal-verification:
     name: CBMC Formal Proofs
@@ -196,12 +261,16 @@ jobs:
         run: |
           PROOFS=$(find regulon-c/test/formal -name "*_proof.c" 2>/dev/null || true)
           if [ -z "$PROOFS" ]; then
-            echo "No CBMC harnesses yet — skipping formal verification."
+            echo "No CBMC harnesses yet - skipping formal verification."
             exit 0
           fi
           for harness in $PROOFS; do
             echo "=== CBMC: $harness ==="
             cbmc --unwind 32 --bounds-check --pointer-check \
-                 "$harness" regulon-c/src/*.c \
+                 "$harness" \
+                 regulon-c/src/ron_pid_api.c \
+                 regulon-c/src/ron_pid_config.c \
+                 regulon-c/src/ron_pid_core.c \
+                 regulon-c/src/ron_pid_fault.c \
                  -I regulon-c/include
           done

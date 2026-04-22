@@ -293,15 +293,19 @@ typedef struct
 /* =========================================================================
  * Compile-time size assertions (RON-PR-021, RON-SR-022)
  *
- * Each struct must fit within 128 bytes of RAM on a 32-bit MCU.
+ * The 128-byte RAM budget is specified for the single-precision
+ * configuration. The double-precision verification build remains supported
+ * but is not constrained by that same RAM target.
  * ========================================================================= */
 
 /* Satisfies: RON-PR-021 | Test: RON-TC-PERF-006 */
+#if !defined(RON_USE_DOUBLE) || (RON_USE_DOUBLE != 1)
 RON_STATIC_ASSERT(sizeof(ron_pid_state_t) <= 128U,
                   "ron_pid_state_t exceeds 128-byte RAM budget (RON-PR-021)");
 
 /* Satisfies: RON-PR-021 | Test: RON-TC-PERF-005 */
 RON_STATIC_ASSERT(sizeof(ron_pid_config_t) <= 128U,
                   "ron_pid_config_t exceeds 128-byte RAM budget (RON-PR-021)");
+#endif
 
 #endif /* RON_PID_TYPES_H */

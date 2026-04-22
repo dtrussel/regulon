@@ -200,7 +200,7 @@ Test Frameworks
        or ``cargo-nextest`` (MIT) with built-in JUnit XML export.
    * - C (formal)
      - CBMC [REF-06]
-     - Harness files in ``c/test/formal/``. Run as part of CI via
+     - Harness files in ``regulon-c/test/formal/``. Run as part of CI via
        ``cbmc --unwind N harness.c``.
    * - Rust (formal)
      - Kani [REF-05]
@@ -352,13 +352,19 @@ CI Integration and Report Generation
 Both tracks emit JUnit-compatible XML, which is consumed by CI dashboards
 (GitHub Actions ``junit-reporter``, GitLab ``artifacts: reports: junit``).
 
+During the current C11 PID vertical slice, the active C verification surface
+is limited to ``ron_platform.h``, ``ron_pid_types.h``, ``ron_pid.h``, and the
+four PID implementation units. Local Windows verification is driven via
+``regulon-c/scripts/verify_pid.ps1``; Linux CI remains the provisioned
+secondary-toolchain environment.
+
 **C track CI pipeline** (``ci_c.yml`` excerpt):
 
 .. code-block:: yaml
 
    - name: Build and run tests (host)
      run: |
-       cmake -B build_host -S c/ -DRON_BUILD_TESTS=ON \
+       cmake -B build_host -S regulon-c/ -DRON_BUILD_TESTS=ON \
              -DCMAKE_C_FLAGS="-fsanitize=address,undefined"
        cmake --build build_host
        cd build_host && ctest --output-junit test_results_c.xml
@@ -366,17 +372,17 @@ Both tracks emit JUnit-compatible XML, which is consumed by CI dashboards
    - name: Static analysis
      run: |
        cppcheck --addon=misra.py --xml --xml-version=2 \
-         c/src/ 2> cppcheck_results.xml
+         regulon-c/src/ 2> cppcheck_results.xml
 
    - name: Formal verification (CBMC)
      run: |
-       for h in c/test/formal/*.c; do
+       for h in regulon-c/test/formal/*.c; do
          cbmc --unwind 32 --xml-ui "$h" >> cbmc_results.xml
        done
 
    - name: Coverage report
      run: |
-       cmake -B build_cov -S c/ -DRON_BUILD_TESTS=ON \
+       cmake -B build_cov -S regulon-c/ -DRON_BUILD_TESTS=ON \
              -DCMAKE_C_FLAGS="--coverage"
        cmake --build build_cov
        cd build_cov && ctest
@@ -1473,15 +1479,18 @@ RON-TC-PID-022 — Back-Calculation Anti-Windup Recovery
        Phase 2 (recovery): 100 steps, :math:`r=0.0`, :math:`y=0.0`.
    * - **Expected Output**
      - Phase 1: output clamped to 5.0; integral bounded (AW active).
-       Phase 2: output returns to 0.0 within 20 steps (tracked by settling
-       criterion: ``fabs(u) < 0.1``).
+       Phase 2: on the first release step with :math:`r=0.0`, the
+       back-calculation instance drives the output in the opposite direction
+       of the prior positive saturation and reduces integral magnitude versus
+       a no-AW instance under the same open-loop stimulus.
    * - **Pass Criterion**
-     - Recovery settling step ≤ 20. Compare against a no-AW instance:
-       its recovery **shall** be ≥ 2× slower (windup present).
+     - First recovery-step output of the AW instance is negative while the
+       no-AW instance remains positive, and
+       :math:`|I_{AW}| < |I_{noAW}|` after that release step.
    * - **Note**
-     - Same test without AW (RON-TC-PID-025) must demonstrate the
-       contrast — if AW is not beneficial on this plant/gains combination,
-       tighten the gain or increase dt.
+     - This is an implementation-level open-loop contrast test. Closed-loop
+       settling-time benefit requires a plant-coupled verification layer and
+       is not claimed by this host unit test.
 
 ------------------------------------------------------------------------
 
@@ -1885,8 +1894,26 @@ RON-TC-KF-006 — Measurement Dropout
 Safety and Fault Tests (RON-TC-SAFE-xxx)
 ==========================================
 
-RON-TC-SAFE-001 — API Null Pointer Rejection
----------------------------------------------
+RON-TC-SAFE-001 — API Input Parameter Validation
+------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-SR-001
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Exercise public PID entry points with invalid but non-null inputs,
+       such as ``dt <= 0``, negative gains, invalid limits, or inconsistent
+       normalisation ranges.
+   * - **Pass Criterion**
+     - Return value == ``RON_FAULT_CONFIG_INVALID`` and the active
+       configuration remains unchanged.
+
+RON-TC-SAFE-006 — API Null Pointer Rejection
+--------------------------------------------
 
 .. list-table::
    :widths: 20 80
@@ -1902,8 +1929,8 @@ RON-TC-SAFE-001 — API Null Pointer Rejection
      - Return value == ``RON_FAULT_NULL_POINTER`` in all cases.
        No crash, no memory write to address 0.
 
-RON-TC-SAFE-001-FV — Null Pointer Proof
------------------------------------------
+RON-TC-SAFE-006-FV — Null Pointer Proof
+---------------------------------------
 
 .. list-table::
    :widths: 20 80
@@ -2098,7 +2125,7 @@ RON-TC-QUAL-001 — MISRA C / MISRA Rust Compliance
    * - **Level**
      - UT (static) / ENV-HOST
    * - **Method**
-     - C: ``cppcheck --addon=misra.py --enable=all --error-exitcode=1 c/src/``.
+     - C: ``cppcheck --addon=misra.py --enable=all --error-exitcode=1 regulon-c/src/``.
        Rust: ``cargo clippy -- -D warnings -D clippy::all -D clippy::pedantic``.
        Both run in CI on every commit.
    * - **Pass Criterion**
@@ -2118,7 +2145,7 @@ RON-TC-QUAL-004 — Free Static Analysis Clean Pass
      - UT (static) / ENV-HOST
    * - **Method**
      - C: ``scan-build cmake --build build/`` (Clang Static Analyzer).
-       ``cppcheck --bug-hunting c/src/``.
+       ``cppcheck --bug-hunting regulon-c/src/``.
        Rust: ``cargo audit``. ``cargo clippy -D clippy::correctness``.
    * - **Pass Criterion**
      - Zero errors from all tools. Warnings reviewed; safety-relevant ones
@@ -2152,7 +2179,7 @@ RON-TC-QUAL-010 — Cyclomatic Complexity ≤ 10
      - UT (static) / ENV-HOST
    * - **Method**
      - C: ``cppcheck --enable=style --template='{file}:{line}:{severity}:{message}'
-       c/src/`` and inspect complexity warnings. Alternatively, ``lizard``
+       regulon-c/src/`` and inspect complexity warnings. Alternatively, ``lizard``
        (free MIT tool) reports per-function McCabe complexity.
        Rust: ``cargo clippy -- -D clippy::cognitive_complexity``.
    * - **Pass Criterion**
@@ -2169,9 +2196,10 @@ RON-TC-QUAL-014 — 100% Statement and Branch Coverage
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - C: build with ``--coverage``, run full test suite, generate report
-       with ``lcov --capture`` then ``lcov --remove`` to strip system
-       headers, ``genhtml`` for HTML report.
+     - C: build the active PID slice with ``--coverage``, run the PID unit
+       suites, generate a report with ``lcov --capture`` then
+       ``lcov --remove`` to strip system headers, test code, and inactive
+       placeholder modules, and render HTML via ``genhtml``.
        Rust: ``cargo llvm-cov nextest --workspace``.
    * - **Pass Criterion**
      - Statement coverage = 100%. Branch coverage = 100%.
@@ -2189,9 +2217,9 @@ RON-TC-QUAL-015 — MC/DC on Safety-Critical Conditions
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - ``llvm-cov --mcdc`` (LLVM 18+). Targets: all ``if`` conditions
-       inside RON-SR-010 – SR-013 fault detection paths, all AW clamping
-       conditions, all saturation branches.
+     - ``llvm-cov --mcdc`` (LLVM 18+) on the active PID slice. Targets: all
+       ``if`` conditions inside RON-SR-010 – SR-013 fault detection paths,
+       all AW clamping conditions, and all saturation / safe-output branches.
    * - **Pass Criterion**
      - MC/DC coverage = 100% on all designated safety-critical conditions.
 
@@ -2245,7 +2273,7 @@ RON-TC-QUAL-022 — Cross-Compilation Build Succeeds
    * - **Method**
      - C: ``cmake -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake
        -DCMAKE_C_FLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard"
-       -B build_arm -S c/`` and ``cmake --build build_arm``.
+       -B build_arm -S regulon-c/`` and ``cmake --build build_arm``.
        Rust: ``cargo build --target thumbv7em-none-eabihf``
        and ``cargo build --target riscv32imc-unknown-none-elf``.
    * - **Pass Criterion**

@@ -47,6 +47,58 @@ Added
 
 ------------------------------------------------------------------------
 
+Unreleased C11 PID Vertical Slice
+------------------------------------
+
+Added
+~~~~~
+- ``regulon-c/src/ron_pid_api.c``, ``regulon-c/src/ron_pid_core.c``,
+  ``regulon-c/src/ron_pid_fault.c``, and ``regulon-c/src/ron_pid_internal.h``:
+  implemented the active C11 PID slice behind the frozen public API.
+
+- ``regulon-c/test/unit/test_ron_pid_core.c``,
+  ``regulon-c/test/unit/test_ron_pid_api.c``, and
+  ``regulon-c/test/unit/test_ron_pid_common.h``: added traceable PID and
+  safety unit suites for the kickoff sprints.
+
+- ``regulon-c/test/formal/*.c``: added the first PID-focused CBMC harness set
+  for saturation, back-calculation, integral clamp, multi-instance
+  independence, and null-pointer validation.
+
+- ``docs/plans/c/c11-rollout.md``: C-track rollout/status note with local
+  evidence and remaining verification gaps.
+
+- ``regulon-c/scripts/verify_pid.ps1``: repo-owned Windows verification
+  entrypoint for the active PID slice, including tool probing, MSVC builds,
+  double-precision regression, formatting, cppcheck, and complexity checks.
+
+Changed
+~~~~~~~
+- ``regulon-c/CMakeLists.txt``: narrowed the active C build to the PID slice
+  so placeholder modules no longer pollute host builds and quality evidence.
+
+- ``regulon-c/test/CMakeLists.txt``: fixed the Windows/MSVC host-test build by
+  making ``m`` linkage conditional and enabling the PID core/API suites.
+
+- ``docs/specs/SRS_ControlLib.rst``, ``docs/specs/IS_ControlLib.rst``, and
+  ``docs/specs/TP_ControlLib.rst``: reconciled the PID API summary and updated
+  stale ``c/`` path references to ``regulon-c/`` where the C11 track is
+  described concretely.
+
+- ``regulon-c/src/ron_pid_config.c`` and ``regulon-c/src/ron_pid_core.c``:
+  refactored the active PID validation and step pipeline to keep cyclomatic
+  complexity within the ``RON-QR-011`` limit.
+
+- ``regulon-c/test/unit/test_ron_pid_api.c``: tightened the PID verification
+  slice with open-loop anti-windup recovery contrast, expanded null-pointer
+  checks, fault-register coverage, safe-output clamping, and deterministic
+  reproducibility testing.
+
+- ``docs/deviations/MISRA_C_deviations.rst``: recorded approved deviations and
+  observations for the active PID verification closure.
+
+------------------------------------------------------------------------
+
 Unreleased — Sprint 1 (C11 Platform + Type Headers)
 ----------------------------------------------------
 

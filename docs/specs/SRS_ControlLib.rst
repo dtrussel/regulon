@@ -758,17 +758,17 @@ The library shall expose the following categories of functions. Concrete signatu
    * - Category
      - Description
    * - Lifecycle
-     - ``init``, ``reset``, ``deinit`` — create, reset, and destroy controller instances.
+     - ``init`` and ``reset`` — initialise a caller-allocated controller instance and reset its dynamic state.
    * - Configuration
-     - ``set_gains``, ``set_limits``, ``set_filter``, ``set_antiwindup``, ``set_normalisation`` — configure all tuning and structural parameters.
+     - ``set_gains``, ``set_limits``, ``set_filter``, ``set_antiwindup``, and ``config_validate`` — validate and update the PID configuration supported by ``ron_pid.h``.
    * - Runtime
      - ``step`` — execute one control computation cycle, given :math:`r(k)` and :math:`y(k)`, returning :math:`u_{sat}(k)` and a status word.
    * - State Access
-     - ``get_output``, ``get_integral``, ``get_derivative``, ``get_status``, ``get_fault_code`` — read internal state.
+     - ``get_state`` — read the observable integral, last output, last derivative, status word, and fault code in one call.
    * - State Mutation
-     - ``set_integral``, ``set_output_manual``, ``set_mode`` — write internal state (bumpless transfer, pre-load).
+     - ``set_integral`` and ``set_mode`` — preload internal state and switch between manual and automatic operation.
    * - Diagnostics
-     - ``clear_fault``, ``get_diagnostics`` — fault management.
+     - ``fault_clear`` — clear the latched PID fault register so normal operation can resume.
 
 Hardware / Platform Interface
 ------------------------------
