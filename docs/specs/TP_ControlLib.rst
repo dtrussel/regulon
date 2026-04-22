@@ -108,7 +108,7 @@ References
    * - [REF-03]
      - ``cargo-llvm-cov`` (Apache 2.0). https://github.com/taiki-e/cargo-llvm-cov
    * - [REF-04]
-     - ``gcov``/``lcov`` documentation. https://gcc.gnu.org/onlinedocs/gcc/Gcov.html
+     - LLVM source-based coverage documentation. https://clang.llvm.org/docs/SourceBasedCodeCoverage.html
    * - [REF-05]
      - Kani Rust Verifier (Apache 2.0). https://model-checking.github.io/kani/
    * - [REF-06]
@@ -382,13 +382,15 @@ secondary-toolchain environment.
 
    - name: Coverage report
      run: |
-       cmake -B build_cov -S regulon-c/ -DRON_BUILD_TESTS=ON \
-             -DCMAKE_C_FLAGS="--coverage"
+       cmake -G Ninja -B build_cov -S regulon-c/ -DRON_BUILD_TESTS=ON \
+             -DCMAKE_C_COMPILER=clang \
+             -DCMAKE_C_FLAGS="-O0 -g -fprofile-instr-generate -fcoverage-mapping"
        cmake --build build_cov
-       cd build_cov && ctest
-       lcov --capture --directory . --output-file coverage.info
-       lcov --remove coverage.info '/usr/*' --output-file coverage.info
-       genhtml coverage.info --output-directory coverage_html
+       mkdir -p build_cov/profiles
+       LLVM_PROFILE_FILE="build_cov/profiles/%p.profraw" ctest --test-dir build_cov
+       llvm-profdata merge -sparse build_cov/profiles/*.profraw -o coverage.profdata
+       llvm-cov export build_cov/test/test_ron_pid_core \
+         -instr-profile coverage.profdata -summary-only -show-branch-summary
 
    - uses: actions/upload-artifact@v4
      with:
@@ -439,10 +441,10 @@ Coverage Requirements
      - Measurement Tool
    * - Statement coverage
      - 100%
-     - ``lcov`` (C), ``cargo-llvm-cov`` (Rust)
+     - ``llvm-cov`` (C), ``cargo-llvm-cov`` (Rust)
    * - Branch (decision) coverage
      - 100%
-     - ``lcov`` (C), ``cargo-llvm-cov`` (Rust)
+     - ``llvm-cov`` (C), ``cargo-llvm-cov`` (Rust)
    * - MC/DC coverage (safety paths)
      - 100% of RON-SR-010 – SR-013 conditions
      - ``llvm-cov --mcdc`` (both tracks, LLVM 18+)
@@ -2198,10 +2200,11 @@ RON-TC-QUAL-014 — 100% Statement and Branch Coverage
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - C: build the active PID slice with ``--coverage``, run the PID unit
-       suites, generate a report with ``lcov --capture`` then
-       ``lcov --remove`` to strip system headers, test code, and inactive
-       placeholder modules, and render HTML via ``genhtml``.
+     - C: build the active PID slice with Clang
+       ``-fprofile-instr-generate -fcoverage-mapping``, run the PID unit
+       suites with ``LLVM_PROFILE_FILE`` set, merge profiles with
+       ``llvm-profdata``, export/report coverage with ``llvm-cov``, and
+       render HTML via ``llvm-cov show -format=html``.
        Rust: ``cargo llvm-cov nextest --workspace``.
    * - **Pass Criterion**
      - Statement coverage = 100%. Branch coverage = 100%.
@@ -2239,11 +2242,11 @@ RON-TC-QUAL-016-FV — No Data Races (Formal)
      - Rust: run test suite under ``cargo +nightly miri test`` with
        ``MIRIFLAGS="-Zmiri-check-number-validity"``.
        C: ThreadSanitizer is not applicable (single-context requirement).
-       Verify by inspection that no global mutable variables exist in the
-       library.
+       Run ``pid_no_global_state_proof.c`` under CBMC and verify by inspection
+       that no global mutable variables exist in the library.
    * - **Pass Criterion**
-     - Miri reports zero errors. Grep on library sources for global
-       mutable state returns zero matches.
+     - Miri reports zero errors. CBMC proof passes. Grep on library sources
+       for global mutable state returns zero matches.
 
 RON-TC-QUAL-017 — Deterministic Reproducibility
 -------------------------------------------------
@@ -2463,7 +2466,7 @@ expected property proofs.
    * - RON-TC-SAFE-001-FV
      - Kani / CBMC
      - 1
-     - NULL arg → ``RON_FAULT_NULL_POINTER``, no deref
+     - Invalid API/configuration parameters are rejected before use
    * - RON-TC-SAFE-002-FV
      - Kani / CBMC
      - 1
@@ -2505,9 +2508,9 @@ expected property proofs.
      - 1
      - No blocking calls (no sleep/wait/yield) in any library function
    * - RON-TC-QUAL-016-FV
-     - Miri (Rust)
-     - N/A
-     - No UB, no data races in full test suite
+     - Miri / CBMC
+     - 1
+     - No UB/data races in Rust; no C global mutable state dependency
 
 ------------------------------------------------------------------------
 

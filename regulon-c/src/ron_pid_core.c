@@ -14,6 +14,12 @@
 
 #include "ron_pid_internal.h"
 
+/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
+static bool pid_core_isfinite(ron_float_t value)
+{
+    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
+}
+
 /* Satisfies: RON-FR-010, RON-FR-011 | Test: RON-TC-PID-011, RON-TC-PID-012 */
 static ron_float_t pid_normalise(ron_float_t x, ron_float_t x_min, ron_float_t x_max)
 {
@@ -193,7 +199,7 @@ static ron_fault_t pid_apply_output_limits(ron_pid_instance_t *inst, ron_float_t
 
     cfg   = &inst->config;
     fault = RON_FAULT_NONE;
-    if (!RON_ISFINITE(u_raw)) {
+    if (!pid_core_isfinite(u_raw)) {
         fault = pid_fail_step(inst, RON_FAULT_OUTPUT_NAN, u_out, status);
     } else {
         ron_float_t u_sat;
@@ -252,7 +258,7 @@ ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float
     state       = &inst->state;
     step_status = RON_STATUS_OK;
 
-    if (!RON_ISFINITE(r) || !RON_ISFINITE(y)) {
+    if (!pid_core_isfinite(r) || !pid_core_isfinite(y)) {
         fault = pid_fail_step(inst, RON_FAULT_INPUT_NAN, u_out, status);
     } else if (pid_manual_step(state, u_out, status)) {
         fault = RON_FAULT_NONE;

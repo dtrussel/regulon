@@ -72,6 +72,11 @@ Added
   entrypoint for the active PID slice, including tool probing, MSVC builds,
   double-precision regression, formatting, cppcheck, and complexity checks.
 
+- Additional C CBMC harnesses for PID verification closure, covering API
+  validation, denominator guards, no-heap/no-recursion/no-blocking claims,
+  array-bounds smoke coverage, NaN/Inf fault handling, integral overflow,
+  bounded step execution, and no global-state dependency.
+
 Changed
 ~~~~~~~
 - ``regulon-c/CMakeLists.txt``: narrowed the active C build to the PID slice
@@ -93,6 +98,20 @@ Changed
   slice with open-loop anti-windup recovery contrast, expanded null-pointer
   checks, fault-register coverage, safe-output clamping, and deterministic
   reproducibility testing.
+
+- ``regulon-c/scripts/verify_pid.ps1``: added Clang/LLVM coverage
+  enforcement, dynamic CBMC harness discovery, CBMC unwinding assertions,
+  and cleaner skip reporting for unavailable Clang, coverage, cross, and
+  formal tools.
+
+- ``.github/workflows/ci_c.yml``: now enforces 100% statement and branch
+  coverage with Clang/LLVM coverage, uploads raw/rendered coverage plus CBMC
+  artifacts, and adds the ARM Cortex-M cross-compile smoke build for the
+  active PID slice.
+
+- ``docs/specs/TP_ControlLib.rst`` and ``docs/plans/c/c11-rollout.md``:
+  updated the C verification-closure claims, evidence, and remaining local
+  tool gaps.
 
 - ``docs/deviations/MISRA_C_deviations.rst``: recorded approved deviations and
   observations for the active PID verification closure.

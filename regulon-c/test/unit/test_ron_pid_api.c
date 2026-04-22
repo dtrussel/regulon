@@ -15,6 +15,7 @@
 
 #include "unity.h"
 #include "test_ron_pid_common.h"
+#include "ron_pid_internal.h"
 
 static unsigned test_ron_fault_cb_count = 0U;
 static ron_fault_t test_ron_last_fault = RON_FAULT_NONE;
@@ -34,6 +35,28 @@ static void test_ron_fault_cb(ron_fault_t fault)
 {
     ++test_ron_fault_cb_count;
     test_ron_last_fault = fault;
+}
+
+/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
+static ron_float_t test_ron_make_nan(void)
+{
+    volatile ron_float_t zero = RON_FLOAT_C(0.0);
+
+    return zero / zero;
+}
+
+/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
+static ron_float_t test_ron_make_inf(void)
+{
+    volatile ron_float_t big = RON_FLOAT_MAX;
+
+    return big * big;
+}
+
+/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
+static ron_float_t test_ron_make_neg_inf(void)
+{
+    return -test_ron_make_inf();
 }
 
 /* Satisfies: RON-FR-050 | Test: RON-TC-PID-030 */
@@ -470,6 +493,28 @@ void test_ron_tc_pid_027(void)
     TEST_ASSERT_TRUE((status & RON_STATUS_MANUAL_MODE) != 0U);
 }
 
+/* RON-TC-PID-027 | RON-FR-040 */
+void test_ron_tc_pid_027_mode_noop_paths(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid = test_ron_init_pid_api(&cfg);
+    ron_status_t       status = RON_STATUS_FAULT;
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_set_mode(&pid, RON_MODE_AUTOMATIC, RON_FLOAT_C(1.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_get_state(&pid, NULL, NULL, NULL, &status, NULL));
+    TEST_ASSERT_EQUAL_UINT16(RON_STATUS_OK, status);
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_set_mode(&pid, RON_MODE_MANUAL, RON_FLOAT_C(2.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_set_mode(&pid, RON_MODE_MANUAL, RON_FLOAT_C(3.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_get_state(&pid, NULL, NULL, NULL, &status, NULL));
+    TEST_ASSERT_TRUE((status & RON_STATUS_MANUAL_MODE) != 0U);
+}
+
 /* RON-TC-PID-028 | RON-FR-041 */
 void test_ron_tc_pid_028(void)
 {
@@ -554,6 +599,21 @@ void test_ron_tc_pid_031(void)
     TEST_ASSERT_EQUAL_UINT16(RON_STATUS_OK, status);
 }
 
+/* RON-TC-PID-031 | RON-FR-051 */
+void test_ron_tc_pid_031_manual_reset_status(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid = test_ron_init_pid_api(&cfg);
+    ron_status_t       status = RON_STATUS_OK;
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_set_mode(&pid, RON_MODE_MANUAL, RON_FLOAT_C(2.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_reset(&pid));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_get_state(&pid, NULL, NULL, NULL, &status, NULL));
+    TEST_ASSERT_TRUE((status & RON_STATUS_MANUAL_MODE) != 0U);
+}
+
 /* RON-TC-PID-032 | RON-FR-052 */
 void test_ron_tc_pid_032(void)
 {
@@ -610,6 +670,27 @@ void test_ron_tc_pid_034(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
         ron_pid_step(&pid, RON_FLOAT_C(2.0), RON_FLOAT_C(0.0), RON_FLOAT_C(1.0), &u, &status));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(2.0), u);
+}
+
+/* RON-TC-PID-034 | RON-FR-054 */
+void test_ron_tc_pid_034_reset_threshold_not_crossed(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+    ron_float_t        u = RON_FLOAT_C(0.0);
+    ron_status_t       status = RON_STATUS_OK;
+
+    cfg.Kp = RON_FLOAT_C(0.0);
+    cfg.Ki = RON_FLOAT_C(1.0);
+    cfg.sp_reset_threshold = RON_FLOAT_C(10.0);
+    pid = test_ron_init_pid_api(&cfg);
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(1.0), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(1.0), u);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(2.0), RON_FLOAT_C(0.0), RON_FLOAT_C(1.0), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(3.0), u);
 }
 
 /* RON-TC-PID-035 | RON-FR-060 */
@@ -774,14 +855,238 @@ void test_ron_tc_safe_001(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
     ron_pid_instance_t pid = test_ron_init_pid_api(&cfg);
+    ron_pid_instance_t uninitialised = {0};
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
         ron_pid_step(&pid, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_step(&uninitialised, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_reset(&uninitialised));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_init(&uninitialised, &(ron_pid_config_t){0}));
+
     cfg.Kp = RON_FLOAT_C(-1.0);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
         ron_pid_config_validate(&cfg));
+}
+
+/* RON-TC-SAFE-001 | RON-SR-001 */
+void test_ron_tc_safe_001_config_validation_matrix(void)
+{
+    ron_pid_config_t cfg = test_ron_make_pid_cfg();
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.b = RON_FLOAT_C(1.1);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.c = RON_FLOAT_C(1.1);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.b = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.b = RON_FLOAT_C(-0.1);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.c = test_ron_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.Kp = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.Kp = test_ron_make_neg_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.Ki = RON_FLOAT_C(-1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.Kd = RON_FLOAT_C(-1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.N = RON_FLOAT_C(-1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.I_min = cfg.I_max;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.u_min = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.I_max = test_ron_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.aw_mode = (ron_aw_mode_t)99;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.integ_method = (ron_integ_method_t)99;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.deriv_mode = (ron_deriv_mode_t)99;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.safe_policy = (ron_safe_policy_t)99;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.aw_mode = RON_AW_BACK_CALC;
+    cfg.T_aw = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.aw_mode = RON_AW_BACK_CALC;
+    cfg.T_aw = RON_FLOAT_C(-1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.aw_mode = RON_AW_BACK_CALC;
+    cfg.T_aw = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.I_overflow_thresh = RON_FLOAT_C(-1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.I_overflow_thresh = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.sp_reset_threshold = RON_FLOAT_C(-1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.sp_reset_threshold = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.normalise = true;
+    cfg.in_max = cfg.in_min;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.normalise = true;
+    cfg.in_min = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.normalise = true;
+    cfg.in_max = test_ron_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.normalise = true;
+    cfg.out_max = cfg.out_min;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.normalise = true;
+    cfg.out_min = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.normalise = true;
+    cfg.out_max = test_ron_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.tau_sp = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.du_max = test_ron_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+
+    cfg = test_ron_make_pid_cfg();
+    cfg.safe_value = test_ron_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_pid_config_validate(&cfg));
+}
+
+/* RON-TC-PID-026 | RON-FR-035 */
+void test_ron_tc_pid_026_negative_clamping_antiwindup(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+    ron_float_t        u = RON_FLOAT_C(0.0);
+    ron_float_t        integral = RON_FLOAT_C(0.0);
+    ron_status_t       status = RON_STATUS_OK;
+
+    cfg.Kp = RON_FLOAT_C(50.0);
+    cfg.Ki = RON_FLOAT_C(10.0);
+    cfg.u_min = RON_FLOAT_C(-0.5);
+    cfg.u_max = RON_FLOAT_C(0.5);
+    cfg.aw_mode = RON_AW_CLAMPING;
+    pid = test_ron_init_pid_api(&cfg);
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(-1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(-1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_get_state(&pid, &integral, NULL, NULL, &status, NULL));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(-1.0), integral);
+    TEST_ASSERT_TRUE((status & RON_STATUS_AW_ACTIVE) != 0U);
+}
+
+/* RON-TC-PID-026 | RON-FR-035 */
+void test_ron_tc_pid_026_clamping_recovery_error(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+    ron_float_t        u = RON_FLOAT_C(0.0);
+    ron_float_t        integral = RON_FLOAT_C(0.0);
+    ron_status_t       status = RON_STATUS_OK;
+
+    cfg.Kp = RON_FLOAT_C(50.0);
+    cfg.Ki = RON_FLOAT_C(10.0);
+    cfg.u_min = RON_FLOAT_C(-0.5);
+    cfg.u_max = RON_FLOAT_C(0.5);
+    cfg.aw_mode = RON_AW_CLAMPING;
+    pid = test_ron_init_pid_api(&cfg);
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(-1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_get_state(&pid, &integral, NULL, NULL, &status, NULL));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(-0.5), u);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(0.0), integral);
+}
+
+/* RON-TC-SAFE-010 | RON-SR-013 */
+void test_ron_tc_safe_010_integral_threshold_not_crossed(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+    ron_float_t        u = RON_FLOAT_C(0.0);
+    ron_status_t       status = RON_STATUS_OK;
+
+    cfg.Kp = RON_FLOAT_C(0.0);
+    cfg.Ki = RON_FLOAT_C(1.0);
+    cfg.I_overflow_thresh = RON_FLOAT_C(10.0);
+    pid = test_ron_init_pid_api(&cfg);
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_TRUE((status & RON_STATUS_FAULT) == 0U);
 }
 
 /* RON-TC-SAFE-007 | RON-SR-010 */
@@ -791,9 +1096,10 @@ void test_ron_tc_safe_007(void)
     ron_pid_instance_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
-    volatile ron_float_t zero = RON_FLOAT_C(0.0);
-    ron_float_t        nan_value = zero / zero;
+    ron_float_t        nan_value = test_ron_make_nan();
 
+    test_ron_fault_cb_count = 0U;
+    test_ron_last_fault = RON_FAULT_NONE;
     cfg.safe_policy = RON_SAFE_ZERO;
     cfg.fault_cb = test_ron_fault_cb;
     pid = test_ron_init_pid_api(&cfg);
@@ -805,6 +1111,29 @@ void test_ron_tc_safe_007(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_INPUT_NAN, test_ron_last_fault);
 }
 
+/* RON-TC-SAFE-007 | RON-SR-010 */
+void test_ron_tc_safe_007_computed_faults(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+    ron_float_t        u = RON_FLOAT_C(1.0);
+    ron_status_t       status = RON_STATUS_OK;
+
+    test_ron_fault_cb_count = 0U;
+    test_ron_last_fault = RON_FAULT_NONE;
+    cfg.Kp = RON_FLOAT_MAX;
+    cfg.safe_policy = RON_SAFE_ZERO;
+    cfg.fault_cb = test_ron_fault_cb;
+    pid = test_ron_init_pid_api(&cfg);
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN,
+        ron_pid_step(&pid, RON_FLOAT_MAX, RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(0.0), u);
+    TEST_ASSERT_TRUE((status & RON_STATUS_FAULT) != 0U);
+    TEST_ASSERT_EQUAL_UINT(1U, test_ron_fault_cb_count);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, test_ron_last_fault);
+}
+
 /* RON-TC-SAFE-008 | RON-SR-011 */
 void test_ron_tc_safe_008(void)
 {
@@ -812,8 +1141,7 @@ void test_ron_tc_safe_008(void)
     ron_pid_instance_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
-    volatile ron_float_t zero = RON_FLOAT_C(0.0);
-    ron_float_t        nan_value = zero / zero;
+    ron_float_t        nan_value = test_ron_make_nan();
 
     cfg.safe_policy = RON_SAFE_CONSTANT;
     cfg.safe_value = RON_FLOAT_C(20.0);
@@ -825,6 +1153,33 @@ void test_ron_tc_safe_008(void)
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(5.0), u);
 }
 
+/* RON-TC-SAFE-008 | RON-SR-011 */
+void test_ron_tc_safe_008_safe_output_policies(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+
+    cfg.safe_policy = RON_SAFE_HOLD_LAST;
+    pid = test_ron_init_pid_api(&cfg);
+    pid.state.u_sat_prev = RON_FLOAT_C(4.0);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(4.0),
+        ron_pid_fault_safe_output(&pid));
+
+    pid.config.safe_policy = RON_SAFE_ZERO;
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(0.0),
+        ron_pid_fault_safe_output(&pid));
+
+    pid.config.safe_policy = RON_SAFE_CONSTANT;
+    pid.config.safe_value = RON_FLOAT_C(-2000.0);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), pid.config.u_min,
+        ron_pid_fault_safe_output(&pid));
+
+    pid.config.safe_policy = (ron_safe_policy_t)99;
+    pid.state.u_sat_prev = RON_FLOAT_C(7.0);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(7.0),
+        ron_pid_fault_safe_output(&pid));
+}
+
 /* RON-TC-SAFE-009 | RON-SR-012 */
 void test_ron_tc_safe_009(void)
 {
@@ -832,8 +1187,7 @@ void test_ron_tc_safe_009(void)
     ron_pid_instance_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
-    volatile ron_float_t zero = RON_FLOAT_C(0.0);
-    ron_float_t        nan_value = zero / zero;
+    ron_float_t        nan_value = test_ron_make_nan();
 
     cfg.safe_policy = RON_SAFE_ZERO;
     pid = test_ron_init_pid_api(&cfg);
@@ -877,10 +1231,9 @@ void test_ron_tc_safe_011(void)
     ron_pid_instance_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
-    volatile ron_float_t zero = RON_FLOAT_C(0.0);
-    volatile ron_float_t big = RON_FLOAT_MAX;
-    ron_float_t        nan_value = zero / zero;
-    ron_float_t        inf_value = big * big;
+    ron_float_t        nan_value = test_ron_make_nan();
+    ron_float_t        inf_value = test_ron_make_inf();
+    ron_float_t        neg_inf_value = test_ron_make_neg_inf();
 
     pid = test_ron_init_pid_api(&cfg);
 
@@ -890,8 +1243,59 @@ void test_ron_tc_safe_011(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_INPUT_NAN,
         ron_pid_step(&pid, RON_FLOAT_C(0.0), inf_value, RON_FLOAT_C(0.01), &u, &status));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_fault_clear(&pid));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_INPUT_NAN,
+        ron_pid_step(&pid, RON_FLOAT_C(0.0), neg_inf_value, RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_fault_clear(&pid));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
         ron_pid_step(&pid, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), inf_value, &u, &status));
+}
+
+/* RON-TC-SAFE-011 | RON-SR-020 */
+void test_ron_tc_safe_011_api_nonfinite_rejection(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid = test_ron_init_pid_api(&cfg);
+    ron_float_t        nan_value = test_ron_make_nan();
+    ron_float_t        inf_value = test_ron_make_inf();
+    ron_float_t        neg_inf_value = test_ron_make_neg_inf();
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_set_mode(&pid, RON_MODE_MANUAL, nan_value));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_set_mode(&pid, RON_MODE_MANUAL, inf_value));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_set_mode(&pid, RON_MODE_MANUAL, neg_inf_value));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_set_integral(&pid, nan_value));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_set_integral(&pid, inf_value));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+        ron_pid_set_integral(&pid, neg_inf_value));
+}
+
+/* RON-TC-SAFE-007 | RON-SR-010 */
+void test_ron_tc_safe_007_fault_callback_all_bits(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid = test_ron_init_pid_api(&cfg);
+
+    test_ron_fault_cb_count = 0U;
+    test_ron_last_fault = RON_FAULT_NONE;
+    pid.config.fault_cb = test_ron_fault_cb;
+    ron_pid_fault_set(&pid, RON_FAULT_INTEGRAL_OVERFLOW);
+    TEST_ASSERT_EQUAL_UINT(1U, test_ron_fault_cb_count);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_INTEGRAL_OVERFLOW, test_ron_last_fault);
+
+    ron_pid_fault_set(&pid, RON_FAULT_CONFIG_INVALID);
+    TEST_ASSERT_EQUAL_UINT(2U, test_ron_fault_cb_count);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, test_ron_last_fault);
+
+    ron_pid_fault_set(&pid, RON_FAULT_NULL_POINTER);
+    TEST_ASSERT_EQUAL_UINT(3U, test_ron_fault_cb_count);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, test_ron_last_fault);
+
+    ron_pid_fault_set(&pid, RON_FAULT_NULL_POINTER);
+    TEST_ASSERT_EQUAL_UINT(3U, test_ron_fault_cb_count);
 }
 
 /* RON-TC-SAFE-006 | RON-SR-001, RON-SR-006 */
@@ -956,25 +1360,36 @@ int main(void)
     RUN_TEST(test_ron_tc_pid_025);
     RUN_TEST(test_ron_tc_pid_026);
     RUN_TEST(test_ron_tc_pid_027);
+    RUN_TEST(test_ron_tc_pid_027_mode_noop_paths);
     RUN_TEST(test_ron_tc_pid_028);
     RUN_TEST(test_ron_tc_pid_029);
     RUN_TEST(test_ron_tc_pid_030);
     RUN_TEST(test_ron_tc_pid_031);
+    RUN_TEST(test_ron_tc_pid_031_manual_reset_status);
     RUN_TEST(test_ron_tc_pid_032);
     RUN_TEST(test_ron_tc_pid_033);
     RUN_TEST(test_ron_tc_pid_034);
+    RUN_TEST(test_ron_tc_pid_034_reset_threshold_not_crossed);
     RUN_TEST(test_ron_tc_pid_035);
     RUN_TEST(test_ron_tc_pid_036);
     RUN_TEST(test_ron_tc_pid_037);
     RUN_TEST(test_ron_tc_pid_038);
     RUN_TEST(test_ron_tc_pid_039);
     RUN_TEST(test_ron_tc_safe_001);
+    RUN_TEST(test_ron_tc_safe_001_config_validation_matrix);
+    RUN_TEST(test_ron_tc_pid_026_negative_clamping_antiwindup);
+    RUN_TEST(test_ron_tc_pid_026_clamping_recovery_error);
     RUN_TEST(test_ron_tc_safe_006);
     RUN_TEST(test_ron_tc_safe_007);
+    RUN_TEST(test_ron_tc_safe_007_computed_faults);
+    RUN_TEST(test_ron_tc_safe_007_fault_callback_all_bits);
     RUN_TEST(test_ron_tc_safe_008);
+    RUN_TEST(test_ron_tc_safe_008_safe_output_policies);
     RUN_TEST(test_ron_tc_safe_009);
     RUN_TEST(test_ron_tc_safe_010);
+    RUN_TEST(test_ron_tc_safe_010_integral_threshold_not_crossed);
     RUN_TEST(test_ron_tc_safe_011);
+    RUN_TEST(test_ron_tc_safe_011_api_nonfinite_rejection);
     RUN_TEST(test_ron_tc_qual_017);
     return UNITY_END();
 }
