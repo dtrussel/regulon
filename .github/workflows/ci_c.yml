@@ -210,7 +210,7 @@ jobs:
           cmake -B ${{ env.BUILD_DIR_COV }} -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=ON \
                 -DCMAKE_C_COMPILER=gcc \
-                -DCMAKE_C_FLAGS="--coverage -O0"
+                -DCMAKE_C_FLAGS="-O0 -g --coverage"
 
       - name: Build
         run: cmake --build ${{ env.BUILD_DIR_COV }} --parallel
@@ -222,16 +222,18 @@ jobs:
 
       - name: Collect coverage
         run: |
-          lcov --capture \
+          lcov --rc branch_coverage=1 --capture \
                --directory ${{ env.BUILD_DIR_COV }} \
                --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*/test/*' '*/unity/*' \
+          lcov --rc branch_coverage=1 --remove coverage.info '/usr/*' '*/test/*' '*/unity/*' \
                '*/ron_filter.c' '*/ron_feedforward.c' '*/ron_gain_sched.c' \
                '*/ron_cascade.c' '*/ron_trajectory_trap.c' \
                '*/ron_trajectory_scurve.c' '*/ron_kalman.c' \
                '*/ron_statespace.c' '*/ron_observer.c' '*/ron_autotune.c' \
                '*/ron_health.c' '*/ron_metrics.c' \
+               --ignore-errors unused \
                --output-file coverage_filtered.info
+          lcov --rc branch_coverage=1 --summary coverage_filtered.info
           genhtml coverage_filtered.info \
                --output-directory coverage_html \
                --branch-coverage
@@ -265,8 +267,11 @@ jobs:
             exit 0
           fi
           for harness in $PROOFS; do
+            entry=$(basename "$harness" .c)
             echo "=== CBMC: $harness ==="
-            cbmc --unwind 32 --bounds-check --pointer-check \
+            cbmc --function "$entry" \
+                 --unwind 32 --unwinding-assertions \
+                 --bounds-check --pointer-check \
                  "$harness" \
                  regulon-c/src/ron_pid_api.c \
                  regulon-c/src/ron_pid_config.c \

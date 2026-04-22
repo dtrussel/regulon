@@ -70,6 +70,4 @@ AllowShortBlocksOnASingleLine:     Never
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine:      false
 
-# C-specific
-Standard: c11
 ...

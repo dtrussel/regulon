@@ -33,8 +33,7 @@
  * Satisfies: RON-FR-030, RON-FR-031, RON-FR-032, RON-FR-033, RON-FR-034.
  */
 /* Satisfies: RON-FR-030 – RON-FR-034 | Test: RON-TC-PID-021 – RON-TC-PID-025 */
-typedef enum
-{
+typedef enum {
     RON_AW_NONE      = 0, /**< Anti-windup disabled.                           */
     RON_AW_BACK_CALC = 1, /**< Back-calculation (tracking) method.             */
     RON_AW_CLAMPING  = 2  /**< Conditional integration clamping.               */
@@ -46,8 +45,7 @@ typedef enum
  * Satisfies: RON-FR-005.
  */
 /* Satisfies: RON-FR-005 | Test: RON-TC-PID-006, RON-TC-PID-007 */
-typedef enum
-{
+typedef enum {
     RON_DERIV_ON_ERROR       = 0, /**< D term uses error difference.           */
     RON_DERIV_ON_MEASUREMENT = 1  /**< D term uses measurement difference
                                         (default — avoids derivative kick).     */
@@ -59,8 +57,7 @@ typedef enum
  * Satisfies: RON-FR-040, RON-FR-041, RON-FR-042.
  */
 /* Satisfies: RON-FR-040 – RON-FR-042 | Test: RON-TC-PID-027 – RON-TC-PID-029 */
-typedef enum
-{
+typedef enum {
     RON_MODE_AUTOMATIC = 0, /**< Closed-loop PID active.                       */
     RON_MODE_MANUAL    = 1  /**< Caller supplies output; integral frozen.      */
 } ron_op_mode_t;
@@ -71,8 +68,7 @@ typedef enum
  * Satisfies: RON-SR-011.
  */
 /* Satisfies: RON-SR-011 | Test: RON-TC-SAFE-008 */
-typedef enum
-{
+typedef enum {
     RON_SAFE_HOLD_LAST = 0, /**< Freeze output at the last valid value.        */
     RON_SAFE_ZERO      = 1, /**< Drive output to 0.0.                          */
     RON_SAFE_CONSTANT  = 2  /**< Drive output to ron_pid_config_t.safe_value.  */
@@ -84,8 +80,7 @@ typedef enum
  * Satisfies: RON-FR-004.
  */
 /* Satisfies: RON-FR-004 | Test: RON-TC-PID-004, RON-TC-PID-005 */
-typedef enum
-{
+typedef enum {
     RON_INTEG_EULER       = 0, /**< Rectangular (Euler forward) — default.    */
     RON_INTEG_TRAPEZOIDAL = 1  /**< Trapezoidal (Tustin) method.              */
 } ron_integ_method_t;
@@ -107,12 +102,12 @@ typedef enum
 /* Satisfies: RON-SR-010, RON-SR-013 | Test: RON-TC-SAFE-007, RON-TC-SAFE-010 */
 typedef uint8_t ron_fault_t;
 
-#define RON_FAULT_NONE              ((ron_fault_t)0x00U) /**< No fault.        */
-#define RON_FAULT_INPUT_NAN         ((ron_fault_t)0x01U) /**< r or y is NaN/Inf.         */
-#define RON_FAULT_OUTPUT_NAN        ((ron_fault_t)0x02U) /**< Computed u is NaN/Inf.     */
-#define RON_FAULT_INTEGRAL_OVERFLOW ((ron_fault_t)0x04U) /**< |I| exceeded overflow thresh. */
-#define RON_FAULT_CONFIG_INVALID    ((ron_fault_t)0x08U) /**< Configuration inconsistency. */
-#define RON_FAULT_NULL_POINTER      ((ron_fault_t)0x10U) /**< NULL pointer in API call.  */
+#define RON_FAULT_NONE ((ron_fault_t) 0x00U)              /**< No fault.        */
+#define RON_FAULT_INPUT_NAN ((ron_fault_t) 0x01U)         /**< r or y is NaN/Inf.         */
+#define RON_FAULT_OUTPUT_NAN ((ron_fault_t) 0x02U)        /**< Computed u is NaN/Inf.     */
+#define RON_FAULT_INTEGRAL_OVERFLOW ((ron_fault_t) 0x04U) /**< |I| exceeded overflow thresh. */
+#define RON_FAULT_CONFIG_INVALID ((ron_fault_t) 0x08U)    /**< Configuration inconsistency. */
+#define RON_FAULT_NULL_POINTER ((ron_fault_t) 0x10U)      /**< NULL pointer in API call.  */
 
 /**
  * @brief Status word returned after each computation step.
@@ -124,14 +119,14 @@ typedef uint8_t ron_fault_t;
 /* Satisfies: RON-FR-070 | Test: RON-TC-PID-038 */
 typedef uint16_t ron_status_t;
 
-#define RON_STATUS_OK               ((ron_status_t)0x0000U) /**< Normal.       */
-#define RON_STATUS_SATURATED        ((ron_status_t)0x0001U) /**< Output clamped. */
-#define RON_STATUS_RATE_LIMITED     ((ron_status_t)0x0002U) /**< Rate clamped. */
-#define RON_STATUS_AW_ACTIVE        ((ron_status_t)0x0004U) /**< AW correction active. */
-#define RON_STATUS_MANUAL_MODE      ((ron_status_t)0x0008U) /**< Manual mode.  */
-#define RON_STATUS_FAULT            ((ron_status_t)0x0010U) /**< Fault latched.*/
-#define RON_STATUS_SP_FILTER_ACTIVE ((ron_status_t)0x0020U) /**< SP filter on. */
-#define RON_STATUS_NORMALISED       ((ron_status_t)0x0040U) /**< Normalisation enabled. */
+#define RON_STATUS_OK ((ron_status_t) 0x0000U)               /**< Normal.       */
+#define RON_STATUS_SATURATED ((ron_status_t) 0x0001U)        /**< Output clamped. */
+#define RON_STATUS_RATE_LIMITED ((ron_status_t) 0x0002U)     /**< Rate clamped. */
+#define RON_STATUS_AW_ACTIVE ((ron_status_t) 0x0004U)        /**< AW correction active. */
+#define RON_STATUS_MANUAL_MODE ((ron_status_t) 0x0008U)      /**< Manual mode.  */
+#define RON_STATUS_FAULT ((ron_status_t) 0x0010U)            /**< Fault latched.*/
+#define RON_STATUS_SP_FILTER_ACTIVE ((ron_status_t) 0x0020U) /**< SP filter on. */
+#define RON_STATUS_NORMALISED ((ron_status_t) 0x0040U)       /**< Normalisation enabled. */
 
 /* =========================================================================
  * Fault handler callback type
@@ -170,66 +165,65 @@ typedef void (*ron_fault_cb_t)(ron_fault_t fault);
  *            RON-SR-010 – RON-SR-013.
  */
 /* Satisfies: RON-FR-001 – RON-FR-035 | Test: RON-TC-PID-001 – RON-TC-PID-026 */
-typedef struct
-{
+typedef struct {
     /* ── Gain parameters (parallel form) ─────────────────────────────── */
-    ron_float_t  Kp;  /**< Proportional gain. Must be >= 0 and finite.        */
-    ron_float_t  Ki;  /**< Integral gain.     Must be >= 0 and finite.        */
-    ron_float_t  Kd;  /**< Derivative gain.   Must be >= 0 and finite.        */
+    ron_float_t Kp; /**< Proportional gain. Must be >= 0 and finite.        */
+    ron_float_t Ki; /**< Integral gain.     Must be >= 0 and finite.        */
+    ron_float_t Kd; /**< Derivative gain.   Must be >= 0 and finite.        */
 
     /* ── Derivative filter ───────────────────────────────────────────── */
-    ron_float_t  N;   /**< Derivative LP filter bandwidth multiplier.
+    ron_float_t N; /**< Derivative LP filter bandwidth multiplier.
                             0 disables the filter.  Must be >= 0 and finite.  */
 
     /* ── 2DOF setpoint weights ───────────────────────────────────────── */
-    ron_float_t  b;   /**< Proportional SP weight in [0, 1]. Default: 1.0.   */
-    ron_float_t  c;   /**< Derivative SP weight in [0, 1].   Default: 1.0.   */
+    ron_float_t b; /**< Proportional SP weight in [0, 1]. Default: 1.0.   */
+    ron_float_t c; /**< Derivative SP weight in [0, 1].   Default: 1.0.   */
 
     /* ── Output limits ───────────────────────────────────────────────── */
-    ron_float_t  u_min; /**< Minimum control output. Must be < u_max.        */
-    ron_float_t  u_max; /**< Maximum control output.                          */
+    ron_float_t u_min; /**< Minimum control output. Must be < u_max.        */
+    ron_float_t u_max; /**< Maximum control output.                          */
 
     /* ── Output rate limit ───────────────────────────────────────────── */
-    ron_float_t  du_max; /**< Max |Δu| per second. <= 0 disables.            */
+    ron_float_t du_max; /**< Max |Δu| per second. <= 0 disables.            */
 
     /* ── Integral accumulator clamp ──────────────────────────────────── */
-    ron_float_t  I_min; /**< Integral lower clamp. Must be < I_max.          */
-    ron_float_t  I_max; /**< Integral upper clamp.                            */
+    ron_float_t I_min; /**< Integral lower clamp. Must be < I_max.          */
+    ron_float_t I_max; /**< Integral upper clamp.                            */
 
     /* ── Anti-windup ─────────────────────────────────────────────────── */
-    ron_aw_mode_t  aw_mode; /**< Anti-windup scheme.                          */
-    ron_float_t    T_aw;    /**< Back-calc tracking time constant.
+    ron_aw_mode_t aw_mode; /**< Anti-windup scheme.                          */
+    ron_float_t T_aw;      /**< Back-calc tracking time constant.
                                   Required > 0 when aw_mode=RON_AW_BACK_CALC. */
 
     /* ── Integration method ──────────────────────────────────────────── */
-    ron_integ_method_t  integ_method; /**< Euler (default) or Trapezoidal.   */
+    ron_integ_method_t integ_method; /**< Euler (default) or Trapezoidal.   */
 
     /* ── Derivative mode ─────────────────────────────────────────────── */
-    ron_deriv_mode_t  deriv_mode; /**< Default: RON_DERIV_ON_MEASUREMENT.    */
+    ron_deriv_mode_t deriv_mode; /**< Default: RON_DERIV_ON_MEASUREMENT.    */
 
     /* ── Setpoint pre-filter ─────────────────────────────────────────── */
-    ron_float_t  tau_sp; /**< SP 1st-order filter time constant.
+    ron_float_t tau_sp; /**< SP 1st-order filter time constant.
                                <= 0 disables the filter.                       */
 
     /* ── Input/output normalisation ──────────────────────────────────── */
-    bool         normalise; /**< Enable input/output normalisation.            */
-    ron_float_t  in_min;    /**< Input engineering minimum (r and y).         */
-    ron_float_t  in_max;    /**< Input engineering maximum.                    */
-    ron_float_t  out_min;   /**< Output engineering minimum.                  */
-    ron_float_t  out_max;   /**< Output engineering maximum.                  */
+    bool normalise;      /**< Enable input/output normalisation.            */
+    ron_float_t in_min;  /**< Input engineering minimum (r and y).         */
+    ron_float_t in_max;  /**< Input engineering maximum.                    */
+    ron_float_t out_min; /**< Output engineering minimum.                  */
+    ron_float_t out_max; /**< Output engineering maximum.                  */
 
     /* ── Safety / fault ──────────────────────────────────────────────── */
-    ron_safe_policy_t  safe_policy;         /**< Safe-state output policy.    */
-    ron_float_t        safe_value;          /**< Used when policy=CONSTANT.   */
-    ron_float_t        I_overflow_thresh;   /**< |I| > this → FAULT_INTEGRAL_OVERFLOW.
+    ron_safe_policy_t safe_policy; /**< Safe-state output policy.    */
+    ron_float_t safe_value;        /**< Used when policy=CONSTANT.   */
+    ron_float_t I_overflow_thresh; /**< |I| > this → FAULT_INTEGRAL_OVERFLOW.
                                                   <= 0 disables.              */
 
     /* ── Setpoint-change integral reset ──────────────────────────────── */
-    ron_float_t  sp_reset_threshold; /**< |Δr| > this resets the integral.
+    ron_float_t sp_reset_threshold; /**< |Δr| > this resets the integral.
                                            <= 0 disables.                      */
 
     /* ── Fault handler callback ──────────────────────────────────────── */
-    ron_fault_cb_t  fault_cb; /**< Optional fault notification callback.
+    ron_fault_cb_t fault_cb; /**< Optional fault notification callback.
                                     NULL = not used.                           */
 } ron_pid_config_t;
 
@@ -247,20 +241,19 @@ typedef struct
  * Satisfies: RON-FR-050 – RON-FR-054, RON-FR-060 – RON-FR-062.
  */
 /* Satisfies: RON-FR-050 – RON-FR-062 | Test: RON-TC-PID-030 – RON-TC-PID-037 */
-typedef struct
-{
-    ron_float_t    integral;      /**< Accumulated integral term (I).          */
-    ron_float_t    y_prev;        /**< Previous normalised PV (DoM).           */
-    ron_float_t    e_D_prev;      /**< Previous derivative error (DoE).        */
-    ron_float_t    D_filt_prev;   /**< Previous filtered derivative output.    */
-    ron_float_t    r_filt_prev;   /**< Previous filtered setpoint.             */
-    ron_float_t    u_sat_prev;    /**< Previous saturated output (for AW).     */
-    ron_float_t    u_prev;        /**< Previous pre-saturation output.         */
-    ron_float_t    e_prev;        /**< Previous error (for trapezoidal).       */
-    ron_op_mode_t  mode;          /**< Current operating mode.                 */
-    ron_fault_t    fault_code;    /**< Accumulated fault register (sticky).    */
-    ron_status_t   status;        /**< Status word from the last step.         */
-    bool           is_initialised; /**< Guard: set by ron_pid_init() only.     */
+typedef struct {
+    ron_float_t integral;    /**< Accumulated integral term (I).          */
+    ron_float_t y_prev;      /**< Previous normalised PV (DoM).           */
+    ron_float_t e_D_prev;    /**< Previous derivative error (DoE).        */
+    ron_float_t D_filt_prev; /**< Previous filtered derivative output.    */
+    ron_float_t r_filt_prev; /**< Previous filtered setpoint.             */
+    ron_float_t u_sat_prev;  /**< Previous saturated output (for AW).     */
+    ron_float_t u_prev;      /**< Previous pre-saturation output.         */
+    ron_float_t e_prev;      /**< Previous error (for trapezoidal).       */
+    ron_op_mode_t mode;      /**< Current operating mode.                 */
+    ron_fault_t fault_code;  /**< Accumulated fault register (sticky).    */
+    ron_status_t status;     /**< Status word from the last step.         */
+    bool is_initialised;     /**< Guard: set by ron_pid_init() only.     */
 } ron_pid_state_t;
 
 /* =========================================================================
@@ -284,10 +277,9 @@ typedef struct
  * Satisfies: RON-FR-060 – RON-FR-062, RON-SR-003, RON-PR-021.
  */
 /* Satisfies: RON-FR-060 – RON-FR-062 | Test: RON-TC-PID-035 – RON-TC-PID-037 */
-typedef struct
-{
-    ron_pid_config_t  config; /**< Configuration (copied at init, constant during step). */
-    ron_pid_state_t   state;  /**< Dynamic computation state.                             */
+typedef struct {
+    ron_pid_config_t config; /**< Configuration (copied at init, constant during step). */
+    ron_pid_state_t state;   /**< Dynamic computation state.                             */
 } ron_pid_instance_t;
 
 /* =========================================================================
