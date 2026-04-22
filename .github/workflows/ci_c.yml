@@ -304,13 +304,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc-arm-none-eabi
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
 
       - name: Configure ARM PID build
         run: |
           cmake -G Ninja -B regulon-c/build_arm -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=OFF \
                 -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/arm-none-eabi.cmake \
+                -DRON_ARM_GCC_NEWLIB_INCLUDE=/usr/include/newlib \
+                -DRON_ARM_GCC_ALLOW_HEADER_SHIM=OFF \
                 -DCMAKE_C_FLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb"
 
       - name: Build ARM PID library
@@ -371,7 +374,7 @@ jobs:
             entry=$(basename "$harness" .c)
             echo "=== CBMC: $harness ==="
             cbmc --function "$entry" \
-                 --unwind 32 --unwinding-assertions \
+                 --unwind 65 --unwinding-assertions \
                  --bounds-check --pointer-check \
                  "$harness" \
                  regulon-c/src/ron_feedforward.c \

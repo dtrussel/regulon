@@ -465,7 +465,7 @@ foreach ($step in $Steps) {
                 $EntryPoint = [System.IO.Path]::GetFileNameWithoutExtension($harness)
                 Invoke-External "CBMC $(Split-Path $harness -Leaf)" $Cbmc @(
                     "--function", $EntryPoint,
-                    "--unwind", "32",
+                    "--unwind", "65",
                     "--unwinding-assertions",
                     "--bounds-check",
                     "--pointer-check",
