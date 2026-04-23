@@ -52,6 +52,15 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_gain_sched.h`` and
+  ``regulon-c/src/ron_gain_sched.c``: added the complete C11 Phase 3 gain
+  scheduling slice with bounded table validation, hard-switch scheduling,
+  linear interpolation, and optional integral reset on successful hard
+  switches.
+
+- ``regulon-c/test/unit/test_ron_gain_sched.c``: added traceable Unity tests
+  for ``RON-TC-GS-001`` through ``RON-TC-GS-008``.
+
 - ``regulon-c/include/ron/ron_feedforward.h`` and
   ``regulon-c/src/ron_feedforward.c``: added the complete C11 Phase 2
   feed-forward PID extension with static, velocity, acceleration, and
@@ -104,14 +113,19 @@ Added
 
 Changed
 ~~~~~~~
+- ``regulon-c/include/ron/ron_pid.h`` and ``regulon-c/src/ron_pid_api.c``:
+  added the public ``ron_pid_set_config()`` atomic runtime update API and
+  routed the existing PID runtime setters through that full-config path.
+
 - ``regulon-c/CMakeLists.txt`` and ``regulon-c/test/CMakeLists.txt``: enabled
-  the Phase 1 filter and Phase 2 feed-forward source/unit suites in the active
-  C11 build without enabling later placeholder modules.
+  the Phase 1 filter, Phase 2 feed-forward, and Phase 3 gain-scheduling
+  source/unit suites in the active C11 build without enabling later
+  placeholder modules.
 
 - ``regulon-c/scripts/verify_pid.ps1`` and ``.github/workflows/ci_c.yml``:
   extended active-source verification from PID-only to PID plus filters and
-  feed-forward for format, static analysis, complexity, coverage, and CBMC
-  source lists.
+  feed-forward plus gain scheduling for format, static analysis, complexity,
+  coverage, and CBMC source lists.
 
 - ``docs/specs/IS_ControlLib.rst`` and ``docs/specs/TP_ControlLib.rst``:
   reconciled the filter API with ``get_state`` operations, shared
@@ -120,8 +134,9 @@ Changed
 
 - ``docs/plans/c/c11-rollout.md`` and ``docs/plans/c11-roadmap.md``:
   recorded Phase 0 PID closure acceptance, Phase 1 filter completion, and
-  Phase 2 feed-forward completion, with Phase 3 gain scheduling identified as
-  the next C11 roadmap item.
+  Phase 2 feed-forward completion; they now also record Phase 3 gain
+  scheduling completion and Phase 4 trajectory generators as the next C11
+  roadmap item.
 
 - ``regulon-c/CMakeLists.txt``: keeps the active C build limited to accepted
   slices, now PID plus filters plus feed-forward, so later placeholder modules

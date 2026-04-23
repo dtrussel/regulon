@@ -64,6 +64,23 @@ static ron_fault_t pid_apply_candidate(ron_pid_instance_t *inst, const ron_pid_c
     return fault;
 }
 
+/* Satisfies: RON-FR-053 | Test: RON-TC-PID-033, RON-TC-GS-005 */
+ron_fault_t ron_pid_set_config(ron_pid_instance_t *inst, const ron_pid_config_t *cfg)
+{
+    ron_fault_t fault;
+
+    if ((inst == NULL) || (cfg == NULL)) {
+        return RON_FAULT_NULL_POINTER;
+    }
+
+    fault = pid_check_inst(inst);
+    if (fault != RON_FAULT_NONE) {
+        return fault;
+    }
+
+    return pid_apply_candidate(inst, cfg);
+}
+
 /* Satisfies: RON-FR-050 | Test: RON-TC-PID-030 */
 ron_fault_t ron_pid_init(ron_pid_instance_t *inst, const ron_pid_config_t *cfg)
 {
@@ -148,7 +165,7 @@ ron_fault_t ron_pid_set_gains(ron_pid_instance_t *inst, ron_float_t Kp, ron_floa
     candidate.Kp = Kp;
     candidate.Ki = Ki;
     candidate.Kd = Kd;
-    return pid_apply_candidate(inst, &candidate);
+    return ron_pid_set_config(inst, &candidate);
 }
 
 /* Satisfies: RON-FR-021, RON-FR-053 | Test: RON-TC-PID-016 */
@@ -165,7 +182,7 @@ ron_fault_t ron_pid_set_limits(ron_pid_instance_t *inst, ron_float_t u_min, ron_
     candidate       = inst->config;
     candidate.u_min = u_min;
     candidate.u_max = u_max;
-    return pid_apply_candidate(inst, &candidate);
+    return ron_pid_set_config(inst, &candidate);
 }
 
 /* Satisfies: RON-FR-006, RON-FR-053 | Test: RON-TC-PID-033 */
@@ -181,7 +198,7 @@ ron_fault_t ron_pid_set_filter(ron_pid_instance_t *inst, ron_float_t N)
 
     candidate   = inst->config;
     candidate.N = N;
-    return pid_apply_candidate(inst, &candidate);
+    return ron_pid_set_config(inst, &candidate);
 }
 
 /* Satisfies: RON-FR-033, RON-FR-053 | Test: RON-TC-PID-024 */
@@ -198,7 +215,7 @@ ron_fault_t ron_pid_set_antiwindup(ron_pid_instance_t *inst, ron_aw_mode_t mode,
     candidate         = inst->config;
     candidate.aw_mode = mode;
     candidate.T_aw    = T_aw;
-    return pid_apply_candidate(inst, &candidate);
+    return ron_pid_set_config(inst, &candidate);
 }
 
 /* Satisfies: RON-FR-040 – RON-FR-042 | Test: RON-TC-PID-027 – RON-TC-PID-029 */
