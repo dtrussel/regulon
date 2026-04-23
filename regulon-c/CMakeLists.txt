@@ -22,6 +22,8 @@ include(cmake/ron_options.cmake)
 # Library target
 # ---------------------------------------------------------------------------
 add_library(regulon STATIC
+    src/ron_feedforward.c
+    src/ron_filter.c
     src/ron_pid_config.c
     src/ron_pid_core.c
     src/ron_pid_fault.c

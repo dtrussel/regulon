@@ -1551,6 +1551,77 @@ RON-TC-PID-035 — Multi-Instance Independence (Integration)
 Signal Conditioning Filter Tests (RON-TC-FILT-xxx)
 ====================================================
 
+RON-TC-FILT-001 - Filters as First-Class Components
+---------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-100
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Initialise LP1, moving-average, and rate-limiter instances without any
+       PID instance. Step each instance with the same input.
+   * - **Pass Criterion**
+     - Each filter produces its own deterministic output and reports
+       ``RON_FAULT_NONE`` independently of controller modules.
+
+RON-TC-FILT-002 - Filter Instance/Configuration/State Model
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-101
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for no-heap claim
+   * - **Stimulus**
+     - Initialise a caller-allocated filter from a configuration object, mutate
+       the caller's original configuration, then step and inspect state.
+   * - **Pass Criterion**
+     - The instance uses its copied configuration, exposes bounded state, and
+       no heap allocation is reachable in ``RON-TC-FILT-002-FV``.
+
+RON-TC-FILT-003 - Filter Lifecycle API
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-102
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for null-pointer guards
+   * - **Stimulus**
+     - For each filter family, call ``init``, one ``step``, ``reset``, and
+       ``get_state``. Exercise representative null-pointer calls in
+       ``RON-TC-FILT-003-FV``.
+   * - **Pass Criterion**
+     - Reset clears dynamic state without changing configuration, state can be
+       inspected through ``get_state``, and null pointers return
+       ``RON_FAULT_NULL_POINTER`` before state access.
+
+RON-TC-FILT-004 - Filter Coefficient and Input Validation
+---------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-103
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Attempt invalid LP1 alpha, invalid moving-average window length,
+       unstable biquad denominator, invalid rate limits, and non-finite runtime
+       input.
+   * - **Pass Criterion**
+     - Invalid configurations return ``RON_FAULT_CONFIG_INVALID`` and
+       non-finite runtime input latches ``RON_FAULT_INPUT_NAN``.
+
 RON-TC-FILT-005 — First-Order LP Filter Step Response
 ------------------------------------------------------
 
@@ -1590,6 +1661,76 @@ RON-TC-FILT-006 — LP1 Frequency-Domain Configuration
    * - **Pass Criterion**
      - Outputs differ by < 0.1% across all 500 steps.
 
+RON-TC-FILT-007 - LP1 Cutoff Configuration Validation
+-----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-111
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Call ``ron_lp1_init_fc`` with null instance, non-positive cutoff
+       frequency, and non-positive sample period.
+   * - **Pass Criterion**
+     - Null instance returns ``RON_FAULT_NULL_POINTER``; invalid numerical
+       parameters return ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-FILT-008 - Moving-Average Boxcar Mean
+--------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-115
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Window length ``M = 4``.
+   * - **Stimulus**
+     - Apply input sequence 1, 2, 3, 4.
+   * - **Pass Criterion**
+     - Outputs are 0.25, 0.75, 1.5, and 2.5, reflecting the causal boxcar
+       mean with zero-filled initial history.
+
+RON-TC-FILT-009 - Moving-Average Static Buffer Bound
+----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-116
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded array access
+   * - **Stimulus**
+     - Initialise with ``M = RON_MA_MAX_WINDOW`` and reject ``M`` above that
+       bound. Run ``RON-TC-FILT-009-FV`` over a valid step.
+   * - **Pass Criterion**
+     - Maximum configured window is accepted, oversized window is rejected,
+       and proof execution has no out-of-bounds buffer access.
+
+RON-TC-FILT-010 - Moving-Average Sliding Sum
+--------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-117
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded execution
+   * - **Preconditions**
+     - Window length ``M = 3``.
+   * - **Stimulus**
+     - Apply input sequence 3, 6, 9, 12 and inspect running sum.
+   * - **Pass Criterion**
+     - Final output is 9 and the running sum is 27, demonstrating subtract
+       oldest/add newest update without full-window summation.
+
 RON-TC-FILT-011 — Biquad IIR Correctness (Known Transfer Function)
 -------------------------------------------------------------------
 
@@ -1611,6 +1752,57 @@ RON-TC-FILT-011 — Biquad IIR Correctness (Known Transfer Function)
    * - **Pass Criterion**
      - RMS ratio of output/input within specified dB bounds.
 
+RON-TC-FILT-012 - Cascaded Biquad Sections
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-121
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded section access
+   * - **Stimulus**
+     - Configure two stable feed-through sections with gain 0.5 each and step
+       input 4. Run ``RON-TC-FILT-012-FV`` over a valid cascade step.
+   * - **Pass Criterion**
+     - Output is 1.0 and proof execution has no out-of-bounds section-state
+       access.
+
+RON-TC-FILT-013 - Biquad Coefficient Helper Generation
+------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-122
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Generate low-pass, high-pass, band-pass, and notch coefficients for
+       valid cutoff/centre frequencies, sample period, and quality factor.
+   * - **Pass Criterion**
+     - Each helper returns ``RON_FAULT_NONE`` and produces finite,
+       stable-section coefficients accepted by ``ron_biquad_init``.
+
+RON-TC-FILT-014 - Biquad Coefficient Helper Validation
+------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-122
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Call coefficient helpers with null output section, zero frequency, zero
+       ``Q``, zero sample period, and frequency at or above Nyquist.
+   * - **Pass Criterion**
+     - Null output returns ``RON_FAULT_NULL_POINTER``; invalid numerical
+       parameters return ``RON_FAULT_CONFIG_INVALID``.
+
 RON-TC-FILT-015 — Notch Runtime Update (No State Discontinuity)
 ----------------------------------------------------------------
 
@@ -1631,10 +1823,79 @@ RON-TC-FILT-015 — Notch Runtime Update (No State Discontinuity)
      - No output spike > 3× the signal amplitude at the update step.
        Output converges to attenuating 120 Hz within 20 steps post-update.
 
+RON-TC-FILT-016 - Standalone Rate Limiter
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-130
+   * - **Level**
+     - UT / ENV-HOST; FV / CBMC for bounded execution
+   * - **Preconditions**
+     - Symmetric rise/fall limits of 2 units/s and initial output 0.
+   * - **Stimulus**
+     - Step input from 0 to 10 with ``dt = 0.5``. Run
+       ``RON-TC-FILT-016-FV`` over a valid rate-limiter step.
+   * - **Pass Criterion**
+     - Output is clamped to 1.0 and status reports
+       ``RON_STATUS_RATE_LIMITED``.
+
+RON-TC-FILT-017 - Asymmetric Rate Limits
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-131
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Rise limit 4 units/s, fall limit 1 unit/s, initial output 0.
+   * - **Stimulus**
+     - Step to +10 with ``dt = 0.5`` and then to -10 with ``dt = 0.5``.
+   * - **Pass Criterion**
+     - Rising output is 2.0; falling output is 1.5, showing independent
+       positive and negative slew limits.
+
+Filter Formal Variant Inventory
+-------------------------------
+
+The C11 filter proof harness set may use formal variants of the unit-test IDs
+when a property is better checked by CBMC than by host assertions. Active
+variants are ``RON-TC-FILT-002-FV``, ``RON-TC-FILT-003-FV``,
+``RON-TC-FILT-005-FV``, ``RON-TC-FILT-008-FV``, ``RON-TC-FILT-009-FV``,
+``RON-TC-FILT-010-FV``, ``RON-TC-FILT-011-FV``, ``RON-TC-FILT-012-FV``,
+and ``RON-TC-FILT-016-FV``.
+
 ------------------------------------------------------------------------
 
 Feed-Forward Tests (RON-TC-FF-xxx)
 ====================================
+
+RON-TC-FF-001 - Additive Feed-Forward Path
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-200
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=2.0`, :math:`K_i=0.0`, :math:`K_d=0.0`,
+       static feed-forward gain :math:`K_{FF}=0.5`.
+   * - **Stimulus**
+     - :math:`r=2.0`, :math:`y=1.0`, :math:`dt=0.01`.
+   * - **Expected Output**
+     - PID contribution is :math:`2.0`; feed-forward contribution is
+       :math:`1.0`; total output is :math:`3.0`.
+   * - **Pass Criterion**
+     - ``fabs(u - 3.0) < 4 * FLT_EPSILON`` and the feed-forward diagnostic
+       reports :math:`1.0`.
 
 RON-TC-FF-002 — Static Gain Feed-Forward
 -----------------------------------------
@@ -1656,6 +1917,119 @@ RON-TC-FF-002 — Static Gain Feed-Forward
    * - **Pass Criterion**
      - ``fabs(u - 3.0) < 4 * FLT_EPSILON``.
 
+RON-TC-FF-003 - Velocity Feed-Forward
+-------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-201 (mode b)
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=0.0`, velocity feed-forward gain :math:`K_{FF,v}=0.25`,
+       derivative filter disabled.
+   * - **Stimulus**
+     - Step sequence: first call :math:`r=1.0`, second call :math:`r=1.2`,
+       :math:`y=0.0`, :math:`dt=0.1`.
+   * - **Expected Output**
+     - Second-step velocity estimate is :math:`2.0`, so
+       :math:`u=0.5`.
+   * - **Pass Criterion**
+     - ``fabs(u - 0.5) < 1e-6`` on the second step.
+
+RON-TC-FF-004 - Acceleration Feed-Forward
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-201 (mode c)
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=0.0`, acceleration feed-forward gain
+       :math:`K_{FF,a}=0.1`, derivative filter disabled.
+   * - **Stimulus**
+     - Step sequence :math:`r=[0.0, 0.1, 0.3]`, :math:`y=0.0`,
+       :math:`dt=0.1`.
+   * - **Expected Output**
+     - Third-step acceleration estimate is :math:`10.0`, so
+       :math:`u=1.0`.
+   * - **Pass Criterion**
+     - ``fabs(u - 1.0) < 1e-6`` on the third step.
+
+RON-TC-FF-005 - External Feed-Forward Input
+-------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-201 (mode d)
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`K_p=1.0`, external feed-forward mode configured.
+   * - **Stimulus**
+     - Call ``ron_pid_step_feedforward()`` with :math:`r=2.0`,
+       :math:`y=1.0`, :math:`u_{FF}=0.75`, :math:`dt=0.01`.
+   * - **Expected Output**
+     - PID contribution is :math:`1.0`; external feed-forward contribution is
+       :math:`0.75`; total output is :math:`1.75`.
+   * - **Pass Criterion**
+     - ``fabs(u - 1.75) < 1e-6``. Calling ``ron_pid_step()`` with external
+       mode configured returns ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-FF-006 - Independent Feed-Forward Derivative Filter
+----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-202
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - PID derivative gain is zero, velocity feed-forward gain is nonzero,
+       and :math:`N_{FF}` is configured independently from the PID
+       derivative filter coefficient.
+   * - **Stimulus**
+     - Run two controllers across the same setpoint ramp: one with
+       :math:`N_{FF}=0`, one with :math:`N_{FF}=1`.
+   * - **Expected Output**
+     - The feed-forward contributions differ according to the independent
+       feed-forward filter state while the PID derivative state remains zero.
+   * - **Pass Criterion**
+     - ``last_D == 0`` for both controllers and the filtered controller
+       reports a smaller nonzero feed-forward contribution.
+
+RON-TC-FF-007 - Feed-Forward Output Limiting
+--------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-203
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Static feed-forward creates an output above :math:`u_{max}` and the
+       PID output rate limit is enabled.
+   * - **Stimulus**
+     - Call the PID step function with a large setpoint and nonzero
+       feed-forward gain.
+   * - **Expected Output**
+     - The summed PID plus feed-forward output is saturated and then rate
+       limited by the existing PID output constraints.
+   * - **Pass Criterion**
+     - Output equals the allowed rate-limited value and status includes both
+       ``RON_STATUS_SATURATED`` and ``RON_STATUS_RATE_LIMITED``.
+
 RON-TC-FF-008 — Zero Overhead When FF Disabled
 -----------------------------------------------
 
@@ -1674,6 +2048,28 @@ RON-TC-FF-008 — Zero Overhead When FF Disabled
    * - **Pass Criterion**
      - Identical outputs (within FLT_EPSILON). Verifies that disabled FF
        does not alter the PID output.
+
+RON-TC-FF-009 - Feed-Forward Diagnostics
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-205
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Static feed-forward gain is configured so the feed-forward contribution
+       is nonzero.
+   * - **Stimulus**
+     - Execute one PID step and call ``ron_pid_get_feedforward()``.
+   * - **Expected Output**
+     - Status includes ``RON_STATUS_FF_ACTIVE`` and the diagnostic getter
+       reports the same feed-forward value used in the controller sum.
+   * - **Pass Criterion**
+     - Diagnostic value matches the expected feed-forward contribution within
+       ``4 * FLT_EPSILON``.
 
 ------------------------------------------------------------------------
 

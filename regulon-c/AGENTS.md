@@ -88,7 +88,7 @@ genhtml coverage_filtered.info --branch-coverage --output-directory coverage_htm
 # Each harness basename must match its proof function name.
 for harness in regulon-c/test/formal/*_proof.c; do
   entry=$(basename "$harness" .c)
-  cbmc --function "$entry" --unwind 32 --unwinding-assertions \
+  cbmc --function "$entry" --unwind 65 --unwinding-assertions \
     --bounds-check --pointer-check \
     "$harness" \
     regulon-c/src/ron_pid_api.c \
@@ -102,7 +102,7 @@ done
 ## Formal Proof Guidance
 - Normal-operation proofs must constrain nondeterministic inputs to the SRS operating assumptions, especially `RON-ASM-02` and `RON-ASM-03`: bounded sample periods and bounded finite process/setpoint values.
 - Do not claim "all finite inputs" when arithmetic can overflow before saturation. Unbounded finite overflow belongs in fault-detection proofs, where `RON-SR-010` expects a latched fault and safe output.
-- Keep proof harnesses loop bounds compatible with the CI unwind limit (`--unwind 32`) and use `--unwinding-assertions` for soundness.
+- Keep proof harnesses loop bounds compatible with the CI unwind limit (`--unwind 65`) and use `--unwinding-assertions` for soundness.
 - If a proof uses a bounded environment assumption, record the bound in `docs/specs/TP_ControlLib.rst`.
 
 ## C-Specific Prohibitions

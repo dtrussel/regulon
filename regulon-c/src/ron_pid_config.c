@@ -10,7 +10,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ron/ron_pid.h"
+#include "ron/ron_feedforward.h"
 
 /* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
 static bool pid_cfg_isfinite(ron_float_t value)
@@ -153,24 +153,21 @@ static bool pid_cfg_valid_thresholds(const ron_pid_config_t *cfg)
 /* Satisfies: RON-SR-001, RON-SR-002 | Test: RON-TC-SAFE-001 */
 ron_fault_t ron_pid_config_validate(const ron_pid_config_t *cfg)
 {
-    ron_fault_t fault;
-
-    fault = RON_FAULT_NONE;
     if (cfg == NULL) {
-        fault = RON_FAULT_NULL_POINTER;
+        return RON_FAULT_NULL_POINTER;
     } else if (!pid_cfg_valid_gains(cfg)) {
-        fault = RON_FAULT_CONFIG_INVALID;
+        return RON_FAULT_CONFIG_INVALID;
     } else if (!pid_cfg_valid_weights(cfg)) {
-        fault = RON_FAULT_CONFIG_INVALID;
+        return RON_FAULT_CONFIG_INVALID;
     } else if (!pid_cfg_valid_limits(cfg)) {
-        fault = RON_FAULT_CONFIG_INVALID;
+        return RON_FAULT_CONFIG_INVALID;
     } else if (!pid_cfg_valid_enums(cfg)) {
-        fault = RON_FAULT_CONFIG_INVALID;
+        return RON_FAULT_CONFIG_INVALID;
     } else if (!pid_cfg_valid_normalisation(cfg)) {
-        fault = RON_FAULT_CONFIG_INVALID;
+        return RON_FAULT_CONFIG_INVALID;
     } else if (!pid_cfg_valid_thresholds(cfg)) {
-        fault = RON_FAULT_CONFIG_INVALID;
+        return RON_FAULT_CONFIG_INVALID;
     }
 
-    return fault;
+    return ron_feedforward_config_validate(&cfg->feedforward);
 }

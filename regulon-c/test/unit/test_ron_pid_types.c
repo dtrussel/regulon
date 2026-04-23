@@ -16,10 +16,11 @@
  *   RON-TC-SAFE-006  NULL pointer -> RON_FAULT_NULL_POINTER
  */
 
-#include "unity.h"
+#include <stddef.h>
+
 #include "ron/ron_pid.h"
 
-#include <stddef.h>
+#include "unity.h"
 
 void setUp(void)
 {
@@ -33,13 +34,12 @@ void tearDown(void)
 void test_ron_tc_perf_005(void)
 {
 #if defined(RON_USE_DOUBLE) && (RON_USE_DOUBLE == 1)
-    TEST_ASSERT_EQUAL_UINT(8U, (unsigned)sizeof(ron_float_t));
+    TEST_ASSERT_EQUAL_UINT(8U, (unsigned) sizeof(ron_float_t));
 #else
     size_t sz = sizeof(ron_pid_config_t);
 
-    TEST_ASSERT_EQUAL_UINT(4U, (unsigned)sizeof(ron_float_t));
-    TEST_ASSERT_MESSAGE(sz <= 128U,
-        "ron_pid_config_t exceeds 128-byte RAM budget (RON-PR-021)");
+    TEST_ASSERT_EQUAL_UINT(4U, (unsigned) sizeof(ron_float_t));
+    TEST_ASSERT_MESSAGE(sz <= 128U, "ron_pid_config_t exceeds 128-byte RAM budget (RON-PR-021)");
 #endif
 }
 
@@ -51,8 +51,7 @@ void test_ron_tc_perf_006(void)
 #else
     size_t sz = sizeof(ron_pid_state_t);
 
-    TEST_ASSERT_MESSAGE(sz <= 128U,
-        "ron_pid_state_t exceeds 128-byte RAM budget (RON-PR-021)");
+    TEST_ASSERT_MESSAGE(sz <= 128U, "ron_pid_state_t exceeds 128-byte RAM budget (RON-PR-021)");
 #endif
 }
 
@@ -60,34 +59,39 @@ void test_ron_tc_perf_006(void)
 void test_ron_tc_qual_005(void)
 {
 #if defined(RON_USE_DOUBLE) && (RON_USE_DOUBLE == 1)
-    TEST_ASSERT_EQUAL_UINT(8U, (unsigned)sizeof(ron_float_t));
+    TEST_ASSERT_EQUAL_UINT(8U, (unsigned) sizeof(ron_float_t));
 #else
-    TEST_ASSERT_EQUAL_UINT(4U, (unsigned)sizeof(ron_float_t));
+    TEST_ASSERT_EQUAL_UINT(4U, (unsigned) sizeof(ron_float_t));
 #endif
 }
 
 /* RON-TC-QUAL-007 | RON-QR-003 */
 void test_ron_tc_qual_007(void)
 {
-    TEST_ASSERT_EQUAL_UINT(1U, (unsigned)sizeof(ron_fault_t));
-    TEST_ASSERT_EQUAL_UINT(2U, (unsigned)sizeof(ron_status_t));
+    TEST_ASSERT_EQUAL_UINT(1U, (unsigned) sizeof(ron_fault_t));
+    TEST_ASSERT_EQUAL_UINT(2U, (unsigned) sizeof(ron_status_t));
 }
 
 /* RON-TC-QUAL-007 | RON-QR-013 */
 void test_ron_tc_qual_007_enum_values(void)
 {
-    TEST_ASSERT_EQUAL_INT(0, (int)RON_AW_NONE);
-    TEST_ASSERT_EQUAL_INT(1, (int)RON_AW_BACK_CALC);
-    TEST_ASSERT_EQUAL_INT(2, (int)RON_AW_CLAMPING);
-    TEST_ASSERT_EQUAL_INT(0, (int)RON_DERIV_ON_ERROR);
-    TEST_ASSERT_EQUAL_INT(1, (int)RON_DERIV_ON_MEASUREMENT);
-    TEST_ASSERT_EQUAL_INT(0, (int)RON_MODE_AUTOMATIC);
-    TEST_ASSERT_EQUAL_INT(1, (int)RON_MODE_MANUAL);
-    TEST_ASSERT_EQUAL_INT(0, (int)RON_SAFE_HOLD_LAST);
-    TEST_ASSERT_EQUAL_INT(1, (int)RON_SAFE_ZERO);
-    TEST_ASSERT_EQUAL_INT(2, (int)RON_SAFE_CONSTANT);
-    TEST_ASSERT_EQUAL_INT(0, (int)RON_INTEG_EULER);
-    TEST_ASSERT_EQUAL_INT(1, (int)RON_INTEG_TRAPEZOIDAL);
+    TEST_ASSERT_EQUAL_INT(0, (int) RON_AW_NONE);
+    TEST_ASSERT_EQUAL_INT(1, (int) RON_AW_BACK_CALC);
+    TEST_ASSERT_EQUAL_INT(2, (int) RON_AW_CLAMPING);
+    TEST_ASSERT_EQUAL_INT(0, (int) RON_DERIV_ON_ERROR);
+    TEST_ASSERT_EQUAL_INT(1, (int) RON_DERIV_ON_MEASUREMENT);
+    TEST_ASSERT_EQUAL_INT(0, (int) RON_MODE_AUTOMATIC);
+    TEST_ASSERT_EQUAL_INT(1, (int) RON_MODE_MANUAL);
+    TEST_ASSERT_EQUAL_INT(0, (int) RON_SAFE_HOLD_LAST);
+    TEST_ASSERT_EQUAL_INT(1, (int) RON_SAFE_ZERO);
+    TEST_ASSERT_EQUAL_INT(2, (int) RON_SAFE_CONSTANT);
+    TEST_ASSERT_EQUAL_INT(0, (int) RON_INTEG_EULER);
+    TEST_ASSERT_EQUAL_INT(1, (int) RON_INTEG_TRAPEZOIDAL);
+    TEST_ASSERT_EQUAL_INT(0, (int) RON_FF_DISABLED);
+    TEST_ASSERT_EQUAL_INT(1, (int) RON_FF_STATIC_GAIN);
+    TEST_ASSERT_EQUAL_INT(2, (int) RON_FF_VELOCITY);
+    TEST_ASSERT_EQUAL_INT(3, (int) RON_FF_ACCELERATION);
+    TEST_ASSERT_EQUAL_INT(4, (int) RON_FF_EXTERNAL);
 }
 
 /* RON-TC-QUAL-007 | RON-QR-013 */
@@ -108,6 +112,7 @@ void test_ron_tc_qual_007_bitmasks(void)
     TEST_ASSERT_EQUAL_UINT16(0x0010U, RON_STATUS_FAULT);
     TEST_ASSERT_EQUAL_UINT16(0x0020U, RON_STATUS_SP_FILTER_ACTIVE);
     TEST_ASSERT_EQUAL_UINT16(0x0040U, RON_STATUS_NORMALISED);
+    TEST_ASSERT_EQUAL_UINT16(0x0080U, RON_STATUS_FF_ACTIVE);
 
     TEST_ASSERT_EQUAL_UINT8(0U, RON_FAULT_INPUT_NAN & RON_FAULT_OUTPUT_NAN);
     TEST_ASSERT_EQUAL_UINT8(0U, RON_FAULT_OUTPUT_NAN & RON_FAULT_INTEGRAL_OVERFLOW);
@@ -117,8 +122,8 @@ void test_ron_tc_qual_007_bitmasks(void)
 /* RON-TC-SAFE-006 | RON-SR-006 */
 void test_ron_tc_safe_006_init_null_inst(void)
 {
-    ron_pid_config_t cfg = { .Kp = RON_FLOAT_C(0.0) };
-    ron_fault_t      result = ron_pid_init(NULL, &cfg);
+    ron_pid_config_t cfg = {.Kp = RON_FLOAT_C(0.0)};
+    ron_fault_t result   = ron_pid_init(NULL, &cfg);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, result);
 }
@@ -127,7 +132,7 @@ void test_ron_tc_safe_006_init_null_inst(void)
 void test_ron_tc_safe_006_init_null_cfg(void)
 {
     ron_pid_instance_t inst;
-    ron_fault_t        result = ron_pid_init(&inst, NULL);
+    ron_fault_t result = ron_pid_init(&inst, NULL);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, result);
 }
@@ -135,14 +140,10 @@ void test_ron_tc_safe_006_init_null_cfg(void)
 /* RON-TC-SAFE-006 | RON-SR-006 */
 void test_ron_tc_safe_006_step_null_inst(void)
 {
-    ron_float_t  u = RON_FLOAT_C(0.0);
+    ron_float_t u       = RON_FLOAT_C(0.0);
     ron_status_t status = RON_STATUS_OK;
-    ron_fault_t  result = ron_pid_step(NULL,
-                                       RON_FLOAT_C(0.0),
-                                       RON_FLOAT_C(0.0),
-                                       RON_FLOAT_C(0.001),
-                                       &u,
-                                       &status);
+    ron_fault_t result =
+        ron_pid_step(NULL, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.001), &u, &status);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, result);
 }
@@ -151,44 +152,41 @@ void test_ron_tc_safe_006_step_null_inst(void)
 void test_ron_tc_safe_006_step_null_output(void)
 {
     ron_pid_instance_t inst;
-    ron_pid_config_t   cfg = {
-        .Kp = RON_FLOAT_C(1.0),
-        .Ki = RON_FLOAT_C(0.0),
-        .Kd = RON_FLOAT_C(0.0),
-        .N = RON_FLOAT_C(0.0),
-        .b = RON_FLOAT_C(1.0),
-        .c = RON_FLOAT_C(1.0),
-        .u_min = RON_FLOAT_C(-1.0),
-        .u_max = RON_FLOAT_C(1.0),
-        .du_max = RON_FLOAT_C(0.0),
-        .I_min = RON_FLOAT_C(-1.0),
-        .I_max = RON_FLOAT_C(1.0),
-        .aw_mode = RON_AW_NONE,
-        .T_aw = RON_FLOAT_C(0.1),
-        .integ_method = RON_INTEG_EULER,
-        .deriv_mode = RON_DERIV_ON_MEASUREMENT,
-        .tau_sp = RON_FLOAT_C(0.0),
-        .normalise = false,
-        .in_min = RON_FLOAT_C(0.0),
-        .in_max = RON_FLOAT_C(1.0),
-        .out_min = RON_FLOAT_C(0.0),
-        .out_max = RON_FLOAT_C(1.0),
-        .safe_policy = RON_SAFE_HOLD_LAST,
-        .safe_value = RON_FLOAT_C(0.0),
-        .I_overflow_thresh = RON_FLOAT_C(0.0),
-        .sp_reset_threshold = RON_FLOAT_C(0.0),
-        .fault_cb = NULL
-    };
-    ron_status_t status = RON_STATUS_OK;
-    ron_fault_t  result;
+    ron_pid_config_t cfg = {.Kp                 = RON_FLOAT_C(1.0),
+                            .Ki                 = RON_FLOAT_C(0.0),
+                            .Kd                 = RON_FLOAT_C(0.0),
+                            .N                  = RON_FLOAT_C(0.0),
+                            .b                  = RON_FLOAT_C(1.0),
+                            .c                  = RON_FLOAT_C(1.0),
+                            .u_min              = RON_FLOAT_C(-1.0),
+                            .u_max              = RON_FLOAT_C(1.0),
+                            .du_max             = RON_FLOAT_C(0.0),
+                            .I_min              = RON_FLOAT_C(-1.0),
+                            .I_max              = RON_FLOAT_C(1.0),
+                            .aw_mode            = RON_AW_NONE,
+                            .T_aw               = RON_FLOAT_C(0.1),
+                            .integ_method       = RON_INTEG_EULER,
+                            .deriv_mode         = RON_DERIV_ON_MEASUREMENT,
+                            .tau_sp             = RON_FLOAT_C(0.0),
+                            .normalise          = false,
+                            .in_min             = RON_FLOAT_C(0.0),
+                            .in_max             = RON_FLOAT_C(1.0),
+                            .out_min            = RON_FLOAT_C(0.0),
+                            .out_max            = RON_FLOAT_C(1.0),
+                            .safe_policy        = RON_SAFE_HOLD_LAST,
+                            .safe_value         = RON_FLOAT_C(0.0),
+                            .I_overflow_thresh  = RON_FLOAT_C(0.0),
+                            .sp_reset_threshold = RON_FLOAT_C(0.0),
+                            .feedforward        = {.mode = RON_FF_DISABLED,
+                                                   .gain = RON_FLOAT_C(0.0),
+                                                   .N_ff = RON_FLOAT_C(0.0)},
+                            .fault_cb           = NULL};
+    ron_status_t status  = RON_STATUS_OK;
+    ron_fault_t result;
 
-    (void)ron_pid_init(&inst, &cfg);
-    result = ron_pid_step(&inst,
-                          RON_FLOAT_C(1.0),
-                          RON_FLOAT_C(0.0),
-                          RON_FLOAT_C(0.001),
-                          NULL,
-                          &status);
+    (void) ron_pid_init(&inst, &cfg);
+    result =
+        ron_pid_step(&inst, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.001), NULL, &status);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, result);
 }
 
@@ -235,44 +233,33 @@ void test_ron_tc_qual_005_dimension_constants(void)
 /* RON-TC-QUAL-005 | RON-FR-020 */
 void test_ron_tc_qual_005_clamp(void)
 {
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(0.5),
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(0.5),
                              ron_clamp(RON_FLOAT_C(0.5), RON_FLOAT_C(0.0), RON_FLOAT_C(1.0)));
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(0.0),
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(0.0),
                              ron_clamp(RON_FLOAT_C(-5.0), RON_FLOAT_C(0.0), RON_FLOAT_C(1.0)));
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(1.0),
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(1.0),
                              ron_clamp(RON_FLOAT_C(9.9), RON_FLOAT_C(0.0), RON_FLOAT_C(1.0)));
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(-10.0),
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(-10.0),
                              ron_clamp(RON_FLOAT_C(-100.0), RON_FLOAT_C(-10.0), RON_FLOAT_C(10.0)));
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(-1.0),
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(-1.0),
                              ron_clamp(RON_FLOAT_C(-1.0), RON_FLOAT_C(-1.0), RON_FLOAT_C(1.0)));
 }
 
 /* RON-TC-QUAL-005 | RON-SR-021 */
 void test_ron_tc_qual_005_fabs(void)
 {
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(3.14),
-                             ron_fabs(RON_FLOAT_C(3.14)));
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6),
-                             RON_FLOAT_C(3.14),
-                             ron_fabs(RON_FLOAT_C(-3.14)));
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-9),
-                             RON_FLOAT_C(0.0),
-                             ron_fabs(RON_FLOAT_C(0.0)));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(3.14), ron_fabs(RON_FLOAT_C(3.14)));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(3.14), ron_fabs(RON_FLOAT_C(-3.14)));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-9), RON_FLOAT_C(0.0), ron_fabs(RON_FLOAT_C(0.0)));
 }
 
 /* RON-TC-QUAL-005 | RON-SR-020 */
 void test_ron_tc_qual_005_float_classification(void)
 {
     volatile ron_float_t zero = RON_FLOAT_C(0.0);
-    volatile ron_float_t big = RON_FLOAT_MAX;
-    ron_float_t          nan_val = zero / zero;
-    ron_float_t          inf_val = big * big;
+    volatile ron_float_t big  = RON_FLOAT_MAX;
+    ron_float_t nan_val       = zero / zero;
+    ron_float_t inf_val       = big * big;
 
     TEST_ASSERT_TRUE(RON_ISNAN(nan_val));
     TEST_ASSERT_FALSE(RON_ISNAN(RON_FLOAT_C(1.0)));
