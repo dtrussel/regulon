@@ -29,6 +29,8 @@ add_library(regulon STATIC
     src/ron_pid_core.c
     src/ron_pid_fault.c
     src/ron_pid_api.c
+    src/ron_trajectory_scurve.c
+    src/ron_trajectory_trap.c
 )
 
 target_include_directories(regulon

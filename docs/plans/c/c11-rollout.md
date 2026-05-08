@@ -5,7 +5,7 @@ Date: 2026-04-23
 ## Scope
 
 `regulon-c` now includes the accepted PID baseline plus the completed Phase 1,
-Phase 2, and Phase 3 slices. The active public surface is:
+Phase 2, Phase 3, and Phase 4 slices. The active public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
@@ -13,6 +13,7 @@ Phase 2, and Phase 3 slices. The active public surface is:
 - `regulon-c/include/ron/ron_filter.h`
 - `regulon-c/include/ron/ron_feedforward.h`
 - `regulon-c/include/ron/ron_gain_sched.h`
+- `regulon-c/include/ron/ron_trajectory.h`
 
 Later roadmap modules remain present in the repository but stay out of the
 active CMake build until their phase is explicitly opened and closed with the
@@ -75,9 +76,9 @@ same traceability and quality evidence bar.
 - Local LLVM coverage now reaches 100% statement and branch coverage for the
   active C11 source set.
 - Local Clang host evidence is available through standalone Clang plus Ninja.
-- No local embedded cross-compile build has been rerun because
-  `arm-none-eabi-gcc` is not installed on this machine; CI contains the ARM
-  Cortex-M cross-compile smoke build.
+- Local ARM and ARMv7 Clang cross-compile smoke builds now run through the
+  verification script. This host still lacks Newlib target headers, so both
+  cross-builds use the existing declaration-only freestanding header fallback.
 - No local CBMC execution evidence has been produced yet because `cbmc` is not
   installed on this machine; the full harness inventory is discovered
   dynamically by the local script and CI.
@@ -138,3 +139,29 @@ same traceability and quality evidence bar.
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps msvc,double,clang`: passes
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps probe,cross-arm,cross-arm-clang,cbmc`: passes with local `cross-arm-clang` evidence, `cross-arm` skipped because `arm-none-eabi-gcc` is unavailable, and `cbmc` skipped because CBMC is unavailable
+
+## Phase 4 Trajectory Generators Opening Evidence
+
+- `ron_trajectory.h`, `ron_trajectory_trap.c`, and
+  `ron_trajectory_scurve.c` are now active in the default C11 build.
+- `test_ron_trajectory.c` covers `RON-TC-TRAJ-001` through
+  `RON-TC-TRAJ-008`, including trapezoidal convergence, short moves,
+  reverse motion, velocity-continuous retargeting, hold/resume, defensive
+  validation, S-curve seven-phase planning, zero-duration phases, bounded
+  velocity/acceleration/jerk, and completion snapping.
+- `docs/specs/IS_ControlLib.rst` now records explicit trajectory state fields
+  for target tracking, direction/timing, completion, hold, fault latching, and
+  initialisation guards.
+- `docs/specs/TP_ControlLib.rst` now includes detailed descriptions for
+  `RON-TC-TRAJ-003` and `RON-TC-TRAJ-005` through `RON-TC-TRAJ-008`.
+- Trajectory generation remains standalone from PID internals and only reuses
+  shared C platform/fault/status conventions.
+- Local evidence after enabling trajectory generators:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON`: passes
+  - `cmake --build regulon-c/build --config Debug`: passes
+  - `ctest --test-dir regulon-c/build -C Debug --output-on-failure`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps format,complexity,cppcheck`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps msvc,double,clang`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps probe,cross-arm,cross-arm-clang,cbmc`: passes with local `cross-arm` and `cross-arm-clang` evidence using freestanding header fallback; `cbmc` skipped because CBMC is unavailable
+  - `git diff --check`: passes

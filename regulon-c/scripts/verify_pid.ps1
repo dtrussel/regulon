@@ -166,12 +166,15 @@ $ActiveSources = @(
     (Join-Path $RegulonC "src\ron_pid_core.c"),
     (Join-Path $RegulonC "src\ron_pid_fault.c"),
     (Join-Path $RegulonC "src\ron_pid_internal.h"),
+    (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
+    (Join-Path $RegulonC "src\ron_trajectory_trap.c"),
     (Join-Path $RegulonC "include\ron\ron_feedforward.h"),
     (Join-Path $RegulonC "include\ron\ron_filter.h"),
     (Join-Path $RegulonC "include\ron\ron_gain_sched.h"),
     (Join-Path $RegulonC "include\ron\ron_platform.h"),
     (Join-Path $RegulonC "include\ron\ron_pid_types.h"),
-    (Join-Path $RegulonC "include\ron\ron_pid.h")
+    (Join-Path $RegulonC "include\ron\ron_pid.h"),
+    (Join-Path $RegulonC "include\ron\ron_trajectory.h")
 )
 
 $CMake = Find-CommandPath -Names @("cmake")
@@ -301,7 +304,9 @@ foreach ($step in $Steps) {
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
-                (Join-Path $RegulonC "src\ron_pid_fault.c")
+                (Join-Path $RegulonC "src\ron_pid_fault.c"),
+                (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
+                (Join-Path $RegulonC "src\ron_trajectory_trap.c")
             )
             Invoke-External "cppcheck MISRA pass" $Cppcheck $CppcheckArgs
             Add-Result $Results "cppcheck" "ok" $Cppcheck
@@ -320,7 +325,9 @@ foreach ($step in $Steps) {
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
-                (Join-Path $RegulonC "src\ron_pid_fault.c"))
+                (Join-Path $RegulonC "src\ron_pid_fault.c"),
+                (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
+                (Join-Path $RegulonC "src\ron_trajectory_trap.c"))
             Add-Result $Results "complexity" "ok" "python -m lizard"
         }
         "coverage" {
@@ -372,7 +379,9 @@ foreach ($step in $Steps) {
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
-                (Join-Path $RegulonC "src\ron_pid_fault.c")
+                (Join-Path $RegulonC "src\ron_pid_fault.c"),
+                (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
+                (Join-Path $RegulonC "src\ron_trajectory_trap.c")
             )
             $CoverageSourceArgs = @()
             foreach ($source in $CoverageSources) {
@@ -482,6 +491,8 @@ foreach ($step in $Steps) {
                     (Join-Path $RegulonC "src\ron_pid_config.c"),
                     (Join-Path $RegulonC "src\ron_pid_core.c"),
                     (Join-Path $RegulonC "src\ron_pid_fault.c"),
+                    (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
+                    (Join-Path $RegulonC "src\ron_trajectory_trap.c"),
                     "-I", (Join-Path $RegulonC "include"),
                     "-I", (Join-Path $RegulonC "test\formal")
                 )

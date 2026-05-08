@@ -140,16 +140,21 @@ jobs:
           clang-format --dry-run --Werror \
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
+            regulon-c/src/ron_gain_sched.c \
             regulon-c/src/ron_pid_api.c \
             regulon-c/src/ron_pid_config.c \
             regulon-c/src/ron_pid_core.c \
             regulon-c/src/ron_pid_fault.c \
             regulon-c/src/ron_pid_internal.h \
+            regulon-c/src/ron_trajectory_scurve.c \
+            regulon-c/src/ron_trajectory_trap.c \
             regulon-c/include/ron/ron_feedforward.h \
             regulon-c/include/ron/ron_filter.h \
+            regulon-c/include/ron/ron_gain_sched.h \
             regulon-c/include/ron/ron_platform.h \
             regulon-c/include/ron/ron_pid_types.h \
-            regulon-c/include/ron/ron_pid.h
+            regulon-c/include/ron/ron_pid.h \
+            regulon-c/include/ron/ron_trajectory.h
 
   # ---------------------------------------------------------------------------
   # Job 5: Static analysis - cppcheck (MISRA subset) + complexity
@@ -180,10 +185,13 @@ jobs:
                    -I regulon-c/include \
                    regulon-c/src/ron_feedforward.c \
                    regulon-c/src/ron_filter.c \
+                   regulon-c/src/ron_gain_sched.c \
                    regulon-c/src/ron_pid_api.c \
                    regulon-c/src/ron_pid_config.c \
                    regulon-c/src/ron_pid_core.c \
                    regulon-c/src/ron_pid_fault.c \
+                   regulon-c/src/ron_trajectory_scurve.c \
+                   regulon-c/src/ron_trajectory_trap.c \
                    2>&1 | tee cppcheck_results.txt
 
       - name: Run complexity check
@@ -191,10 +199,13 @@ jobs:
           python3 -m lizard -C 10 \
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
+            regulon-c/src/ron_gain_sched.c \
             regulon-c/src/ron_pid_api.c \
             regulon-c/src/ron_pid_config.c \
             regulon-c/src/ron_pid_core.c \
-            regulon-c/src/ron_pid_fault.c
+            regulon-c/src/ron_pid_fault.c \
+            regulon-c/src/ron_trajectory_scurve.c \
+            regulon-c/src/ron_trajectory_trap.c
 
       - name: Upload cppcheck results
         uses: actions/upload-artifact@v4
@@ -255,10 +266,13 @@ jobs:
           source_args=(
             -sources regulon-c/src/ron_feedforward.c
             -sources regulon-c/src/ron_filter.c
+            -sources regulon-c/src/ron_gain_sched.c
             -sources regulon-c/src/ron_pid_api.c
             -sources regulon-c/src/ron_pid_config.c
             -sources regulon-c/src/ron_pid_core.c
             -sources regulon-c/src/ron_pid_fault.c
+            -sources regulon-c/src/ron_trajectory_scurve.c
+            -sources regulon-c/src/ron_trajectory_trap.c
           )
 
           llvm-cov export "${object_args[@]}" \
@@ -379,10 +393,13 @@ jobs:
                  "$harness" \
                  regulon-c/src/ron_feedforward.c \
                  regulon-c/src/ron_filter.c \
+                 regulon-c/src/ron_gain_sched.c \
                  regulon-c/src/ron_pid_api.c \
                  regulon-c/src/ron_pid_config.c \
                  regulon-c/src/ron_pid_core.c \
                  regulon-c/src/ron_pid_fault.c \
+                 regulon-c/src/ron_trajectory_scurve.c \
+                 regulon-c/src/ron_trajectory_trap.c \
                  -I regulon-c/include \
                  -I regulon-c/test/formal \
                  2>&1 | tee "cbmc-results/${entry}.txt"

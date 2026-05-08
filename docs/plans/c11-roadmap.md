@@ -27,7 +27,8 @@ Ground-truth inputs:
 
 The active C11 implementation now contains the closed PID baseline, the
 Phase 1 signal-conditioning filter module, the Phase 2 feed-forward PID
-extension, and the Phase 3 gain-scheduling slice. The current public surface is:
+extension, the Phase 3 gain-scheduling slice, and the Phase 4 trajectory
+generator slice. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
@@ -35,12 +36,15 @@ extension, and the Phase 3 gain-scheduling slice. The current public surface is:
 - `regulon-c/include/ron/ron_filter.h`
 - `regulon-c/include/ron/ron_feedforward.h`
 - `regulon-c/include/ron/ron_gain_sched.h`
+- `regulon-c/include/ron/ron_trajectory.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
 unit tests for `RON-TC-FF-001` through `RON-TC-FF-009`. Phase 3 gain
 scheduling covers `RON-FR-300` through `RON-FR-306` with active unit tests for
-`RON-TC-GS-001` through `RON-TC-GS-008`.
+`RON-TC-GS-001` through `RON-TC-GS-008`. Phase 4 trajectory generators cover
+`RON-FR-500` through `RON-FR-513` with active unit tests for
+`RON-TC-TRAJ-001` through `RON-TC-TRAJ-008`.
 
 ## Sequencing Strategy
 
@@ -201,6 +205,10 @@ Exit criteria:
 
 ## Phase 4: Trajectory Generators
 
+Status: Complete. Closure evidence is recorded in
+`docs/plans/c/c11-phase-4-trajectory-generators.md` and
+`docs/plans/c/c11-rollout.md`.
+
 Requirement scope:
 
 - `RON-FR-500` through `RON-FR-513`
@@ -236,6 +244,9 @@ Exit criteria:
 
 - Trajectory module can be used without PID.
 - No dynamic storage is required for profile execution.
+- Active local gates pass, including host builds/tests, double precision,
+  standalone Clang, format, cppcheck/MISRA, complexity, LLVM 100% statement and
+  branch coverage, ARM cross-compile smoke builds, and `git diff --check`.
 
 ## Phase 5: Cascade Controller
 
