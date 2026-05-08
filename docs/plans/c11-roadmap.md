@@ -1,6 +1,6 @@
 # C11 Implementation Roadmap
 
-Date: 2026-04-22
+Date: 2026-04-23
 
 ## Purpose
 
@@ -26,18 +26,21 @@ Ground-truth inputs:
 ## Current Baseline
 
 The active C11 implementation now contains the closed PID baseline, the
-Phase 1 signal-conditioning filter module, and the Phase 2 feed-forward PID
-extension. The current public surface is:
+Phase 1 signal-conditioning filter module, the Phase 2 feed-forward PID
+extension, and the Phase 3 gain-scheduling slice. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
 - `regulon-c/include/ron/ron_pid.h`
 - `regulon-c/include/ron/ron_filter.h`
 - `regulon-c/include/ron/ron_feedforward.h`
+- `regulon-c/include/ron/ron_gain_sched.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
-unit tests for `RON-TC-FF-001` through `RON-TC-FF-009`.
+unit tests for `RON-TC-FF-001` through `RON-TC-FF-009`. Phase 3 gain
+scheduling covers `RON-FR-300` through `RON-FR-306` with active unit tests for
+`RON-TC-GS-001` through `RON-TC-GS-008`.
 
 ## Sequencing Strategy
 
@@ -158,8 +161,9 @@ Exit criteria:
 
 ## Phase 3: Gain Scheduling
 
-Status: Next active C11 roadmap phase. Do not start until the Phase 2
-feed-forward slice is accepted.
+Status: Complete. Closure evidence is recorded in
+`docs/plans/c/c11-phase-3-gain-scheduling.md` and
+`docs/plans/c/c11-rollout.md`.
 
 Requirement scope:
 

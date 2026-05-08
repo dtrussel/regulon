@@ -1,16 +1,22 @@
 # C11 PID Rollout Status
 
-Date: 2026-04-22
+Date: 2026-04-23
 
 ## Scope
 
-`regulon-c` is currently narrowed to the PID deliverable only. The active public surface is:
+`regulon-c` now includes the accepted PID baseline plus the completed Phase 1,
+Phase 2, and Phase 3 slices. The active public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
 - `regulon-c/include/ron/ron_pid.h`
+- `regulon-c/include/ron/ron_filter.h`
+- `regulon-c/include/ron/ron_feedforward.h`
+- `regulon-c/include/ron/ron_gain_sched.h`
 
-All non-PID modules remain present in the repository but stay out of the active CMake build until the PID slice is closed with traceability and quality evidence.
+Later roadmap modules remain present in the repository but stay out of the
+active CMake build until their phase is explicitly opened and closed with the
+same traceability and quality evidence bar.
 
 ## Implemented In This Kickoff
 
@@ -100,6 +106,31 @@ All non-PID modules remain present in the repository but stay out of the active 
 - The existing `ron_pid_step()` signature is preserved. External
   feed-forward input is exposed through `ron_pid_step_feedforward()`.
 - Local evidence after enabling feed-forward:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON`: passes
+  - `cmake --build regulon-c/build --config Debug`: passes
+  - `ctest --test-dir regulon-c/build -C Debug --output-on-failure`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps format,complexity,cppcheck`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps msvc,double,clang`: passes
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps probe,cross-arm,cross-arm-clang,cbmc`: passes with local `cross-arm-clang` evidence, `cross-arm` skipped because `arm-none-eabi-gcc` is unavailable, and `cbmc` skipped because CBMC is unavailable
+
+## Phase 3 Gain Scheduling Opening Evidence
+
+- `ron_gain_sched.h` and `ron_gain_sched.c` are now active in the default C11
+  build.
+- `ron_pid_set_config()` is now part of the public PID runtime API and is used
+  as the atomic full-config update path for gain scheduling and the existing
+  PID runtime setters.
+- `test_ron_gain_sched.c` covers `RON-TC-GS-001` through `RON-TC-GS-008`,
+  including hard-switch selection, interpolation, atomic no-change-on-invalid
+  update, next-step behaviour, integral reset policy, and table validation.
+- `test_ron_pid_api.c` now directly covers the null, uninitialised,
+  successful-update, and invalid-candidate paths for `ron_pid_set_config()`
+  under `RON-TC-PID-033`.
+- Gain scheduling uses the conservative interpolation rule documented in the
+  Phase 3 plan: interpolate `Kp`, `Ki`, and `Kd` only, and reject interpolation
+  tables that vary other `ron_pid_config_t` fields across adjacent entries.
+- Local evidence after enabling gain scheduling:
   - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON`: passes
   - `cmake --build regulon-c/build --config Debug`: passes
   - `ctest --test-dir regulon-c/build -C Debug --output-on-failure`: passes

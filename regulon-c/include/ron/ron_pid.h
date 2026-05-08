@@ -143,6 +143,24 @@ ron_fault_t ron_pid_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
  * ========================================================================= */
 
 /**
+ * @brief Atomically replace the full PID configuration record.
+ *
+ * Validates the supplied candidate first; only commits it if the full record
+ * is internally consistent. Dynamic controller state is preserved.
+ *
+ * @param[in,out] inst  Pointer to an initialised instance.
+ * @param[in]     cfg   Pointer to the replacement configuration record.
+ *
+ * @return  RON_FAULT_NONE           on success.
+ * @return  RON_FAULT_NULL_POINTER   if inst or cfg is NULL.
+ * @return  RON_FAULT_CONFIG_INVALID if the candidate configuration is invalid.
+ *
+ * Satisfies: RON-FR-053.
+ */
+/* Satisfies: RON-FR-053 | Test: RON-TC-PID-033, RON-TC-GS-005 */
+ron_fault_t ron_pid_set_config(ron_pid_instance_t *inst, const ron_pid_config_t *cfg);
+
+/**
  * @brief Atomically update all three PID gain parameters.
  *
  * Validates the new gains first; only applies them if all are valid.

@@ -83,4 +83,5 @@ ron_add_test(test_ron_filter     unit/test_ron_filter.c)
 # Sprint 5 - Feed-forward PID extension (TC-FF-001..009)
 ron_add_test(test_ron_feedforward unit/test_ron_feedforward.c)
 
-# (Uncomment as each sprint's test files are added.)
+# Sprint 6 - Gain scheduling (TC-GS-001..008)
+ron_add_test(test_ron_gain_sched unit/test_ron_gain_sched.c)
