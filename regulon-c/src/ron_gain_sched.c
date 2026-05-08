@@ -35,8 +35,7 @@ static bool gs_same_limits_and_integral(const ron_pid_config_t *lhs, const ron_p
 {
     return (lhs->u_min == rhs->u_min) && (lhs->u_max == rhs->u_max) &&
            (lhs->du_max == rhs->du_max) && (lhs->I_min == rhs->I_min) &&
-           (lhs->I_max == rhs->I_max) && (lhs->T_aw == rhs->T_aw) &&
-           (lhs->tau_sp == rhs->tau_sp);
+           (lhs->I_max == rhs->I_max) && (lhs->T_aw == rhs->T_aw) && (lhs->tau_sp == rhs->tau_sp);
 }
 
 /* Satisfies: RON-FR-303 | Test: RON-TC-GS-005 */
@@ -63,8 +62,7 @@ static bool gs_same_feedforward_and_callback(const ron_pid_config_t *lhs,
 {
     return (lhs->feedforward.mode == rhs->feedforward.mode) &&
            (lhs->feedforward.gain == rhs->feedforward.gain) &&
-           (lhs->feedforward.N_ff == rhs->feedforward.N_ff) &&
-           (lhs->fault_cb == rhs->fault_cb);
+           (lhs->feedforward.N_ff == rhs->feedforward.N_ff) && (lhs->fault_cb == rhs->fault_cb);
 }
 
 /* Satisfies: RON-FR-302, RON-FR-303 | Test: RON-TC-GS-004, RON-TC-GS-005 */
@@ -196,8 +194,8 @@ static ron_float_t gs_lerp(ron_float_t lower, ron_float_t upper, ron_float_t t)
 }
 
 /* Satisfies: RON-FR-302, RON-FR-303 | Test: RON-TC-GS-004, RON-TC-GS-005 */
-static void gs_build_candidate(const ron_gs_table_t *tbl, uint8_t lower_idx, ron_float_t sigma_value,
-                               ron_pid_config_t *candidate)
+static void gs_build_candidate(const ron_gs_table_t *tbl, uint8_t lower_idx,
+                               ron_float_t sigma_value, ron_pid_config_t *candidate)
 {
     uint8_t upper_idx;
     ron_float_t t;
@@ -215,7 +213,7 @@ static void gs_build_candidate(const ron_gs_table_t *tbl, uint8_t lower_idx, ron
         return;
     }
 
-    upper_idx = (uint8_t) (lower_idx + 1U);
+    upper_idx  = (uint8_t) (lower_idx + 1U);
     *candidate = tbl->configs[lower_idx];
     span       = tbl->sigma[upper_idx] - tbl->sigma[lower_idx];
     t          = (sigma_value - tbl->sigma[lower_idx]) / span;
