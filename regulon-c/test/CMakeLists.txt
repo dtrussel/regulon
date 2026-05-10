@@ -88,3 +88,6 @@ ron_add_test(test_ron_gain_sched unit/test_ron_gain_sched.c)
 
 # Sprint 7 - Trajectory generators (TC-TRAJ-001..008)
 ron_add_test(test_ron_trajectory unit/test_ron_trajectory.c)
+
+# Sprint 8 - Cascade controller (TC-CASC-001..012)
+ron_add_test(test_ron_cascade    unit/test_ron_cascade.c)
