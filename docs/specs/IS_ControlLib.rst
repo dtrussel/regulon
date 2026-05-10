@@ -1832,11 +1832,24 @@ established for ``ron_pid.h`` apply equally to all headers.
        ron_float_t a_max;
    } ron_trap_config_t;
 
+   typedef enum {
+       RON_TRAP_PHASE_ACCEL = 0,
+       RON_TRAP_PHASE_CONST_VEL = 1,
+       RON_TRAP_PHASE_DECEL = 2,
+       RON_TRAP_PHASE_HOLD = 3,
+       RON_TRAP_PHASE_DONE = 4
+   } ron_trap_phase_t;
+
    typedef struct {
        ron_float_t pos, vel, acc;
        ron_float_t target;
-       uint8_t      phase;
+       ron_float_t direction;
+       ron_float_t v_peak;
+       ron_trap_phase_t phase;
+       ron_fault_t fault_code;
+       ron_status_t status;
        bool         hold;
+       bool         finished;
        bool         is_initialised;
    } ron_trap_state_t;
 
@@ -1858,12 +1871,32 @@ established for ``ron_pid.h`` apply equally to all headers.
        ron_float_t j_max;
    } ron_scurve_config_t;
 
+   #define RON_SCURVE_PHASE_COUNT (7U)
+
+   typedef enum {
+       RON_SCURVE_PHASE_JERK_POS_1 = 0,
+       RON_SCURVE_PHASE_ACCEL_HOLD = 1,
+       RON_SCURVE_PHASE_JERK_NEG_1 = 2,
+       RON_SCURVE_PHASE_CONST_VEL = 3,
+       RON_SCURVE_PHASE_JERK_NEG_2 = 4,
+       RON_SCURVE_PHASE_DECEL_HOLD = 5,
+       RON_SCURVE_PHASE_JERK_POS_2 = 6,
+       RON_SCURVE_PHASE_DONE = 7
+   } ron_scurve_phase_t;
+
    typedef struct {
        ron_float_t pos, vel, acc, jrk;
-       ron_float_t phase_time[7];
+       ron_float_t target;
+       ron_float_t direction;
+       ron_float_t phase_time[RON_SCURVE_PHASE_COUNT];
        ron_float_t t_phase;
-       uint8_t      phase;
+       ron_float_t t_total;
+       ron_float_t elapsed;
+       ron_scurve_phase_t phase;
+       ron_fault_t fault_code;
+       ron_status_t status;
        bool         hold;
+       bool         finished;
        bool         is_initialised;
    } ron_scurve_state_t;
 

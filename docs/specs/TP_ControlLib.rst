@@ -2226,6 +2226,25 @@ RON-TC-TRAJ-002 — Short-Move (No Full Velocity)
        ``fabs(pos - 0.1) < 0.001`` at finished.
        ``fabs(vel) < 0.001`` at finished.
 
+RON-TC-TRAJ-003 - Trapezoidal Kinematic Outputs
+------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-502
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`v_{max}=1.0`, :math:`a_{max}=2.0`. Target = 1.0. Start = 0.0.
+   * - **Stimulus**
+     - Run ``ron_trap_step`` for deterministic fixed ``dt`` samples.
+   * - **Pass Criterion**
+     - Returned position is monotonic toward the target.
+       Returned velocity and acceleration are finite.
+       Velocity and acceleration remain inside configured limits.
+
 RON-TC-TRAJ-004 — Online Goal Update
 --------------------------------------
 
@@ -2243,6 +2262,79 @@ RON-TC-TRAJ-004 — Online Goal Update
    * - **Pass Criterion**
      - No velocity discontinuity > :math:`a_{max} \cdot dt` at update step.
        Profile converges to new target 1.0 with ``fabs(pos - 1.0) < 0.001``.
+
+RON-TC-TRAJ-005 - S-Curve Reaches Target Within Limits
+-------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-510
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - :math:`v_{max}=1.5`, :math:`a_{max}=2.0`, :math:`j_{max}=8.0`.
+       Target = 1.0. Start = 0.0.
+   * - **Stimulus**
+     - Run ``ron_scurve_step`` until ``finished == true`` or 5000 steps.
+   * - **Pass Criterion**
+     - ``fabs(pos - 1.0) < 0.001`` at finished.
+       Velocity, acceleration, and jerk remain within configured limits.
+
+RON-TC-TRAJ-006 - S-Curve Jerk Output
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-511
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid S-curve configuration and non-zero target displacement.
+   * - **Stimulus**
+     - Step through the generated profile and observe ``jrk``.
+   * - **Pass Criterion**
+     - Jerk output is finite, bounded by :math:`j_{max}`, and includes at
+       least one positive and one negative jerk segment before completion.
+
+RON-TC-TRAJ-007 - Finished Flag
+--------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-512
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid trapezoidal and S-curve configurations.
+   * - **Stimulus**
+     - Command zero-distance and non-zero-distance moves for both generators.
+   * - **Pass Criterion**
+     - ``finished`` is true for zero-distance commands and false while a
+       non-zero move is active; it becomes true again at target convergence.
+
+RON-TC-TRAJ-008 - Hold Mode
+----------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-513
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid trapezoidal and S-curve configurations with active moves.
+   * - **Stimulus**
+     - Enable hold for several steps, then disable hold and continue stepping.
+   * - **Pass Criterion**
+     - Position, velocity, acceleration, and jerk outputs do not change while
+       held. The generator resumes and eventually reaches the commanded target.
 
 ------------------------------------------------------------------------
 

@@ -85,3 +85,6 @@ ron_add_test(test_ron_feedforward unit/test_ron_feedforward.c)
 
 # Sprint 6 - Gain scheduling (TC-GS-001..008)
 ron_add_test(test_ron_gain_sched unit/test_ron_gain_sched.c)
+
+# Sprint 7 - Trajectory generators (TC-TRAJ-001..008)
+ron_add_test(test_ron_trajectory unit/test_ron_trajectory.c)

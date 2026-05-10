@@ -52,6 +52,21 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_trajectory.h``,
+  ``regulon-c/src/ron_trajectory_trap.c``, and
+  ``regulon-c/src/ron_trajectory_scurve.c``: added the complete C11 Phase 4
+  trajectory-generator slice with standalone trapezoidal and bounded
+  seven-phase jerk-limited S-curve profiles.
+
+- ``regulon-c/test/unit/test_ron_trajectory.c``: added traceable Unity tests
+  for ``RON-TC-TRAJ-001`` through ``RON-TC-TRAJ-008`` covering convergence,
+  short moves, reverse moves, retargeting, hold/resume, validation, completion,
+  and bounded kinematic outputs.
+
+- ``docs/plans/c/c11-phase-4-trajectory-generators.md``: added and closed the
+  living Phase 4 implementation plan with final verification evidence,
+  residual tool gaps, and design choices.
+
 - ``regulon-c/include/ron/ron_gain_sched.h`` and
   ``regulon-c/src/ron_gain_sched.c``: added the complete C11 Phase 3 gain
   scheduling slice with bounded table validation, hard-switch scheduling,
@@ -118,14 +133,19 @@ Changed
   routed the existing PID runtime setters through that full-config path.
 
 - ``regulon-c/CMakeLists.txt`` and ``regulon-c/test/CMakeLists.txt``: enabled
-  the Phase 1 filter, Phase 2 feed-forward, and Phase 3 gain-scheduling
-  source/unit suites in the active C11 build without enabling later
-  placeholder modules.
+  the Phase 1 filter, Phase 2 feed-forward, Phase 3 gain-scheduling, and
+  Phase 4 trajectory source/unit suites in the active C11 build without
+  enabling later placeholder modules.
 
 - ``regulon-c/scripts/verify_pid.ps1`` and ``.github/workflows/ci_c.yml``:
   extended active-source verification from PID-only to PID plus filters and
-  feed-forward plus gain scheduling for format, static analysis, complexity,
-  coverage, and CBMC source lists.
+  feed-forward plus gain scheduling plus trajectory generators for format,
+  static analysis, complexity, coverage, cross-compile, and CBMC source lists.
+
+- ``docs/specs/IS_ControlLib.rst`` and ``docs/specs/TP_ControlLib.rst``:
+  reconciled the trajectory API/state model and completed detailed test-plan
+  descriptions for ``RON-TC-TRAJ-003`` and ``RON-TC-TRAJ-005`` through
+  ``RON-TC-TRAJ-008``.
 
 - ``docs/specs/IS_ControlLib.rst`` and ``docs/specs/TP_ControlLib.rst``:
   reconciled the filter API with ``get_state`` operations, shared
@@ -135,12 +155,12 @@ Changed
 - ``docs/plans/c/c11-rollout.md`` and ``docs/plans/c11-roadmap.md``:
   recorded Phase 0 PID closure acceptance, Phase 1 filter completion, and
   Phase 2 feed-forward completion; they now also record Phase 3 gain
-  scheduling completion and Phase 4 trajectory generators as the next C11
-  roadmap item.
+  scheduling completion and Phase 4 trajectory generator completion.
 
 - ``regulon-c/CMakeLists.txt``: keeps the active C build limited to accepted
-  slices, now PID plus filters plus feed-forward, so later placeholder modules
-  do not pollute host builds and quality evidence.
+  slices, now PID plus filters plus feed-forward plus gain scheduling plus
+  trajectory generators, so later placeholder modules do not pollute host
+  builds and quality evidence.
 
 - ``regulon-c/test/CMakeLists.txt``: fixed the Windows/MSVC host-test build by
   making ``m`` linkage conditional and enabling the PID core/API suites.

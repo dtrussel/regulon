@@ -19,10 +19,7 @@ extern "C" {
 #endif
 
 /* Satisfies: RON-FR-302 | Test: RON-TC-GS-003, RON-TC-GS-004 */
-typedef enum {
-    RON_GS_HARD_SWITCH   = 0,
-    RON_GS_LINEAR_INTERP = 1
-} ron_gs_mode_t;
+typedef enum { RON_GS_HARD_SWITCH = 0, RON_GS_LINEAR_INTERP = 1 } ron_gs_mode_t;
 
 /* Satisfies: RON-FR-300, RON-FR-301 | Test: RON-TC-GS-001, RON-TC-GS-002 */
 typedef struct {
