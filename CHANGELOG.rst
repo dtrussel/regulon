@@ -52,6 +52,21 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_cascade.h`` and
+  ``regulon-c/src/ron_cascade.c``: added the complete C11 Phase 5 cascade
+  (master/slave) PID controller slice.  The outer loop's clamped output
+  automatically drives the inner setpoint (RON-FR-401, RON-FR-402);
+  cross-loop back-calculation anti-windup propagation restrains the outer
+  integral when the inner loop saturates (RON-FR-403); coordinated
+  MANUAL↔AUTO mode transitions with bumpless transfer preserve bumpless
+  hand-off ordering (RON-FR-404); fault-clear and reset operate on both
+  loops atomically (RON-FR-405); and a unified 32-bit status word encodes
+  both loop statuses with extraction macros (RON-FR-406).
+
+- ``regulon-c/test/unit/test_ron_cascade.c``: added 12 traceable Unity
+  tests (RON-TC-CASC-001 through RON-TC-CASC-012) achieving 100% line and
+  branch coverage on ``ron_cascade.c``.
+
 - ``regulon-c/include/ron/ron_trajectory.h``,
   ``regulon-c/src/ron_trajectory_trap.c``, and
   ``regulon-c/src/ron_trajectory_scurve.c``: added the complete C11 Phase 4

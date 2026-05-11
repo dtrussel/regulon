@@ -42,6 +42,13 @@ static ron_float_t test_ron_casc_make_inf(void)
     return big * big;
 }
 
+static ron_float_t test_ron_casc_make_neg_inf(void)
+{
+    volatile ron_float_t big = RON_FLOAT_MAX;
+
+    return -(big * big);
+}
+
 /*
  * Return a simple proportional-only config with ±100 limits, suitable for
  * composing without special requirements.
@@ -61,7 +68,7 @@ static ron_pid_config_t test_ron_casc_default_cfg(void)
 }
 
 static ron_cascade_instance_t test_ron_casc_init(const ron_pid_config_t *outer_cfg,
-                                                  const ron_pid_config_t *inner_cfg)
+                                                 const ron_pid_config_t *inner_cfg)
 {
     ron_cascade_instance_t casc;
 
@@ -93,18 +100,15 @@ void test_ron_tc_casc_001(void)
  * ========================================================================= */
 void test_ron_tc_casc_002(void)
 {
-    ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
-    ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_pid_config_t bad_cfg   = test_ron_casc_default_cfg();
+    ron_pid_config_t outer_cfg  = test_ron_casc_default_cfg();
+    ron_pid_config_t inner_cfg  = test_ron_casc_default_cfg();
+    ron_pid_config_t bad_cfg    = test_ron_casc_default_cfg();
     ron_cascade_instance_t casc = {0};
 
     /* NULL pointer checks */
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
-                            ron_cascade_init(NULL, &outer_cfg, &inner_cfg));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
-                            ron_cascade_init(&casc, NULL, &inner_cfg));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
-                            ron_cascade_init(&casc, &outer_cfg, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_cascade_init(NULL, &outer_cfg, &inner_cfg));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_cascade_init(&casc, NULL, &inner_cfg));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_cascade_init(&casc, &outer_cfg, NULL));
 
     /* Invalid outer config: u_min >= u_max */
     bad_cfg.u_min = RON_FLOAT_C(10.0);
@@ -133,8 +137,8 @@ void test_ron_tc_casc_003(void)
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
     ron_cascade_instance_t casc;
-    ron_float_t u                  = RON_FLOAT_C(0.0);
-    ron_cascade_status_t status    = (ron_cascade_status_t) 0U;
+    ron_float_t u               = RON_FLOAT_C(0.0);
+    ron_cascade_status_t status = (ron_cascade_status_t) 0U;
 
     outer_cfg.Kp    = RON_FLOAT_C(1.0);
     outer_cfg.u_min = RON_FLOAT_C(-50.0);
@@ -143,10 +147,9 @@ void test_ron_tc_casc_003(void)
 
     casc = test_ron_casc_init(&outer_cfg, &inner_cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(10.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_cascade_step(&casc, RON_FLOAT_C(10.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
 
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(4.0) * FLT_EPSILON, RON_FLOAT_C(20.0), u);
     TEST_ASSERT_EQUAL_UINT16(RON_STATUS_OK, RON_CASCADE_STATUS_OUTER(status));
@@ -175,10 +178,9 @@ void test_ron_tc_casc_004(void)
 
     casc = test_ron_casc_init(&outer_cfg, &inner_cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(10.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_cascade_step(&casc, RON_FLOAT_C(10.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
 
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(4.0) * FLT_EPSILON, RON_FLOAT_C(5.0), u);
     TEST_ASSERT_TRUE((RON_CASCADE_STATUS_OUTER(status) & RON_STATUS_SATURATED) != 0U);
@@ -208,10 +210,9 @@ void test_ron_tc_casc_005(void)
 
     casc = test_ron_casc_init(&outer_cfg, &inner_cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_cascade_step(&casc, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
 
     /* Inner saturated, outer was not */
     TEST_ASSERT_TRUE((RON_CASCADE_STATUS_INNER(status) & RON_STATUS_SATURATED) != 0U);
@@ -239,12 +240,12 @@ void test_ron_tc_casc_006(void)
     ron_float_t I_noaw;
     unsigned i;
 
-    outer_aw.Kp    = RON_FLOAT_C(1.0);
-    outer_aw.Ki    = RON_FLOAT_C(10.0);
-    outer_aw.u_min = RON_FLOAT_C(-100.0);
-    outer_aw.u_max = RON_FLOAT_C(100.0);
-    outer_aw.I_min = RON_FLOAT_C(-500.0);
-    outer_aw.I_max = RON_FLOAT_C(500.0);
+    outer_aw.Kp      = RON_FLOAT_C(1.0);
+    outer_aw.Ki      = RON_FLOAT_C(10.0);
+    outer_aw.u_min   = RON_FLOAT_C(-100.0);
+    outer_aw.u_max   = RON_FLOAT_C(100.0);
+    outer_aw.I_min   = RON_FLOAT_C(-500.0);
+    outer_aw.I_max   = RON_FLOAT_C(500.0);
     outer_aw.aw_mode = RON_AW_BACK_CALC;
     outer_aw.T_aw    = RON_FLOAT_C(0.1);
 
@@ -302,10 +303,9 @@ void test_ron_tc_casc_007(void)
     TEST_ASSERT_EQUAL_INT(RON_MODE_MANUAL, (int) casc.inner.state.mode);
 
     /* Step returns the manual_inner value as output */
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(5.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_cascade_step(&casc, RON_FLOAT_C(5.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
 
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(4.0) * FLT_EPSILON, RON_FLOAT_C(3.0), u);
     TEST_ASSERT_TRUE((RON_CASCADE_STATUS_INNER(status) & RON_STATUS_MANUAL_MODE) != 0U);
@@ -331,10 +331,9 @@ void test_ron_tc_casc_008(void)
         ron_cascade_set_mode(&casc, RON_MODE_MANUAL, RON_FLOAT_C(4.0), RON_FLOAT_C(8.0)));
 
     /* Confirm manual output */
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(5.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_cascade_step(&casc, RON_FLOAT_C(5.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(4.0) * FLT_EPSILON, RON_FLOAT_C(4.0), u);
 
     /* Switch back to auto — bumpless */
@@ -350,10 +349,9 @@ void test_ron_tc_casc_008(void)
      * y_in=inner_manual): P term is zero so output = integral = manual handoff value.
      * This verifies bumpless transfer pre-loaded the integrals correctly.
      */
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(8.0), RON_FLOAT_C(8.0), RON_FLOAT_C(8.0),
-                         RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_cascade_step(&casc, RON_FLOAT_C(8.0), RON_FLOAT_C(8.0),
+                                             RON_FLOAT_C(8.0), RON_FLOAT_C(0.01), &u, &status));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(4.0) * FLT_EPSILON, RON_FLOAT_C(4.0), u);
 }
 
@@ -375,38 +373,77 @@ void test_ron_tc_casc_009(void)
     uninit.outer.state.is_initialised = false;
     uninit.inner.state.is_initialised = false;
 
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
+                            ron_cascade_step(NULL, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
+                            ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), NULL, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
+                            ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_cascade_step(&uninit, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), test_ron_casc_make_nan(), &u,
+                                             &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), RON_FLOAT_C(-0.001), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                             RON_FLOAT_C(0.0), test_ron_casc_make_inf(), &u,
+                                             &status));
+
+    /* Outer-only-initialized instance: covers left=F,right=T branch of || in step uninit check */
+    {
+        ron_cascade_instance_t partial;
+        partial.outer.state.is_initialised = true;
+        partial.inner.state.is_initialised = false;
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                                ron_cascade_step(&partial, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                                 RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    }
+
+    /* set_mode null guard */
     TEST_ASSERT_EQUAL_UINT8(
         RON_FAULT_NULL_POINTER,
-        ron_cascade_step(NULL, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NULL_POINTER,
-        ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), NULL, &status));
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NULL_POINTER,
-        ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, NULL));
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_CONFIG_INVALID,
-        ron_cascade_step(&uninit, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &status));
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_CONFIG_INVALID,
-        ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.0), &u, &status));
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_CONFIG_INVALID,
-        ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         test_ron_casc_make_nan(), &u, &status));
+        ron_cascade_set_mode(NULL, RON_MODE_MANUAL, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)));
+
+    /* set_mode uninit guards: covers cascade_check_inst uninit path */
+    {
+        ron_cascade_instance_t sm_uninit = {0};
+
+        /* Both uninit: outer=T in || → short-circuit (covers line 31 return) */
+        TEST_ASSERT_EQUAL_UINT8(
+            RON_FAULT_CONFIG_INVALID,
+            ron_cascade_set_mode(&sm_uninit, RON_MODE_MANUAL, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)));
+
+        /* Outer only init: outer=F, inner=T in || */
+        sm_uninit.outer.state.is_initialised = true;
+        TEST_ASSERT_EQUAL_UINT8(
+            RON_FAULT_CONFIG_INVALID,
+            ron_cascade_set_mode(&sm_uninit, RON_MODE_MANUAL, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)));
+    }
+
+    /* set_mode non-finite manual guards */
+    /* NaN manual_inner: left=T in || → short-circuit */
     TEST_ASSERT_EQUAL_UINT8(
         RON_FAULT_CONFIG_INVALID,
-        ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(-0.001), &u, &status));
+        ron_cascade_set_mode(&casc, RON_MODE_MANUAL, test_ron_casc_make_nan(), RON_FLOAT_C(0.0)));
+    /* NaN manual_outer (valid inner): left=F, right=T in || */
     TEST_ASSERT_EQUAL_UINT8(
         RON_FAULT_CONFIG_INVALID,
-        ron_cascade_step(&casc, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         test_ron_casc_make_inf(), &u, &status));
+        ron_cascade_set_mode(&casc, RON_MODE_MANUAL, RON_FLOAT_C(0.0), test_ron_casc_make_nan()));
+    /* -Inf manual_inner: covers value >= RON_FLOAT_MIN FALSE branch in cascade_isfinite */
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_cascade_set_mode(&casc, RON_MODE_MANUAL,
+                                                 test_ron_casc_make_neg_inf(), RON_FLOAT_C(0.0)));
 }
 
 /* =========================================================================
@@ -434,10 +471,9 @@ void test_ron_tc_casc_010(void)
 
     casc = test_ron_casc_init(&outer_cfg, &inner_cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(
-        RON_FAULT_NONE,
-        ron_cascade_step(&casc, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
-                         RON_FLOAT_C(0.01), &u, &step_status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_cascade_step(&casc, RON_FLOAT_C(1.0),
+                                                             RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
+                                                             RON_FLOAT_C(0.01), &u, &step_status));
 
     /* get_state returns same status as step */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
@@ -448,18 +484,16 @@ void test_ron_tc_casc_010(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, inner_fault);
 
     /* NULL output pointers silently skipped */
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
-                            ron_cascade_get_state(&casc, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_cascade_get_state(&casc, NULL, NULL, NULL));
 
     /* NULL casc pointer */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
                             ron_cascade_get_state(NULL, &get_status, NULL, NULL));
 
     /* Force a fault on the outer loop via NaN input */
-    (void) ron_pid_step(&casc.outer, test_ron_casc_make_nan(), RON_FLOAT_C(0.0),
-                        RON_FLOAT_C(0.01), &u, &outer_step);
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
-                            ron_cascade_get_state(&casc, NULL, &outer_fault, NULL));
+    (void) ron_pid_step(&casc.outer, test_ron_casc_make_nan(), RON_FLOAT_C(0.0), RON_FLOAT_C(0.01),
+                        &u, &outer_step);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_cascade_get_state(&casc, NULL, &outer_fault, NULL));
     TEST_ASSERT_TRUE(outer_fault != RON_FAULT_NONE);
 }
 
@@ -479,10 +513,10 @@ void test_ron_tc_casc_011(void)
     casc = test_ron_casc_init(&outer_cfg, &inner_cfg);
 
     /* Force faults on both loops via NaN inputs */
-    (void) ron_pid_step(&casc.outer, test_ron_casc_make_nan(), RON_FLOAT_C(0.0),
-                        RON_FLOAT_C(0.01), &dummy_u, &dummy_s);
-    (void) ron_pid_step(&casc.inner, test_ron_casc_make_nan(), RON_FLOAT_C(0.0),
-                        RON_FLOAT_C(0.01), &dummy_u, &dummy_s);
+    (void) ron_pid_step(&casc.outer, test_ron_casc_make_nan(), RON_FLOAT_C(0.0), RON_FLOAT_C(0.01),
+                        &dummy_u, &dummy_s);
+    (void) ron_pid_step(&casc.inner, test_ron_casc_make_nan(), RON_FLOAT_C(0.0), RON_FLOAT_C(0.01),
+                        &dummy_u, &dummy_s);
 
     (void) ron_cascade_get_state(&casc, NULL, &outer_fault, &inner_fault);
     TEST_ASSERT_TRUE(outer_fault != RON_FAULT_NONE);
@@ -506,11 +540,11 @@ void test_ron_tc_casc_012(void)
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
     ron_cascade_instance_t casc;
-    ron_float_t I_outer  = RON_FLOAT_C(0.0);
-    ron_float_t I_inner  = RON_FLOAT_C(0.0);
-    ron_float_t last_u   = RON_FLOAT_C(0.0);
-    ron_float_t last_D   = RON_FLOAT_C(0.0);
-    ron_float_t dummy_u  = RON_FLOAT_C(0.0);
+    ron_float_t I_outer         = RON_FLOAT_C(0.0);
+    ron_float_t I_inner         = RON_FLOAT_C(0.0);
+    ron_float_t last_u          = RON_FLOAT_C(0.0);
+    ron_float_t last_D          = RON_FLOAT_C(0.0);
+    ron_float_t dummy_u         = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
     unsigned i;
 

@@ -63,16 +63,15 @@ typedef uint32_t ron_cascade_status_t;
 
 #define RON_CASCADE_STATUS_OUTER_SHIFT ((uint32_t) 0U)
 #define RON_CASCADE_STATUS_INNER_SHIFT ((uint32_t) 16U)
-#define RON_CASCADE_STATUS_OUTER_MASK  ((ron_cascade_status_t) 0x0000FFFFU)
-#define RON_CASCADE_STATUS_INNER_MASK  ((ron_cascade_status_t) 0xFFFF0000U)
+#define RON_CASCADE_STATUS_OUTER_MASK ((ron_cascade_status_t) 0x0000FFFFU)
+#define RON_CASCADE_STATUS_INNER_MASK ((ron_cascade_status_t) 0xFFFF0000U)
 
 /** @brief Extract the outer loop's ron_status_t from a cascade status word. */
-#define RON_CASCADE_STATUS_OUTER(cs) \
-    ((ron_status_t) ((cs) &RON_CASCADE_STATUS_OUTER_MASK))
+#define RON_CASCADE_STATUS_OUTER(cs) ((ron_status_t) ((cs) & RON_CASCADE_STATUS_OUTER_MASK))
 
 /** @brief Extract the inner loop's ron_status_t from a cascade status word. */
-#define RON_CASCADE_STATUS_INNER(cs) \
-    ((ron_status_t) (((cs) &RON_CASCADE_STATUS_INNER_MASK) >> RON_CASCADE_STATUS_INNER_SHIFT))
+#define RON_CASCADE_STATUS_INNER(cs)                                                               \
+    ((ron_status_t) (((cs) & RON_CASCADE_STATUS_INNER_MASK) >> RON_CASCADE_STATUS_INNER_SHIFT))
 
 /* =========================================================================
  * Cascade instance structure (RON-FR-400)

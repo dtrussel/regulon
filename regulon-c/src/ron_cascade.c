@@ -36,9 +36,9 @@ static ron_fault_t cascade_check_inst(const ron_cascade_instance_t *casc)
 /* Satisfies: RON-FR-406 */
 static ron_cascade_status_t cascade_build_status(ron_status_t outer_s, ron_status_t inner_s)
 {
-    return (ron_cascade_status_t)(
-        ((ron_cascade_status_t) outer_s << RON_CASCADE_STATUS_OUTER_SHIFT) |
-        ((ron_cascade_status_t) inner_s << RON_CASCADE_STATUS_INNER_SHIFT));
+    return (
+        ron_cascade_status_t) (((ron_cascade_status_t) outer_s << RON_CASCADE_STATUS_OUTER_SHIFT) |
+                               ((ron_cascade_status_t) inner_s << RON_CASCADE_STATUS_INNER_SHIFT));
 }
 
 /*
@@ -101,10 +101,10 @@ ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ro
                              ron_float_t y_in, ron_float_t dt, ron_float_t *u_out,
                              ron_cascade_status_t *status)
 {
-    ron_fault_t  outer_fault;
-    ron_fault_t  inner_fault;
-    ron_float_t  u_outer;
-    ron_float_t  u_inner;
+    ron_fault_t outer_fault;
+    ron_fault_t inner_fault;
+    ron_float_t u_outer;
+    ron_float_t u_inner;
     ron_status_t outer_status;
     ron_status_t inner_status;
 
@@ -146,15 +146,11 @@ ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mod
     if (mode == RON_MODE_MANUAL) {
         /* AUTO → MANUAL: freeze outer first so it stops advancing while inner winds down */
         fault = ron_pid_set_mode(&casc->outer, RON_MODE_MANUAL, manual_outer);
-        if (fault == RON_FAULT_NONE) {
-            fault = ron_pid_set_mode(&casc->inner, RON_MODE_MANUAL, manual_inner);
-        }
+        fault |= ron_pid_set_mode(&casc->inner, RON_MODE_MANUAL, manual_inner);
     } else {
         /* MANUAL → AUTO: inner resumes tracking first (bumpless), then outer */
         fault = ron_pid_set_mode(&casc->inner, RON_MODE_AUTOMATIC, manual_inner);
-        if (fault == RON_FAULT_NONE) {
-            fault = ron_pid_set_mode(&casc->outer, RON_MODE_AUTOMATIC, manual_outer);
-        }
+        fault |= ron_pid_set_mode(&casc->outer, RON_MODE_AUTOMATIC, manual_outer);
     }
 
     return fault;

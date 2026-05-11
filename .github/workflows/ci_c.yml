@@ -138,6 +138,7 @@ jobs:
       - name: Check formatting
         run: |
           clang-format --dry-run --Werror \
+            regulon-c/src/ron_cascade.c \
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
             regulon-c/src/ron_gain_sched.c \
@@ -154,7 +155,8 @@ jobs:
             regulon-c/include/ron/ron_platform.h \
             regulon-c/include/ron/ron_pid_types.h \
             regulon-c/include/ron/ron_pid.h \
-            regulon-c/include/ron/ron_trajectory.h
+            regulon-c/include/ron/ron_trajectory.h \
+            regulon-c/include/ron/ron_cascade.h
 
   # ---------------------------------------------------------------------------
   # Job 5: Static analysis - cppcheck (MISRA subset) + complexity
@@ -183,6 +185,7 @@ jobs:
                    --suppress=misra-c2012-15.7 \
                    --suppress=misra-c2012-20.10 \
                    -I regulon-c/include \
+                   regulon-c/src/ron_cascade.c \
                    regulon-c/src/ron_feedforward.c \
                    regulon-c/src/ron_filter.c \
                    regulon-c/src/ron_gain_sched.c \
@@ -197,6 +200,7 @@ jobs:
       - name: Run complexity check
         run: |
           python3 -m lizard -C 10 \
+            regulon-c/src/ron_cascade.c \
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
             regulon-c/src/ron_gain_sched.c \
@@ -264,6 +268,7 @@ jobs:
           done
 
           source_args=(
+            -sources regulon-c/src/ron_cascade.c
             -sources regulon-c/src/ron_feedforward.c
             -sources regulon-c/src/ron_filter.c
             -sources regulon-c/src/ron_gain_sched.c
