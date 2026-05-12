@@ -301,6 +301,9 @@ Verification evidence:
 
 ## Phase 6: Kalman Filter
 
+Status: Planned. The Phase 6 implementation plan is in
+`docs/plans/c/c11-phase-6-kalman-filter.md`.
+
 Requirement scope:
 
 - `RON-FR-600` through `RON-FR-607`
