@@ -286,6 +286,19 @@ Exit criteria:
 - Cascade tests include interaction-level coverage, not just isolated PID calls.
 - Existing PID unit and formal gates remain unchanged and passing.
 
+Status: **COMPLETE** (2026-05-11)
+
+Verification evidence:
+- 12 Unity tests (RON-TC-CASC-001 – RON-TC-CASC-012): all pass.
+- LLVM source-based coverage: 100% lines, 100% branches on `ron_cascade.c`.
+- GCC ASan/UBSan: clean (all 8 suites pass).
+- Double-precision build (RON_USE_DOUBLE=ON): clean.
+- Clang build: clean.
+- clang-format: no violations.
+- Complexity (lizard, CCN ≤ 10): no thresholds exceeded.
+- CI workflow updated: `ron_cascade.c` and `ron_cascade.h` added to
+  format-check, static-analysis, and coverage job file lists.
+
 ## Phase 6: Kalman Filter
 
 Requirement scope:
