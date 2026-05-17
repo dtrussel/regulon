@@ -165,3 +165,75 @@ same traceability and quality evidence bar.
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps coverage`: passes with 100% statement and branch coverage
   - `powershell -NoProfile -ExecutionPolicy Bypass -File regulon-c/scripts/verify_pid.ps1 -Steps probe,cross-arm,cross-arm-clang,cbmc`: passes with local `cross-arm` and `cross-arm-clang` evidence using freestanding header fallback; `cbmc` skipped because CBMC is unavailable
   - `git diff --check`: passes
+
+## Phase 6 Kalman Filter Opening Evidence
+
+- `ron_kalman.h` and `ron_kalman.c` are now active in the default C11 build.
+  The public API matches the IS specification (`ron_kf_t`, `ron_kf_config_t`,
+  `ron_kf_state_t`, and the `ron_kf_init` / `ron_kf_reset` / `ron_kf_predict`
+  / `ron_kf_update` / `ron_kf_get_state` lifecycle); the header includes
+  `ron/ron_pid_types.h` rather than `ron/ron_platform.h` directly so it
+  inherits the shared `ron_fault_t` / `RON_FAULT_*` conventions used by every
+  other active C11 module.
+- `test_ron_kalman.c` covers `RON-TC-KF-001` through `RON-TC-KF-008`,
+  including scalar convergence, full parameter/dimension validation
+  including positive- and negative-infinity rejection, hand-checked
+  predict/update reference cases for both `n == 1` and `n == 2` instances,
+  the diagonal and non-diagonal Cholesky paths and the non-positive-
+  definite `S` rejection for `m > 1`, the degenerate scalar `S` guard for
+  `m == 1`, Joseph-form parity with the standard update including
+  symmetry, measurement dropout (with `z = NULL`), steady-state fixed-gain
+  mode, maximum-dimension storage exercising all `RON_KF_MAX_*` bounds, and
+  all defensive null / uninitialised / non-finite input paths plus the
+  `RON_FAULT_OUTPUT_NAN` numeric-overflow detection in both
+  `ron_kf_predict` and `ron_kf_update`.
+- `regulon-c/test/formal/kalman_no_heap_proof.c` adds the
+  `RON-TC-KF-008-FV` CBMC harness for the Kalman lifecycle; the harness
+  is discovered automatically by the dynamic `*_proof.c` enumeration in
+  both the local verify script and CI.
+- `docs/specs/TP_ControlLib.rst` now records detailed entries for
+  `RON-TC-KF-002` through `RON-TC-KF-005`, `RON-TC-KF-007`,
+  `RON-TC-KF-008`, and `RON-TC-KF-008-FV`; the previously existing
+  `RON-TC-KF-001` and `RON-TC-KF-006` entries are unchanged.
+- `regulon-c/scripts/verify_pid.ps1` and `.github/workflows/ci_c.yml` now
+  list `ron_kalman.c` and `ron_kalman.h` in the format, cppcheck/MISRA,
+  complexity, coverage, and CBMC source/header sets.  The same edit closes
+  a pre-existing gap by also adding `ron_cascade.c` / `ron_cascade.h` to
+  the verify script, bringing it into line with CI.
+- The library `add_library(regulon STATIC ...)` source list and the
+  `regulon-c/test/CMakeLists.txt` test enumeration now include
+  `ron_kalman.c` and `test_ron_kalman` respectively.
+- Local evidence after enabling the Kalman slice:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON`: passes
+  - `cmake --build regulon-c/build --config Debug`: passes
+  - `ctest --test-dir regulon-c/build -C Debug --output-on-failure`: 9/9
+    suites pass, including the new `test_ron_kalman`.
+  - Single- and double-precision GCC builds (`RON_USE_DOUBLE=ON` and the
+    default), standalone Clang / Ninja build, and GCC
+    `-fsanitize=address,undefined -fno-sanitize-recover=all` build: all
+    9 suites pass on each configuration.
+  - `clang-format --dry-run --Werror` over the new `ron_kalman.c`,
+    `ron_kalman.h`, `test_ron_kalman.c`, and `kalman_no_heap_proof.c`:
+    passes.
+  - `clang -std=c11 -Wall -Wextra -Werror -fsyntax-only` over the new
+    `kalman_no_heap_proof.c`: passes.
+  - `gcov -b -c` instrumentation of the active C source set including
+    `ron_kalman.c`: 100% line coverage and 100% branch coverage
+    (both directions taken) on `ron_kalman.c`.
+  - `git diff --check`: passes.
+
+### Residual Tool Gaps (Phase 6)
+
+- The Linux verification host used for this slice lacks
+  `libclang_rt.profile-x86_64.a` and `libclang_rt.asan-x86_64.a`, so the
+  clang LLVM source-based coverage and clang ASan/UBSan builds remain a
+  CI responsibility.  GCC `--coverage` (gcov) is used locally and reports
+  100% line and 100% branch coverage on `ron_kalman.c`; the equivalent
+  LLVM `llvm-cov` gate continues to be enforced by `ci_c.yml`.
+- `cppcheck` and `lizard` are not installed on this verification host;
+  static-analysis (MISRA) and complexity gates remain a CI responsibility.
+- `cbmc` and `arm-none-eabi-gcc` are not installed on this verification
+  host; the formal Kalman no-heap proof and the ARM GCC cross-compile
+  smoke build remain CI responsibilities.  The dynamic harness discovery
+  in the verify script and CI picks up `kalman_no_heap_proof.c`
+  automatically once `cbmc` is available.

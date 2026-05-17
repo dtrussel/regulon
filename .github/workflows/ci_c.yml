@@ -142,6 +142,7 @@ jobs:
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
             regulon-c/src/ron_gain_sched.c \
+            regulon-c/src/ron_kalman.c \
             regulon-c/src/ron_pid_api.c \
             regulon-c/src/ron_pid_config.c \
             regulon-c/src/ron_pid_core.c \
@@ -152,6 +153,7 @@ jobs:
             regulon-c/include/ron/ron_feedforward.h \
             regulon-c/include/ron/ron_filter.h \
             regulon-c/include/ron/ron_gain_sched.h \
+            regulon-c/include/ron/ron_kalman.h \
             regulon-c/include/ron/ron_platform.h \
             regulon-c/include/ron/ron_pid_types.h \
             regulon-c/include/ron/ron_pid.h \
@@ -189,6 +191,7 @@ jobs:
                    regulon-c/src/ron_feedforward.c \
                    regulon-c/src/ron_filter.c \
                    regulon-c/src/ron_gain_sched.c \
+                   regulon-c/src/ron_kalman.c \
                    regulon-c/src/ron_pid_api.c \
                    regulon-c/src/ron_pid_config.c \
                    regulon-c/src/ron_pid_core.c \
@@ -204,6 +207,7 @@ jobs:
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
             regulon-c/src/ron_gain_sched.c \
+            regulon-c/src/ron_kalman.c \
             regulon-c/src/ron_pid_api.c \
             regulon-c/src/ron_pid_config.c \
             regulon-c/src/ron_pid_core.c \
@@ -272,6 +276,7 @@ jobs:
             -sources regulon-c/src/ron_feedforward.c
             -sources regulon-c/src/ron_filter.c
             -sources regulon-c/src/ron_gain_sched.c
+            -sources regulon-c/src/ron_kalman.c
             -sources regulon-c/src/ron_pid_api.c
             -sources regulon-c/src/ron_pid_config.c
             -sources regulon-c/src/ron_pid_core.c
@@ -396,9 +401,11 @@ jobs:
                  --unwind 65 --unwinding-assertions \
                  --bounds-check --pointer-check \
                  "$harness" \
+                 regulon-c/src/ron_cascade.c \
                  regulon-c/src/ron_feedforward.c \
                  regulon-c/src/ron_filter.c \
                  regulon-c/src/ron_gain_sched.c \
+                 regulon-c/src/ron_kalman.c \
                  regulon-c/src/ron_pid_api.c \
                  regulon-c/src/ron_pid_config.c \
                  regulon-c/src/ron_pid_core.c \
