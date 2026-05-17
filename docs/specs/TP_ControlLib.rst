@@ -2362,8 +2362,115 @@ RON-TC-KF-001 — Scalar State Estimation Convergence
      - ``fabs(x_hat - 5.0) < 0.5`` after 100 cycles.
        ``P`` monotonically decreasing for first 20 cycles.
 
+RON-TC-KF-002 — Parameter Matrices and Configuration Validation
+----------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-601, RON-FR-607
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - A valid scalar configuration template; ``RON_KF_MAX_STATES``,
+       ``RON_KF_MAX_MEASUREMENTS``, ``RON_KF_MAX_INPUTS`` known.
+   * - **Stimulus**
+     - ``ron_kf_init`` called with: ``NULL`` instance and ``NULL`` config;
+       ``n``/``m`` set to 0 and one above the compile-time maximum; ``p`` set
+       to one above the input maximum; each parameter matrix
+       (``A``, ``B``, ``H``, ``Q``, ``R``, ``P0``, ``K_inf``) and ``x0``
+       perturbed to contain ``+inf``, ``-inf``, or ``NaN`` in turn; finally
+       a multi-state, multi-measurement configuration with one control
+       input.
+   * - **Pass Criterion**
+     - Every defective configuration yields ``RON_FAULT_CONFIG_INVALID``
+       (or ``RON_FAULT_NULL_POINTER`` for null arguments) and leaves the
+       instance state untouched.  A valid multi-dimensional configuration
+       returns ``RON_FAULT_NONE`` and seeds ``x_hat`` from ``x0`` and ``P``
+       from ``P0``.
+
+RON-TC-KF-003 — Predict / Update Algorithm Correctness
+-------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-602
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Hand-checked reference cases.  Scalar: ``A=2``, ``H=1``, ``Q=0``,
+       ``R=1``, :math:`\hat{x}_0=1`, :math:`P_0=1`.  Constant-velocity
+       (n=2, m=1): ``A=[[1,1],[0,1]]``, ``H=[[1,0]]``, ``Q=0``, ``R=1``,
+       :math:`\hat{x}_0=[0,1]`, :math:`P_0=I`.
+   * - **Stimulus**
+     - One ``ron_kf_predict`` then one ``ron_kf_update`` with
+       :math:`z=[3]` (scalar) or :math:`z=[2]` (n=2).
+       After the update, the scalar instance is also reset via
+       ``ron_kf_reset`` and a dropout update is invoked.
+   * - **Pass Criterion**
+     - Scalar: ``x_hat=2.0``, ``P=4.0`` after predict; ``x_hat=2.8``,
+       ``P=0.8`` after update; reset restores ``x_hat=1.0``, ``P=1.0``.
+       n=2: ``x_hat=[1,1]``, ``P=[[2,1],[1,1]]`` after predict;
+       ``x_hat=[5/3,4/3]``, ``P=[[2/3,1/3],[1/3,2/3]]`` after update.
+       A dropout update leaves the state unchanged.
+
+RON-TC-KF-004 — Cholesky-Based Innovation Solve (m > 1)
+--------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-603
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Three two-measurement (n=2, m=2) instances with ``A=I``, ``H=I``,
+       ``Q=0``: (a) ``R`` and ``P0`` diagonal so ``S`` is diagonal;
+       (b) ``R=I``, ``P0=[[2,1],[1,2]]`` so ``S`` is positive definite but
+       non-diagonal; (c) ``R=[[1,2],[2,1]]`` and ``P0=0`` so ``S`` is not
+       positive definite.  Plus one scalar (m=1) instance with ``R=0`` and
+       ``P0=0`` exercising the scalar division guard.
+   * - **Stimulus**
+     - One predict followed by one ``ron_kf_update`` with finite ``z``.
+   * - **Pass Criterion**
+     - (a) and (b) return ``RON_FAULT_NONE`` with the hand-checked
+       posterior estimate and covariance.  (c) returns
+       ``RON_FAULT_CONFIG_INVALID`` and leaves ``x_hat`` and ``P``
+       unchanged.  The degenerate scalar case also returns
+       ``RON_FAULT_CONFIG_INVALID`` without modifying state.
+
+RON-TC-KF-005 — Joseph-Form Covariance Update
+----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-604
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - One constant-velocity (n=2, m=1) instance with
+       ``use_joseph_form=false`` and a paired instance with
+       ``use_joseph_form=true`` driven by the same deterministic
+       measurement sequence.  Plus one two-measurement (n=2, m=2) instance
+       with ``use_joseph_form=true`` and a non-diagonal ``P0``.
+   * - **Stimulus**
+     - 30 predict–update cycles with a common pseudo-random measurement
+       sequence around a fixed reference; for the two-measurement
+       instance, one predict and one update with :math:`z=[1,0]`.
+   * - **Pass Criterion**
+     - Joseph-form and standard-form estimates and covariances agree to
+       tolerance; Joseph-form covariance is symmetric to tight tolerance.
+       The two-measurement Joseph-form posterior matches the hand-checked
+       result and is symmetric.
+
 RON-TC-KF-006 — Measurement Dropout
---------------------------------------
+------------------------------------
 
 .. list-table::
    :widths: 20 80
@@ -2375,11 +2482,92 @@ RON-TC-KF-006 — Measurement Dropout
    * - **Preconditions**
      - Same scalar system as RON-TC-KF-001, converged after 50 cycles.
    * - **Stimulus**
-     - 10 predict steps with ``z_valid = false`` (no update).
+     - 10 predict steps with ``z_valid = false`` (no update); the dropout
+       calls also pass ``z = NULL`` to confirm the pointer is unread.
    * - **Pass Criterion**
      - State estimate unchanged (predict-only increases P).
        No fault generated.
        ``P`` increases each step during dropout.
+
+RON-TC-KF-007 — Steady-State (Fixed-Gain) Mode
+-----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-606
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Same scalar system as RON-TC-KF-001 with ``steady_state = true``
+       and ``K_inf`` set to the closed-form steady-state gain
+       :math:`K_\infty = P^-_\infty / (P^-_\infty + R) \approx 0.0951249`
+       with :math:`P^-_\infty = (Q + \sqrt{Q^2 + 4QR})/2`.
+   * - **Stimulus**
+     - One predict and one update with :math:`z=5.0`, followed by 100
+       further predict–update cycles with the same constant measurement.
+   * - **Pass Criterion**
+     - After the first cycle, ``x_hat`` equals :math:`K_\infty \cdot 5.0`
+       to tight tolerance (no inversion path exercised).  The fixed-gain
+       recursion produces a strictly non-decreasing ``x_hat`` and
+       ``fabs(x_hat - 5.0) < 0.5`` after 100 cycles.
+
+RON-TC-KF-008 — Bounded Storage, Defensive Paths, Finite Checks
+----------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-607, RON-SR-003, RON-SR-020
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - A maximum-dimension configuration
+       (``n = RON_KF_MAX_STATES``, ``m = RON_KF_MAX_MEASUREMENTS``,
+       ``p = RON_KF_MAX_INPUTS``) using only caller-owned storage in a
+       single ``ron_kf_t``.  A second scalar configuration with
+       ``A = 1.0e30`` to provoke numeric overflow.
+   * - **Stimulus**
+     - Run five predict–update cycles on the max-dimension instance.  Call
+       every public entry point with ``NULL`` arguments, with an
+       uninitialised instance, with a control vector containing ``NaN``,
+       and with a measurement vector containing ``+inf``.  Drive the
+       overflow instance through repeated predicts until the estimate or
+       covariance becomes non-finite, then call ``ron_kf_update`` with a
+       finite measurement.
+   * - **Pass Criterion**
+     - The max-dimension run completes with finite outputs and no heap
+       allocation.  Null-argument calls return ``RON_FAULT_NULL_POINTER``;
+       uninitialised-instance calls return ``RON_FAULT_CONFIG_INVALID``;
+       non-finite control/measurement inputs return
+       ``RON_FAULT_INPUT_NAN``; a dropout call with ``z = NULL`` returns
+       ``RON_FAULT_NONE``.  The overflow scenario yields
+       ``RON_FAULT_OUTPUT_NAN`` from both ``ron_kf_predict`` and
+       ``ron_kf_update`` once the state becomes non-finite.
+
+RON-TC-KF-008-FV — No Heap Allocation in Kalman (Formal)
+---------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-607, RON-SR-003
+   * - **Level**
+     - FV / CBMC
+   * - **Preconditions**
+     - A scalar Kalman configuration constructed entirely in stack
+       storage; the harness defines stub ``malloc``, ``calloc``,
+       ``realloc``, and ``free`` symbols whose bodies assert
+       unreachable.
+   * - **Stimulus**
+     - One full lifecycle: ``ron_kf_init`` → ``ron_kf_predict`` →
+       ``ron_kf_update`` → ``ron_kf_get_state`` → ``ron_kf_reset``.
+   * - **Pass Criterion**
+     - CBMC reports no allocator-stub assertion failures and every
+       lifecycle call returns ``RON_FAULT_NONE``.
 
 ------------------------------------------------------------------------
 

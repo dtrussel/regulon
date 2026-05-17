@@ -1,7 +1,7 @@
 # C11 Phase 6 Kalman Filter Plan
 
-Date: 2026-05-12
-Status: Planned
+Date: 2026-05-12 (planned), 2026-05-17 (closed)
+Status: Complete
 
 ## Objective
 
@@ -390,4 +390,151 @@ At the same time update:
 
 ## Completion Update
 
-(To be filled in when Phase 6 closes.)
+Phase 6 is implemented and locally closed.
+
+### Implemented Files
+
+Added:
+
+- `regulon-c/include/ron/ron_kalman.h`
+- `regulon-c/src/ron_kalman.c`
+- `regulon-c/test/unit/test_ron_kalman.c`
+- `regulon-c/test/formal/kalman_no_heap_proof.c`
+
+Modified:
+
+- `regulon-c/CMakeLists.txt` — `ron_kalman.c` added to the `regulon`
+  library source list.
+- `regulon-c/test/CMakeLists.txt` — `test_ron_kalman` test executable
+  registered.
+- `regulon-c/scripts/verify_pid.ps1` — `ron_kalman.c` / `ron_kalman.h`
+  added to the active source / cppcheck / complexity / coverage / CBMC
+  lists.  The same edit also added the previously missing
+  `ron_cascade.c` / `ron_cascade.h` to the local verify script so it
+  matches the CI source set.
+- `.github/workflows/ci_c.yml` — `ron_kalman.c` / `ron_kalman.h` added
+  to the format-check, cppcheck (MISRA), complexity (lizard), LLVM
+  source coverage, and CBMC job source lists.  The CBMC list also gains
+  `ron_cascade.c` to match the rest of the CI source set.
+- `docs/specs/TP_ControlLib.rst` — detailed entries added for
+  `RON-TC-KF-002`, `RON-TC-KF-003`, `RON-TC-KF-004`, `RON-TC-KF-005`,
+  `RON-TC-KF-007`, `RON-TC-KF-008`, and `RON-TC-KF-008-FV`.
+- `docs/plans/c/c11-rollout.md` — Phase 6 Kalman Filter Opening Evidence
+  section appended.
+- `docs/plans/c11-roadmap.md` — Phase 6 status moved from Planned to
+  Complete with verification-evidence block; Current Baseline updated.
+- `CHANGELOG.rst` — Phase 6 entry under the active C11 vertical-slice
+  section.
+
+### Local Verification Results
+
+Collected on 2026-05-17 from a Linux verification host with GCC 13.3,
+Clang 18.1.3, Ninja, CMake 3.28, and gcov:
+
+- `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug`:
+  passes.
+- `cmake --build regulon-c/build`: passes with no warnings under the
+  active library compile flags (`-Wall -Wextra -Wpedantic -Werror
+  -Wconversion -Wshadow -Wundef -fno-common -fstack-usage` for GCC and
+  the Clang equivalent).
+- `ctest --test-dir regulon-c/build --output-on-failure`: 9/9 suites
+  pass, including the new `test_ron_kalman`.
+- Double-precision GCC build with `-DRON_USE_DOUBLE=ON`: 9/9 suites
+  pass.
+- Standalone Clang / Ninja build: 9/9 suites pass.
+- Standalone Clang / Ninja build with `-DRON_USE_DOUBLE=ON`: 9/9 suites
+  pass.
+- GCC `-fsanitize=address,undefined -fno-sanitize-recover=all` build:
+  9/9 suites pass.
+- `clang-format --dry-run --Werror` over `ron_kalman.c`,
+  `ron_kalman.h`, `test_ron_kalman.c`, and `kalman_no_heap_proof.c`:
+  clean.
+- `clang -std=c11 -Wall -Wextra -Werror -fsyntax-only` over
+  `regulon-c/test/formal/kalman_no_heap_proof.c`: passes.
+- GCC `--coverage` instrumentation over the active C source set
+  followed by `gcov -b -c ron_kalman.c`: **100% line** coverage and
+  **100% branch** coverage with every branch taken in at least one
+  direction.
+- `git diff --check`: passes.
+
+### Residual Tool Gaps
+
+- `libclang_rt.profile-x86_64.a` and `libclang_rt.asan-x86_64.a` are not
+  installed on this host, so the Clang LLVM source-based coverage build
+  and the Clang ASan / UBSan build cannot be run locally; both gates
+  remain CI responsibilities and are enforced by `.github/workflows/ci_c.yml`.
+- `cbmc`, `cppcheck`, `lizard`, and `arm-none-eabi-gcc` are not
+  installed on this host; the formal Kalman no-heap proof, the MISRA
+  static-analysis pass, the lizard complexity pass, and the ARM GCC
+  cross-compile smoke build remain CI responsibilities.  The CI
+  `*_proof.c` discovery picks up `kalman_no_heap_proof.c` automatically.
+
+### Deliberate Design Choices
+
+- **Fault taxonomy.**  No new `ron_fault_t` bits were introduced.  A
+  non-positive-definite innovation covariance (either the `m == 1`
+  scalar `S <= 0` guard or a Cholesky pivot failure for `m > 1`) is
+  reported as `RON_FAULT_CONFIG_INVALID` and leaves both `x_hat` and
+  `P` untouched.  A non-finite estimate or covariance after a predict
+  or update is reported as `RON_FAULT_OUTPUT_NAN`.  Non-finite inputs
+  (`u` for predict with `p > 0`, `z` for update with `z_valid = true`)
+  return `RON_FAULT_INPUT_NAN`.  Null arguments and uninitialised
+  instances behave consistently with the rest of the library
+  (`RON_FAULT_NULL_POINTER` and `RON_FAULT_CONFIG_INVALID`).
+- **Internal math helper file: not introduced.**  All bounded matrix /
+  vector primitives, the Cholesky factor and solve, and the bounded
+  Newton square root live inside `regulon-c/src/ron_kalman.c` as
+  `static` functions.  No new shared math header was added.  When a
+  later phase (state-space / observer) needs the same primitives, the
+  decision to factor them out can be made under that phase's plan.
+- **Uniform scratch stride.**  Every internal scratch matrix uses a
+  fixed `RON_KF_MAX_STATES × RON_KF_MAX_STATES` stride
+  (`kf_mat_t`).  A compile-time `#error` enforces
+  `RON_KF_MAX_MEASUREMENTS <= RON_KF_MAX_STATES` and
+  `RON_KF_MAX_INPUTS <= RON_KF_MAX_STATES` so the uniform stride is
+  always large enough.  This trades a small amount of stack against
+  uniform helper signatures and avoids the C11 pedantic restriction on
+  `T(*)[N] → const T(*)[N]` implicit conversions when matrices with
+  different column counts (`H`, `B`, `R`, `K_inf`) feed into the same
+  helpers.
+- **Non-`const` `kf_mat_t` parameters.**  Helper functions that
+  conceptually only read their `kf_mat_t` operands declare them as
+  non-`const`.  C11 in `-pedantic` mode rejects the
+  `ron_float_t(*)[N] → const ron_float_t(*)[N]` qualifier conversion
+  ("invalid use of pointers to arrays with different qualifiers"), and
+  every active toolchain in this repository is built with `-Wpedantic
+  -Werror`.  Read-only intent is preserved by code-review convention
+  and by the matching `const` on the scalar `ron_kf_t *` arguments
+  where applicable.
+- **Bounded Newton square root iteration count.**  `KF_SQRT_STEPS`
+  is fixed at `30`.  This is comfortably above the iteration budget
+  needed for the realistic `R` magnitudes (entries on the order of
+  unity) used by the Cholesky path, and keeps the routine free of
+  `<math.h>` and unbounded loops.  The function is precondition-only
+  (`value > 0`); the precondition is enforced by `kf_cholesky` before
+  every call, so no in-function guard is needed.
+- **Symmetry handling.**  The standard covariance update path does not
+  force-symmetrise `P` after the update; the SADS notes Joseph form as
+  the numerically robust option, and Joseph form is exposed as a
+  configuration option (`use_joseph_form`).
+- **`p == 0`.**  An autonomous Kalman filter (no control input) is
+  supported: `cfg.p` may be `0`, in which case `ron_kf_predict` accepts
+  `u == NULL` and skips the `B u` term and the `u`-finiteness check
+  entirely.
+
+### Notes for Later Phases
+
+- The plan to add detailed TP descriptions for `RON-TC-KF-002`
+  through `RON-TC-KF-005`, `RON-TC-KF-007`, `RON-TC-KF-008`, and
+  `RON-TC-KF-008-FV` was executed in `docs/specs/TP_ControlLib.rst`.
+  The pre-existing detailed entries for `RON-TC-KF-001` and
+  `RON-TC-KF-006` were not modified.
+- The roadmap rule "every test or proof implemented in C must use a
+  test ID that already exists in `TP_ControlLib.rst`" was satisfied:
+  every `RON-TC-KF-*` identifier referenced from the Unity suite and
+  the CBMC harness was already present in the traceability tables
+  before any code was written.
+- The compile-time bounds (`RON_KF_MAX_STATES = 8`,
+  `RON_KF_MAX_MEASUREMENTS = 4`, `RON_KF_MAX_INPUTS = 4`) were left
+  at their existing defaults; no platform-header changes were
+  required.
