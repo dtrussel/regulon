@@ -27,10 +27,13 @@ add_library(regulon STATIC
     src/ron_filter.c
     src/ron_gain_sched.c
     src/ron_kalman.c
+    src/ron_matrix.c
+    src/ron_observer.c
     src/ron_pid_config.c
     src/ron_pid_core.c
     src/ron_pid_fault.c
     src/ron_pid_api.c
+    src/ron_statespace.c
     src/ron_trajectory_scurve.c
     src/ron_trajectory_trap.c
 )

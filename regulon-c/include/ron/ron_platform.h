@@ -233,6 +233,21 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 #define RON_SS_MAX_INPUTS 4U
 #endif
 
+/**
+ * @brief Uniform working stride for the shared fixed-size matrix helper.
+ *
+ * The internal ron_matrix primitives operate on square scratch buffers whose
+ * leading dimension is RON_MAT_MAX_DIM.  It must be large enough to hold the
+ * largest active dimension of every module that uses the helper (Kalman and
+ * state-space / observer), so it is the maximum of their state bounds.
+ *
+ * Satisfies: RON-FR-603, RON-FR-700, RON-FR-720, RON-SR-003.
+ */
+#ifndef RON_MAT_MAX_DIM
+#define RON_MAT_MAX_DIM                                                                            \
+    (((RON_KF_MAX_STATES) > (RON_SS_MAX_STATES)) ? (RON_KF_MAX_STATES) : (RON_SS_MAX_STATES))
+#endif
+
 /** Minimum relay oscillation cycles before Ku/Tu estimate is valid (RON-FR-802). */
 #ifndef RON_AT_MIN_CYCLES
 #define RON_AT_MIN_CYCLES 3U
@@ -251,6 +266,15 @@ RON_STATIC_ASSERT(RON_MA_MAX_WINDOW >= 2U, "RON_MA_MAX_WINDOW must be at least 2
 RON_STATIC_ASSERT(RON_BIQUAD_MAX_SECTIONS >= 1U, "RON_BIQUAD_MAX_SECTIONS must be at least 1");
 RON_STATIC_ASSERT(RON_GS_MAX_BREAKPOINTS >= 2U, "RON_GS_MAX_BREAKPOINTS must be at least 2");
 RON_STATIC_ASSERT(RON_KF_MAX_STATES >= 1U, "RON_KF_MAX_STATES must be at least 1");
+RON_STATIC_ASSERT(RON_KF_MAX_MEASUREMENTS >= 1U, "RON_KF_MAX_MEASUREMENTS must be at least 1");
+RON_STATIC_ASSERT(RON_KF_MAX_INPUTS >= 1U, "RON_KF_MAX_INPUTS must be at least 1");
+RON_STATIC_ASSERT(RON_SS_MAX_STATES >= 1U, "RON_SS_MAX_STATES must be at least 1");
+RON_STATIC_ASSERT(RON_SS_MAX_OUTPUTS >= 1U, "RON_SS_MAX_OUTPUTS must be at least 1");
+RON_STATIC_ASSERT(RON_SS_MAX_INPUTS >= 1U, "RON_SS_MAX_INPUTS must be at least 1");
+RON_STATIC_ASSERT(RON_MAT_MAX_DIM >= RON_KF_MAX_STATES,
+                  "RON_MAT_MAX_DIM must cover RON_KF_MAX_STATES");
+RON_STATIC_ASSERT(RON_MAT_MAX_DIM >= RON_SS_MAX_STATES,
+                  "RON_MAT_MAX_DIM must cover RON_SS_MAX_STATES");
 RON_STATIC_ASSERT(RON_AT_MIN_CYCLES >= 1U, "RON_AT_MIN_CYCLES must be at least 1");
 RON_STATIC_ASSERT(RON_HEALTH_OSC_WINDOW >= 4U, "RON_HEALTH_OSC_WINDOW must be at least 4");
 

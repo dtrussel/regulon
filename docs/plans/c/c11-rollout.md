@@ -237,3 +237,77 @@ same traceability and quality evidence bar.
   smoke build remain CI responsibilities.  The dynamic harness discovery
   in the verify script and CI picks up `kalman_no_heap_proof.c`
   automatically once `cbmc` is available.
+
+## Phase 7 State-Space / Observer Opening Evidence
+
+- `ron_statespace.h` / `ron_statespace.c` and `ron_observer.h` /
+  `ron_observer.c` are now active in the default C11 build.  The
+  state-feedback controller computes `u = -K x_hat + Kr r` with three
+  selectable estimate sources (external vector, embedded Luenberger
+  observer, embedded Kalman filter), optional integral augmentation, and
+  PID-equivalent output saturation and rate limiting; the Luenberger
+  observer implements `x_hat(k+1) = A x_hat + B u + L (y - C x_hat)`.  The
+  public API matches the IS specification added for both modules.
+- The bounded fixed-size matrix / vector primitives (load/store, mat-vec,
+  mat-mat, mat-mat^T, add, Cholesky factor/solve, bounded Newton sqrt) were
+  factored out of `ron_kalman.c` into the new internal, non-public
+  `regulon-c/src/ron_matrix.{c,h}` helper (uniform `RON_MAT_MAX_DIM`
+  stride), now shared by the Kalman, state-space, and observer modules.
+  This is a pure extraction: the Kalman public API, numerics, and full
+  `RON-TC-KF-*` suite are unchanged.
+- `test_ron_observer.c` covers `RON-TC-SS-006` through `RON-TC-SS-009`
+  (hand-checked two-step recursion, scalar convergence fixture, per-matrix
+  non-finite config rejection, full defensive null / uninitialised /
+  non-finite paths, maximum-dimension storage, and `RON_FAULT_OUTPUT_NAN`
+  overflow detection).  `test_ron_statespace.c` covers `RON-TC-SS-001`
+  through `RON-TC-SS-005` plus `RON-TC-SS-009` (reference state feedback,
+  all three estimate sources with embedded-estimator advance and
+  cross-source rejection, integral accumulation / clamp / reset,
+  saturation and bidirectional rate limiting matching the PID pipeline,
+  runtime gain update, and the full configuration-validation and defensive
+  surface).
+- `regulon-c/test/formal/statespace_sat_proof.c` adds the
+  `RON-TC-SS-004-FV` CBMC harness proving the output stays within
+  `[u_min, u_max]` and that the state-space path performs no heap
+  allocation; it is discovered automatically by the dynamic `*_proof.c`
+  enumeration in both the verify script and CI.
+- `docs/specs/IS_ControlLib.rst` now contains the `ron_observer.h` and
+  `ron_statespace.h` API blocks; `docs/specs/TP_ControlLib.rst` records
+  detailed entries for `RON-TC-SS-001` through `RON-TC-SS-009` and
+  `RON-TC-SS-004-FV`.
+- `regulon-c/scripts/verify_pid.ps1` and `.github/workflows/ci_c.yml` now
+  list `ron_matrix.c`, `ron_observer.c`, `ron_statespace.c` (and the new
+  public headers / internal helper header) in the format, cppcheck/MISRA,
+  complexity, coverage, and CBMC source sets, with `-I regulon-c/src` added
+  to the cppcheck and CBMC invocations so the shared internal header
+  resolves.  `RON_SS_MAX_*` minimum-bound static asserts and the
+  `RON_MAT_MAX_DIM` definition / coverage asserts were added to
+  `ron_platform.h`.
+- Local evidence after enabling the Phase 7 slice:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON` and
+    `cmake --build regulon-c/build`: pass with no warnings under the strict
+    flag set.
+  - `ctest --test-dir regulon-c/build --output-on-failure`: 11/11 suites
+    pass, including the new `test_ron_observer` and `test_ron_statespace`
+    and the unchanged `test_ron_kalman`.
+  - Default and double-precision (`RON_USE_DOUBLE=ON`) GCC builds,
+    standalone Clang / Ninja build, and GCC
+    `-fsanitize=address,undefined -fno-sanitize-recover=all` build: all
+    11 suites pass on each configuration.
+  - `clang-format --dry-run --Werror` over every new source / header and
+    `clang -std=c11 -Wall -Wextra -Werror -fsyntax-only` over
+    `statespace_sat_proof.c`: pass.
+  - `gcov -b` over the active C source set: 100% line and 100% branch
+    coverage (both directions taken) on `ron_matrix.c`, `ron_observer.c`,
+    `ron_statespace.c`, and `ron_kalman.c`.
+  - `git diff --check`: passes.
+
+### Residual Tool Gaps (Phase 7)
+
+- As in Phase 6, this verification host lacks the clang LLVM coverage /
+  ASan runtime libraries, `cppcheck`, `lizard`, `cbmc`, and
+  `arm-none-eabi-gcc`; the LLVM `llvm-cov` 100% gate, MISRA static
+  analysis, lizard complexity (CCN <= 10), the `RON-TC-SS-004-FV` CBMC
+  proof, and the ARM GCC cross-compile smoke build remain CI
+  responsibilities.  The dynamic harness discovery picks up
+  `statespace_sat_proof.c` automatically once `cbmc` is available.

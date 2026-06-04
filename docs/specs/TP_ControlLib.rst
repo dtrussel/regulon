@@ -2571,6 +2571,231 @@ RON-TC-KF-008-FV — No Heap Allocation in Kalman (Formal)
 
 ------------------------------------------------------------------------
 
+State-Space and Observer Tests (RON-TC-SS-xxx)
+================================================
+
+RON-TC-SS-001 — State-Feedback Output Correctness
+---------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-700
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = 2``, ``K = [2, 1]``, ``Kr = 1``,
+       wide limits, rate limiting disabled, external state ``x = [3, 4]``.
+   * - **Stimulus**
+     - Single step with ``r = 5``, ``dt = 0.01``.
+   * - **Pass Criterion**
+     - ``u = -K·x + Kr·r = -10 + 5 = -5`` within tolerance, status
+       ``RON_STATUS_OK``, fault ``RON_FAULT_NONE``.
+
+RON-TC-SS-002 — State-Estimate Source Selection
+-------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Three controllers with ``K = [2, 1]``, ``Kr = 0`` whose state
+       estimate ``[1, 2]`` comes respectively from an external vector, an
+       embedded Luenberger observer seeded to ``x0 = [1, 2]``, and an
+       embedded Kalman filter seeded to ``x0 = [1, 2]``.
+   * - **Stimulus**
+     - One step at ``r = 0`` for each; advance the embedded observer
+       (``ron_ss_observer_step``) and Kalman (``ron_ss_kalman_predict`` /
+       ``ron_ss_kalman_update``); issue cross-source estimator calls.
+   * - **Pass Criterion**
+     - Every source yields ``u = -(2·1 + 1·2) = -4``.  Estimator-advance
+       calls on the matching source return ``RON_FAULT_NONE``; estimator
+       calls on a non-matching source return ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-SS-003 — Integral Augmentation
+---------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-702
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External source, ``n = 1``, ``K = [0]``, ``Kr = 0``,
+       ``use_integral`` with ``Ki_aug = 1``, ``C_out = [1]``, external
+       state ``0``.
+   * - **Stimulus**
+     - Repeated steps at ``r = 2``, ``dt = 0.5``; then ``ron_ss_reset``;
+       then re-run with ``i_max = 1.5``.
+   * - **Pass Criterion**
+     - Integral term accumulates ``+1`` per step (``u = 1`` then ``2``);
+       reset returns the accumulator to zero; the tightened bound clamps
+       the term at ``1.5``.
+
+RON-TC-SS-004 — Saturation and Rate Limiting
+----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-703, RON-FR-020, RON-FR-022
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - One controller with ``u_min = -2``, ``u_max = 2``, rate limiting
+       disabled; another with wide limits and ``du_max = 1``, ``dt = 1``.
+   * - **Stimulus**
+     - Drive the first past both hard limits and within them; drive the
+       second so the per-step delta exceeds ``+du_max·dt`` and
+       ``-du_max·dt`` and stays within the band.
+   * - **Pass Criterion**
+     - Saturated outputs clamp to ``±2`` with ``RON_STATUS_SATURATED``;
+       rate-limited outputs move by at most ``du_max·dt`` per step with
+       ``RON_STATUS_RATE_LIMITED``; in-band steps report
+       ``RON_STATUS_OK``.  Values match the PID limiting pipeline.
+
+RON-TC-SS-004-FV — State-Space Output Bound and No Heap (Formal)
+------------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-703, RON-FR-020, RON-SR-003
+   * - **Level**
+     - FV / CBMC
+   * - **Preconditions**
+     - A scalar external-source configuration in stack storage with finite,
+       bounded nondeterministic reference / state / sample-period; the
+       harness defines ``malloc`` / ``calloc`` / ``realloc`` / ``free``
+       stubs whose bodies assert unreachable.
+   * - **Stimulus**
+     - ``ron_ss_init`` followed by a single ``ron_ss_step``.
+   * - **Pass Criterion**
+     - CBMC proves the output lies within ``[u_min, u_max]``, every call
+       returns ``RON_FAULT_NONE``, and no allocator stub is reachable.
+
+RON-TC-SS-005 — Runtime Gain Update
+-------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-704
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External source, ``n = 2``, initial ``K = [1, 0]``, ``Kr = 0``,
+       external state ``[3, 4]``.
+   * - **Stimulus**
+     - Step, then ``ron_ss_set_gains`` to ``K = [0, 2]``, ``Kr = 1`` and
+       step again at ``r = 1``; exercise null / uninitialised /
+       non-finite rejections.
+   * - **Pass Criterion**
+     - Output changes from ``-3`` to ``-7`` reflecting the new gains.
+       Null arguments return ``RON_FAULT_NULL_POINTER``; uninitialised
+       instances and non-finite gains return ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-SS-006 — Luenberger Observer Step Correctness
+------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-720
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Observer ``n = 2``, ``m = 1``, ``p = 1`` with
+       ``A = [[1,1],[0,1]]``, ``B = [[0],[1]]``, ``C = [[1,0]]``,
+       ``L = [[0.5],[0.2]]``, ``x0 = [0,0]``.
+   * - **Stimulus**
+     - Two steps with ``y = 1``, ``u = 0``; then ``ron_obs_reset``.
+   * - **Pass Criterion**
+     - ``x_hat = [0.5, 0.2]`` after step 1 and ``[0.95, 0.3]`` after
+       step 2; reset restores ``x0``.
+
+RON-TC-SS-007 — Observer Parameterisation and Convergence
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-721
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Scalar autonomous observer ``A = 1``, ``C = 1``, ``L = 0.5``,
+       ``p = 0``, ``x0 = 0`` tracking a true state of ``5``; plus
+       configurations corrupting one of ``A``, ``C``, ``L``, ``B``, ``x0``.
+   * - **Stimulus**
+     - 40 steps with ``y = 5`` and ``u = NULL``; init with each corrupted
+       configuration.
+   * - **Pass Criterion**
+     - Estimate converges to ``5`` within ``1e-3``.  Each non-finite
+       matrix / vector entry yields ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-SS-008 — Observer State Getter and Defensive Paths
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-722
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Null-pointer and uninitialised-instance calls across the observer
+       API; null ``y`` and null ``u`` (with ``p > 0``); non-finite ``y`` /
+       ``u``; a valid step followed by ``ron_obs_get_state``.
+   * - **Pass Criterion**
+     - Null arguments return ``RON_FAULT_NULL_POINTER``; uninitialised
+       instances return ``RON_FAULT_CONFIG_INVALID``; non-finite inputs
+       return ``RON_FAULT_INPUT_NAN``; the getter returns the full state
+       estimate.
+
+RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
+--------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-723, RON-SR-003, RON-SR-020
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Maximum-dimension observer (``n = RON_SS_MAX_STATES``,
+       ``m = RON_SS_MAX_OUTPUTS``, ``p = RON_SS_MAX_INPUTS``) and
+       maximum-dimension external-source controller, both in caller-owned
+       storage.
+   * - **Stimulus**
+     - Initialise and run the max-dimension instances; reject invalid
+       dimensions, invalid source enum, non-finite gains / limits,
+       embedded-estimator dimension mismatch and invalid embedded config;
+       reject non-positive ``dt`` and non-finite ``r``; drive a controller
+       and an observer into numeric overflow.
+   * - **Pass Criterion**
+     - Max-dimension runs complete with finite outputs and no heap.
+       Invalid configurations return ``RON_FAULT_CONFIG_INVALID``; null
+       arguments ``RON_FAULT_NULL_POINTER``; non-finite ``r`` / non-positive
+       ``dt`` ``RON_FAULT_INPUT_NAN``; overflow yields
+       ``RON_FAULT_OUTPUT_NAN``.
+
+------------------------------------------------------------------------
+
 Safety and Fault Tests (RON-TC-SAFE-xxx)
 ==========================================
 
