@@ -52,6 +52,46 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_kalman.h`` and
+  ``regulon-c/src/ron_kalman.c``: added the complete C11 Phase 6 discrete
+  linear Kalman filter slice with caller-owned fixed-maximum matrix/vector
+  storage (RON-FR-601, RON-FR-607); predict and update cycle (RON-FR-602);
+  scalar division for ``m == 1`` and an in-place Cholesky-factor / solve
+  for ``m > 1`` innovation inversion (RON-FR-603); optional Joseph-form
+  covariance update (RON-FR-604); measurement-dropout no-op update
+  (RON-FR-605); optional steady-state fixed-gain mode using ``K_inf``
+  (RON-FR-606); and bounded-iteration internal ``sqrt`` so the production
+  source remains free of ``<math.h>``.
+
+- ``regulon-c/test/unit/test_ron_kalman.c``: added 8 traceable Unity tests
+  (``RON-TC-KF-001`` through ``RON-TC-KF-008``) covering scalar
+  convergence, parameter/dimension validation, hand-checked predict /
+  update reference cases, the diagonal and non-diagonal Cholesky paths,
+  the non-positive-definite ``S`` rejection path, the ``m == 1``
+  degenerate-``S`` guard, Joseph-form parity with the standard update,
+  measurement dropout, steady-state fixed-gain mode, maximum-dimension
+  storage, and all defensive null / uninitialised / non-finite input
+  paths, including the ``RON_FAULT_OUTPUT_NAN`` numeric-overflow detection
+  in both ``ron_kf_predict`` and ``ron_kf_update``.
+
+- ``regulon-c/test/formal/kalman_no_heap_proof.c``: added the
+  ``RON-TC-KF-008-FV`` CBMC harness asserting that the Kalman lifecycle
+  (init / predict / update / get_state / reset) does not call
+  ``malloc``, ``calloc``, ``realloc``, or ``free``.
+
+- ``docs/plans/c/c11-phase-6-kalman-filter.md``: added and closed the
+  living Phase 6 implementation plan with final verification evidence,
+  residual tool gaps, and design choices (uniform stride scratch
+  matrices, non-``const`` ``kf_mat_t`` parameters to avoid the C11
+  pedantic restriction on ``T(*)[N] → const T(*)[N]`` conversions,
+  conservative reuse of ``RON_FAULT_CONFIG_INVALID`` for non-positive-
+  definite innovation covariances, and reuse of ``RON_FAULT_OUTPUT_NAN``
+  for non-finite predict/update outputs).
+
+- ``docs/specs/TP_ControlLib.rst``: filled in detailed test descriptions
+  for ``RON-TC-KF-002`` through ``RON-TC-KF-005``, ``RON-TC-KF-007``,
+  ``RON-TC-KF-008``, and ``RON-TC-KF-008-FV``.
+
 - ``regulon-c/include/ron/ron_cascade.h`` and
   ``regulon-c/src/ron_cascade.c``: added the complete C11 Phase 5 cascade
   (master/slave) PID controller slice.  The outer loop's clamped output

@@ -158,9 +158,11 @@ function Test-CoverageSummary {
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $RegulonC = Join-Path $RepoRoot "regulon-c"
 $ActiveSources = @(
+    (Join-Path $RegulonC "src\ron_cascade.c"),
     (Join-Path $RegulonC "src\ron_feedforward.c"),
     (Join-Path $RegulonC "src\ron_filter.c"),
     (Join-Path $RegulonC "src\ron_gain_sched.c"),
+    (Join-Path $RegulonC "src\ron_kalman.c"),
     (Join-Path $RegulonC "src\ron_pid_api.c"),
     (Join-Path $RegulonC "src\ron_pid_config.c"),
     (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -168,9 +170,11 @@ $ActiveSources = @(
     (Join-Path $RegulonC "src\ron_pid_internal.h"),
     (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
     (Join-Path $RegulonC "src\ron_trajectory_trap.c"),
+    (Join-Path $RegulonC "include\ron\ron_cascade.h"),
     (Join-Path $RegulonC "include\ron\ron_feedforward.h"),
     (Join-Path $RegulonC "include\ron\ron_filter.h"),
     (Join-Path $RegulonC "include\ron\ron_gain_sched.h"),
+    (Join-Path $RegulonC "include\ron\ron_kalman.h"),
     (Join-Path $RegulonC "include\ron\ron_platform.h"),
     (Join-Path $RegulonC "include\ron\ron_pid_types.h"),
     (Join-Path $RegulonC "include\ron\ron_pid.h"),
@@ -298,9 +302,11 @@ foreach ($step in $Steps) {
                 "--suppress=misra-c2012-15.7",
                 "--suppress=misra-c2012-20.10",
                 "-I", (Join-Path $RegulonC "include"),
+                (Join-Path $RegulonC "src\ron_cascade.c"),
                 (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_gain_sched.c"),
+                (Join-Path $RegulonC "src\ron_kalman.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -319,9 +325,11 @@ foreach ($step in $Steps) {
             }
 
             Invoke-External "lizard complexity pass" $Python @("-m", "lizard", "-C", "10",
+                (Join-Path $RegulonC "src\ron_cascade.c"),
                 (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_gain_sched.c"),
+                (Join-Path $RegulonC "src\ron_kalman.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -373,9 +381,11 @@ foreach ($step in $Steps) {
                 }
             }
             $CoverageSources = @(
+                (Join-Path $RegulonC "src\ron_cascade.c"),
                 (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
                 (Join-Path $RegulonC "src\ron_gain_sched.c"),
+                (Join-Path $RegulonC "src\ron_kalman.c"),
                 (Join-Path $RegulonC "src\ron_pid_api.c"),
                 (Join-Path $RegulonC "src\ron_pid_config.c"),
                 (Join-Path $RegulonC "src\ron_pid_core.c"),
@@ -484,9 +494,11 @@ foreach ($step in $Steps) {
                     "--bounds-check",
                     "--pointer-check",
                     $harness,
+                    (Join-Path $RegulonC "src\ron_cascade.c"),
                     (Join-Path $RegulonC "src\ron_feedforward.c"),
                     (Join-Path $RegulonC "src\ron_filter.c"),
                     (Join-Path $RegulonC "src\ron_gain_sched.c"),
+                    (Join-Path $RegulonC "src\ron_kalman.c"),
                     (Join-Path $RegulonC "src\ron_pid_api.c"),
                     (Join-Path $RegulonC "src\ron_pid_config.c"),
                     (Join-Path $RegulonC "src\ron_pid_core.c"),

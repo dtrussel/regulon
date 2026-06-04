@@ -27,8 +27,9 @@ Ground-truth inputs:
 
 The active C11 implementation now contains the closed PID baseline, the
 Phase 1 signal-conditioning filter module, the Phase 2 feed-forward PID
-extension, the Phase 3 gain-scheduling slice, and the Phase 4 trajectory
-generator slice. The current public surface is:
+extension, the Phase 3 gain-scheduling slice, the Phase 4 trajectory
+generator slice, the Phase 5 cascade controller slice, and the Phase 6
+discrete linear Kalman filter slice. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
@@ -37,6 +38,8 @@ generator slice. The current public surface is:
 - `regulon-c/include/ron/ron_feedforward.h`
 - `regulon-c/include/ron/ron_gain_sched.h`
 - `regulon-c/include/ron/ron_trajectory.h`
+- `regulon-c/include/ron/ron_cascade.h`
+- `regulon-c/include/ron/ron_kalman.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
@@ -44,7 +47,12 @@ unit tests for `RON-TC-FF-001` through `RON-TC-FF-009`. Phase 3 gain
 scheduling covers `RON-FR-300` through `RON-FR-306` with active unit tests for
 `RON-TC-GS-001` through `RON-TC-GS-008`. Phase 4 trajectory generators cover
 `RON-FR-500` through `RON-FR-513` with active unit tests for
-`RON-TC-TRAJ-001` through `RON-TC-TRAJ-008`.
+`RON-TC-TRAJ-001` through `RON-TC-TRAJ-008`. Phase 5 cascade controller
+covers `RON-FR-400` through `RON-FR-406` with active unit tests for
+`RON-TC-CASC-001` through `RON-TC-CASC-012`. Phase 6 discrete linear Kalman
+filter covers `RON-FR-600` through `RON-FR-607` with active unit tests for
+`RON-TC-KF-001` through `RON-TC-KF-008` and a `RON-TC-KF-008-FV` CBMC
+no-heap harness.
 
 ## Sequencing Strategy
 
@@ -301,6 +309,10 @@ Verification evidence:
 
 ## Phase 6: Kalman Filter
 
+Status: Complete. Closure evidence is recorded in
+`docs/plans/c/c11-phase-6-kalman-filter.md` and
+`docs/plans/c/c11-rollout.md`.
+
 Requirement scope:
 
 - `RON-FR-600` through `RON-FR-607`
@@ -336,6 +348,33 @@ Exit criteria:
 
 - Matrix helper, if introduced, has its own tests and does not become an unbounded generic math library.
 - Kalman source coverage and branch coverage meet active gates.
+
+Status: **COMPLETE** (2026-05-17)
+
+Verification evidence:
+- 8 Unity tests (RON-TC-KF-001 – RON-TC-KF-008): all pass under single-
+  and double-precision GCC, standalone Clang, and GCC ASan/UBSan.
+- `RON-TC-KF-008-FV` CBMC no-heap harness added under
+  `regulon-c/test/formal/kalman_no_heap_proof.c`; picked up by the
+  dynamic harness discovery used by the verify script and CI.
+- GCC `--coverage` instrumentation on `ron_kalman.c`: 100% line coverage
+  and 100% branch coverage (both directions taken).  The CI
+  `llvm-cov` gate continues to enforce the 100/100 single-precision
+  target on the active C source set.
+- `clang-format --dry-run --Werror` over `ron_kalman.c`, `ron_kalman.h`,
+  `test_ron_kalman.c`, and `kalman_no_heap_proof.c`: clean.
+- CI workflow and local verify script updated: `ron_kalman.c` and
+  `ron_kalman.h` added to format-check, static-analysis, complexity,
+  coverage, and CBMC source sets.  The same edit closed a pre-existing
+  gap by adding `ron_cascade.c` / `ron_cascade.h` to the local
+  PowerShell verify script.
+
+Residual tool gaps remain on the current Linux verification host:
+`libclang_rt.profile`/`libclang_rt.asan` are not installed (so LLVM
+source-based coverage and clang sanitizer builds remain CI
+responsibilities), and `cbmc`, `cppcheck`, `lizard`, and
+`arm-none-eabi-gcc` are unavailable here (formal proofs, MISRA, lizard
+complexity, and ARM GCC cross-compile remain CI responsibilities).
 
 ## Phase 7: State-Space Controller And Luenberger Observer
 
