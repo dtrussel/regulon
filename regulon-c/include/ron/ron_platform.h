@@ -239,13 +239,14 @@ static inline ron_float_t ron_fabs(ron_float_t x)
  * The internal ron_matrix primitives operate on square scratch buffers whose
  * leading dimension is RON_MAT_MAX_DIM.  It must be large enough to hold the
  * largest active dimension of every module that uses the helper (Kalman and
- * state-space / observer), so it is the maximum of their state bounds.
+ * state-space / observer); the static assertions below verify it covers both
+ * state bounds.  Override it (together with the module bounds) if a larger
+ * dimension is required.
  *
  * Satisfies: RON-FR-603, RON-FR-700, RON-FR-720, RON-SR-003.
  */
 #ifndef RON_MAT_MAX_DIM
-#define RON_MAT_MAX_DIM                                                                            \
-    (((RON_KF_MAX_STATES) > (RON_SS_MAX_STATES)) ? (RON_KF_MAX_STATES) : (RON_SS_MAX_STATES))
+#define RON_MAT_MAX_DIM 8U
 #endif
 
 /** Minimum relay oscillation cycles before Ku/Tu estimate is valid (RON-FR-802). */

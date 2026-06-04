@@ -24,6 +24,18 @@ static bool ss_finite(ron_float_t v)
  * Configuration validation
  * ========================================================================= */
 
+/* Satisfies: RON-FR-702 | Test: RON-TC-SS-003, RON-TC-SS-009 */
+static bool ss_integral_valid(const ron_ss_config_t *cfg)
+{
+    if (!ss_finite(cfg->Ki_aug) || !ss_finite(cfg->i_min) || !ss_finite(cfg->i_max)) {
+        return false;
+    }
+    if (cfg->i_min > cfg->i_max) {
+        return false;
+    }
+    return ron_mat_vec_finite(&cfg->C_out[0], cfg->n);
+}
+
 /* Satisfies: RON-FR-700, RON-FR-703 | Test: RON-TC-SS-009 */
 static bool ss_limits_valid(const ron_ss_config_t *cfg)
 {
@@ -33,16 +45,34 @@ static bool ss_limits_valid(const ron_ss_config_t *cfg)
     if (cfg->u_min >= cfg->u_max) {
         return false;
     }
-    if (cfg->use_integral) {
-        if (!ss_finite(cfg->Ki_aug) || !ss_finite(cfg->i_min) || !ss_finite(cfg->i_max)) {
-            return false;
-        }
-        if (cfg->i_min > cfg->i_max) {
-            return false;
-        }
-        if (!ron_mat_vec_finite(&cfg->C_out[0], cfg->n)) {
-            return false;
-        }
+    if (cfg->use_integral && !ss_integral_valid(cfg)) {
+        return false;
+    }
+
+    return true;
+}
+
+/* Satisfies: RON-FR-723 | Test: RON-TC-SS-009 */
+static bool ss_dims_valid(const ron_ss_config_t *cfg)
+{
+    return (cfg->n >= 1U) && (cfg->n <= (uint8_t) RON_SS_MAX_STATES);
+}
+
+/* Satisfies: RON-FR-701 | Test: RON-TC-SS-002, RON-TC-SS-009 */
+static bool ss_source_valid(ron_ss_source_t source)
+{
+    return (source == RON_SS_SOURCE_EXTERNAL) || (source == RON_SS_SOURCE_LUENBERGER) ||
+           (source == RON_SS_SOURCE_KALMAN);
+}
+
+/* Satisfies: RON-FR-701 | Test: RON-TC-SS-009 */
+static bool ss_embedded_dims_ok(const ron_ss_config_t *cfg)
+{
+    if ((cfg->source == RON_SS_SOURCE_LUENBERGER) && (cfg->obs_cfg.n != cfg->n)) {
+        return false;
+    }
+    if ((cfg->source == RON_SS_SOURCE_KALMAN) && (cfg->kf_cfg.n != cfg->n)) {
+        return false;
     }
 
     return true;
@@ -51,11 +81,10 @@ static bool ss_limits_valid(const ron_ss_config_t *cfg)
 /* Satisfies: RON-FR-700, RON-FR-701, RON-FR-723 | Test: RON-TC-SS-002, RON-TC-SS-009 */
 static ron_fault_t ss_validate_config(const ron_ss_config_t *cfg)
 {
-    if ((cfg->n < 1U) || (cfg->n > (uint8_t) RON_SS_MAX_STATES)) {
+    if (!ss_dims_valid(cfg)) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if ((cfg->source != RON_SS_SOURCE_EXTERNAL) && (cfg->source != RON_SS_SOURCE_LUENBERGER) &&
-        (cfg->source != RON_SS_SOURCE_KALMAN)) {
+    if (!ss_source_valid(cfg->source)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if (!ron_mat_vec_finite(&cfg->K[0], cfg->n) || !ss_finite(cfg->Kr)) {
@@ -64,10 +93,7 @@ static ron_fault_t ss_validate_config(const ron_ss_config_t *cfg)
     if (!ss_limits_valid(cfg)) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if ((cfg->source == RON_SS_SOURCE_LUENBERGER) && (cfg->obs_cfg.n != cfg->n)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-    if ((cfg->source == RON_SS_SOURCE_KALMAN) && (cfg->kf_cfg.n != cfg->n)) {
+    if (!ss_embedded_dims_ok(cfg)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -93,8 +119,7 @@ static ron_fault_t ss_fetch_state(const ron_ss_t *ss, ron_float_t *x_hat, uint8_
     case RON_SS_SOURCE_KALMAN:
         src = &ss->kalman.state.x_hat[0];
         break;
-    case RON_SS_SOURCE_EXTERNAL:
-    default:
+    default: /* RON_SS_SOURCE_EXTERNAL */
         if (ss->cfg.x_ext == NULL) {
             return RON_FAULT_NULL_POINTER;
         }
