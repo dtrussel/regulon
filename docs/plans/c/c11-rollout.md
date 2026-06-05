@@ -311,3 +311,67 @@ same traceability and quality evidence bar.
   proof, and the ARM GCC cross-compile smoke build remain CI
   responsibilities.  The dynamic harness discovery picks up
   `statespace_sat_proof.c` automatically once `cbmc` is available.
+
+## Phase 8 Relay Feedback Auto-Tuning Opening Evidence
+
+- `ron_autotune.h` / `ron_autotune.c` are now active in the default C11
+  build, replacing the previous `ron_autotune.c` stub.  The module
+  implements the relay excitation lifecycle
+  (`RON-FR-800`), configurable relay amplitude / hysteresis / minimum cycles
+  / timeout (`RON-FR-801`), zero-crossing `Ku = 4d/(pi*A)` and `Tu`
+  estimation (`RON-FR-802`), the Ziegler-Nichols, Tyreus-Luyben,
+  some-overshoot, and no-overshoot tuning rules (`RON-FR-803`), apply-only
+  gain commit (`RON-FR-804`), raw `Ku` / `Tu` exposure (`RON-FR-805`), a
+  relay output bounded to `[u_bias - d, u_bias + d]` (`RON-FR-806`), and
+  abort-with-restore on caller abort or timeout (`RON-FR-807`).
+
+- The module is standalone scalar math (SADS DD-15 — zero-crossing counting,
+  no FFT, no buffers) and carries no `ron_matrix` dependency.  It references
+  the target PID only through the existing atomic APIs: `ron_autotune_start`
+  snapshots the gains / mode and parks the PID in manual via
+  `ron_pid_set_mode`; `ron_autotune_apply` commits the tuned gains via
+  `ron_pid_set_gains`; `ron_autotune_abort` and the timeout path restore the
+  snapshot.
+
+- `test_ron_autotune.c` covers `RON-TC-AT-001` through `RON-TC-AT-008`
+  (closed-loop first-order-plant excitation, configuration validation,
+  Ku/Tu accuracy within 10% on a synthetic reference oscillation, all four
+  tuning rules, apply-only gain commit, raw Ku/Tu exposure, relay-bound and
+  step guards, and abort / timeout restore), plus an insufficient-excitation
+  abort case.
+
+- `regulon-c/test/formal/autotune_relay_bound_proof.c` adds the
+  `RON-TC-AT-007-FV` CBMC harness proving the relay output stays within
+  `[u_bias - d, u_bias + d]` for any bounded finite step and that the
+  auto-tuner path performs no heap allocation; it is picked up by the
+  dynamic `*_proof.c` discovery used by the verify script and CI.
+
+- `regulon-c/scripts/verify_pid.ps1` and `.github/workflows/ci_c.yml` now
+  list `ron_autotune.c` and `ron_autotune.h` in the format, cppcheck/MISRA,
+  complexity, coverage, and CBMC source sets.
+
+- Local evidence after enabling the Phase 8 slice:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON` and
+    `cmake --build regulon-c/build`: pass with no warnings under the strict
+    flag set.
+  - `ctest --test-dir regulon-c/build`: 12/12 suites pass, including the new
+    `test_ron_autotune`.
+  - Default and double-precision (`RON_USE_DOUBLE=ON`) GCC builds,
+    standalone Clang build, and GCC
+    `-fsanitize=address,undefined -fno-sanitize-recover=all` build: all
+    12 suites pass on each configuration.
+  - `clang-format --dry-run --Werror` over every new source / header / test /
+    harness and `gcc -fsyntax-only` over `autotune_relay_bound_proof.c`: pass.
+  - `gcov -b` on `ron_autotune.c`: 100% line and 100% branch coverage (both
+    directions taken) and 100% call coverage.
+  - `git diff --check`: passes.
+
+### Residual Tool Gaps (Phase 8)
+
+- As in Phases 6 and 7, this verification host lacks the clang LLVM coverage /
+  ASan runtime libraries, `cppcheck`, `lizard`, `cbmc`, and
+  `arm-none-eabi-gcc`; the LLVM `llvm-cov` 100% gate, MISRA static analysis,
+  lizard complexity (CCN <= 10), the `RON-TC-AT-007-FV` CBMC proof, and the
+  ARM GCC cross-compile smoke build remain CI responsibilities.  The dynamic
+  harness discovery picks up `autotune_relay_bound_proof.c` automatically once
+  `cbmc` is available.

@@ -158,6 +158,7 @@ function Test-CoverageSummary {
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $RegulonC = Join-Path $RepoRoot "regulon-c"
 $ActiveSources = @(
+    (Join-Path $RegulonC "src\ron_autotune.c"),
     (Join-Path $RegulonC "src\ron_cascade.c"),
     (Join-Path $RegulonC "src\ron_feedforward.c"),
     (Join-Path $RegulonC "src\ron_filter.c"),
@@ -174,6 +175,7 @@ $ActiveSources = @(
     (Join-Path $RegulonC "src\ron_statespace.c"),
     (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
     (Join-Path $RegulonC "src\ron_trajectory_trap.c"),
+    (Join-Path $RegulonC "include\ron\ron_autotune.h"),
     (Join-Path $RegulonC "include\ron\ron_cascade.h"),
     (Join-Path $RegulonC "include\ron\ron_feedforward.h"),
     (Join-Path $RegulonC "include\ron\ron_filter.h"),
@@ -309,6 +311,7 @@ foreach ($step in $Steps) {
                 "--suppress=misra-c2012-20.10",
                 "-I", (Join-Path $RegulonC "include"),
                 "-I", (Join-Path $RegulonC "src"),
+                (Join-Path $RegulonC "src\ron_autotune.c"),
                 (Join-Path $RegulonC "src\ron_cascade.c"),
                 (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
@@ -335,6 +338,7 @@ foreach ($step in $Steps) {
             }
 
             Invoke-External "lizard complexity pass" $Python @("-m", "lizard", "-C", "10",
+                (Join-Path $RegulonC "src\ron_autotune.c"),
                 (Join-Path $RegulonC "src\ron_cascade.c"),
                 (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
@@ -394,6 +398,7 @@ foreach ($step in $Steps) {
                 }
             }
             $CoverageSources = @(
+                (Join-Path $RegulonC "src\ron_autotune.c"),
                 (Join-Path $RegulonC "src\ron_cascade.c"),
                 (Join-Path $RegulonC "src\ron_feedforward.c"),
                 (Join-Path $RegulonC "src\ron_filter.c"),
@@ -510,6 +515,7 @@ foreach ($step in $Steps) {
                     "--bounds-check",
                     "--pointer-check",
                     $harness,
+                    (Join-Path $RegulonC "src\ron_autotune.c"),
                     (Join-Path $RegulonC "src\ron_cascade.c"),
                     (Join-Path $RegulonC "src\ron_feedforward.c"),
                     (Join-Path $RegulonC "src\ron_filter.c"),

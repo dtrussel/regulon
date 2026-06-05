@@ -52,6 +52,37 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_autotune.h`` /
+  ``regulon-c/src/ron_autotune.c``: added the complete C11 Phase 8 relay-
+  feedback PID auto-tuner slice (replacing the prior stub).  The module
+  excites a plant with a hysteresis relay in place of the PID output
+  (RON-FR-800) with configurable amplitude / hysteresis / minimum cycles /
+  timeout (RON-FR-801), estimates ``Ku = 4d/(pi*A)`` and ``Tu`` by zero-
+  crossing counting (RON-FR-802), supports the Ziegler-Nichols, Tyreus-
+  Luyben, some-overshoot, and no-overshoot tuning rules (RON-FR-803), commits
+  the tuned gains to the target PID only on an explicit
+  ``ron_autotune_apply`` (RON-FR-804), exposes raw ``Ku`` / ``Tu``
+  (RON-FR-805), keeps the relay output within ``[u_bias - d, u_bias + d]``
+  (RON-FR-806), and restores the PID on caller abort or timeout (RON-FR-807).
+  The module is standalone scalar math (no ``ron_matrix`` dependency) and
+  touches the PID only through the existing atomic gain / mode APIs.
+
+- ``regulon-c/test/unit/test_ron_autotune.c``: added traceable Unity tests
+  ``RON-TC-AT-001`` through ``RON-TC-AT-008`` covering closed-loop relay
+  excitation of a first-order plant, configuration validation, ``Ku`` / ``Tu``
+  estimation within 10% of known reference values, all four tuning rules,
+  apply-only gain commit, raw ``Ku`` / ``Tu`` exposure, relay-output bounds
+  with step guards, and abort / timeout restore.  ``ron_autotune.c`` holds
+  100% line and branch coverage.
+
+- ``regulon-c/test/formal/autotune_relay_bound_proof.c``: added the
+  ``RON-TC-AT-007-FV`` CBMC harness proving the relay output stays within
+  ``[u_bias - d, u_bias + d]`` and that the auto-tuner path performs no heap
+  allocation.
+
+- ``docs/plans/c/c11-phase-8-autotune.md``: added and closed the living
+  Phase 8 implementation plan with verification evidence and design choices.
+
 - ``regulon-c/include/ron/ron_statespace.h`` /
   ``regulon-c/src/ron_statespace.c`` and
   ``regulon-c/include/ron/ron_observer.h`` /

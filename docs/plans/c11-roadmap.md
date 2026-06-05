@@ -29,8 +29,9 @@ The active C11 implementation now contains the closed PID baseline, the
 Phase 1 signal-conditioning filter module, the Phase 2 feed-forward PID
 extension, the Phase 3 gain-scheduling slice, the Phase 4 trajectory
 generator slice, the Phase 5 cascade controller slice, the Phase 6
-discrete linear Kalman filter slice, and the Phase 7 state-space
-controller and Luenberger observer slice. The current public surface is:
+discrete linear Kalman filter slice, the Phase 7 state-space
+controller and Luenberger observer slice, and the Phase 8 relay-feedback
+auto-tuner slice. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
@@ -43,6 +44,7 @@ controller and Luenberger observer slice. The current public surface is:
 - `regulon-c/include/ron/ron_kalman.h`
 - `regulon-c/include/ron/ron_observer.h`
 - `regulon-c/include/ron/ron_statespace.h`
+- `regulon-c/include/ron/ron_autotune.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
@@ -61,7 +63,10 @@ cover `RON-FR-700` through `RON-FR-704` and `RON-FR-720` through
 `RON-TC-SS-009` and a `RON-TC-SS-004-FV` CBMC saturation / no-heap
 harness. Phase 7 also factored the bounded fixed-size matrix primitives out
 of `ron_kalman.c` into the shared internal `ron_matrix` helper now used by
-the Kalman, state-space, and observer modules.
+the Kalman, state-space, and observer modules. Phase 8 relay-feedback
+auto-tuning covers `RON-FR-800` through `RON-FR-807` with active unit tests
+for `RON-TC-AT-001` through `RON-TC-AT-008` and a `RON-TC-AT-007-FV` CBMC
+relay-bound / no-heap harness.
 
 ## Sequencing Strategy
 
@@ -437,6 +442,16 @@ Exit criteria:
 
 ## Phase 8: Relay Feedback Auto-Tuning
 
+Status: **COMPLETE** (2026-06-05). Closure evidence is recorded in
+`docs/plans/c/c11-phase-8-autotune.md` and `docs/plans/c/c11-rollout.md`. The
+`ron_autotune` relay excitation lifecycle, zero-crossing Ku/Tu estimation, the
+four tuning rules, and staged apply/abort are implemented with
+`RON-TC-AT-001` through `RON-TC-AT-008` unit tests and the `RON-TC-AT-007-FV`
+CBMC relay-bound / no-heap harness. The module is standalone scalar math (no
+`ron_matrix` dependency) and touches the target PID only at start/apply/abort.
+Residual local CBMC/cppcheck/lizard/ARM gaps are tool-availability gaps covered
+by CI wiring.
+
 Requirement scope:
 
 - `RON-FR-800` through `RON-FR-807`
@@ -471,6 +486,21 @@ Exit criteria:
 
 - Auto-tune never modifies PID gains unless the apply operation succeeds.
 - Fault and abort paths are covered by unit tests and, where practical, formal harnesses.
+
+Verification evidence:
+- 9 Unity tests (`RON-TC-AT-001` – `RON-TC-AT-008`, plus an insufficient-
+  excitation abort case): all pass under single- and double-precision GCC,
+  standalone Clang, and GCC ASan/UBSan (12/12 suites each).
+- `gcov -b` on `ron_autotune.c`: 100% line and 100% branch coverage (both
+  directions taken).
+- `clang-format --dry-run --Werror`: clean over the new source, header, test,
+  and `autotune_relay_bound_proof.c`.
+- `RON-TC-AT-007-FV` CBMC relay-bound / no-heap harness added under
+  `regulon-c/test/formal/`; discovered automatically by the verify script and
+  CI once `cbmc` is available.
+- CI workflow and local verify script updated: `ron_autotune.c` /
+  `ron_autotune.h` added to the format-check, cppcheck/MISRA, complexity,
+  coverage, and CBMC source sets.
 
 ## Phase 9: Health Monitor
 

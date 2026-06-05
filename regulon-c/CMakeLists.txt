@@ -22,6 +22,7 @@ include(cmake/ron_options.cmake)
 # Library target
 # ---------------------------------------------------------------------------
 add_library(regulon STATIC
+    src/ron_autotune.c
     src/ron_cascade.c
     src/ron_feedforward.c
     src/ron_filter.c
