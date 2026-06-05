@@ -206,6 +206,40 @@ static void at_restore_pid(const ron_at_t *at, ron_pid_instance_t *pid)
     (void) ron_pid_set_mode(pid, at->state.saved_mode, at->cfg.u_bias);
 }
 
+/* Validate the runtime arguments of one step. */
+/* Satisfies: RON-SR-020 | Test: RON-TC-AT-007 */
+static ron_fault_t at_step_args_valid(const ron_at_t *at, ron_float_t r, ron_float_t y,
+                                      ron_float_t dt, const ron_float_t *u_out)
+{
+    if ((at == NULL) || (u_out == NULL)) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!at->state.is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    if ((dt <= RON_FLOAT_C(0.0)) || !at_isfinite(dt)) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    if (!at_isfinite(r) || !at_isfinite(y)) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    return RON_FAULT_NONE;
+}
+
+/* Abort the run if it is still active past the configured time budget. */
+/* Satisfies: RON-FR-807 | Test: RON-TC-AT-008 */
+static void at_check_timeout(ron_at_t *at)
+{
+    uint8_t phase = at->state.phase;
+
+    if ((phase == (uint8_t) RON_AT_SETTLING) || (phase == (uint8_t) RON_AT_RELAY)) {
+        if (at->state.elapsed_s > at->cfg.timeout_s) {
+            at->state.aborted = true;
+            at->state.phase   = (uint8_t) RON_AT_ABORTED;
+        }
+    }
+}
+
 /* Zero all dynamic state (phase becomes RON_AT_IDLE). */
 /* Satisfies: RON-FR-800 | Test: RON-TC-AT-001 */
 static void at_seed_state(ron_at_t *at)
@@ -284,21 +318,14 @@ ron_fault_t ron_autotune_start(ron_at_t *at, ron_pid_instance_t *pid)
 ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_float_t dt,
                               ron_float_t *u_out)
 {
+    ron_fault_t fault;
     ron_float_t e;
     bool crossed;
     uint8_t phase;
 
-    if ((at == NULL) || (u_out == NULL)) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!at->state.is_initialised) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-    if ((dt <= RON_FLOAT_C(0.0)) || !at_isfinite(dt)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-    if (!at_isfinite(r) || !at_isfinite(y)) {
-        return RON_FAULT_CONFIG_INVALID;
+    fault = at_step_args_valid(at, r, y, dt, u_out);
+    if (fault != RON_FAULT_NONE) {
+        return fault;
     }
 
     phase = at->state.phase;
@@ -324,15 +351,7 @@ ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_fl
         at_step_relay(at, y, dt, crossed);
     }
 
-    /* Timeout guard: abort if still running past the configured budget. */
-    phase = at->state.phase;
-    if ((phase == (uint8_t) RON_AT_SETTLING) || (phase == (uint8_t) RON_AT_RELAY)) {
-        if (at->state.elapsed_s > at->cfg.timeout_s) {
-            at->state.aborted = true;
-            at->state.phase   = (uint8_t) RON_AT_ABORTED;
-        }
-    }
-
+    at_check_timeout(at);
     return RON_FAULT_NONE;
 }
 
