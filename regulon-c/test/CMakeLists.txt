@@ -100,3 +100,6 @@ ron_add_test(test_ron_observer   unit/test_ron_observer.c)
 
 # Sprint 10 - State-space controller (TC-SS-001..005, TC-SS-009)
 ron_add_test(test_ron_statespace unit/test_ron_statespace.c)
+
+# Sprint 11 - Relay feedback auto-tuner (TC-AT-001..008)
+ron_add_test(test_ron_autotune  unit/test_ron_autotune.c)

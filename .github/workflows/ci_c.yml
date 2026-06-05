@@ -138,6 +138,7 @@ jobs:
       - name: Check formatting
         run: |
           clang-format --dry-run --Werror \
+            regulon-c/src/ron_autotune.c \
             regulon-c/src/ron_cascade.c \
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
@@ -163,7 +164,8 @@ jobs:
             regulon-c/include/ron/ron_pid_types.h \
             regulon-c/include/ron/ron_pid.h \
             regulon-c/include/ron/ron_trajectory.h \
-            regulon-c/include/ron/ron_cascade.h
+            regulon-c/include/ron/ron_cascade.h \
+            regulon-c/include/ron/ron_autotune.h
 
   # ---------------------------------------------------------------------------
   # Job 5: Static analysis - cppcheck (MISRA subset) + complexity
@@ -193,6 +195,7 @@ jobs:
                    --suppress=misra-c2012-20.10 \
                    -I regulon-c/include \
                    -I regulon-c/src \
+                   regulon-c/src/ron_autotune.c \
                    regulon-c/src/ron_cascade.c \
                    regulon-c/src/ron_feedforward.c \
                    regulon-c/src/ron_filter.c \
@@ -212,6 +215,7 @@ jobs:
       - name: Run complexity check
         run: |
           python3 -m lizard -C 10 \
+            regulon-c/src/ron_autotune.c \
             regulon-c/src/ron_cascade.c \
             regulon-c/src/ron_feedforward.c \
             regulon-c/src/ron_filter.c \
@@ -284,6 +288,7 @@ jobs:
           done
 
           source_args=(
+            -sources regulon-c/src/ron_autotune.c
             -sources regulon-c/src/ron_cascade.c
             -sources regulon-c/src/ron_feedforward.c
             -sources regulon-c/src/ron_filter.c
@@ -416,6 +421,7 @@ jobs:
                  --unwind 65 --unwinding-assertions \
                  --bounds-check --pointer-check \
                  "$harness" \
+                 regulon-c/src/ron_autotune.c \
                  regulon-c/src/ron_cascade.c \
                  regulon-c/src/ron_feedforward.c \
                  regulon-c/src/ron_filter.c \
