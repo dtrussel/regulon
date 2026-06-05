@@ -30,8 +30,9 @@ Phase 1 signal-conditioning filter module, the Phase 2 feed-forward PID
 extension, the Phase 3 gain-scheduling slice, the Phase 4 trajectory
 generator slice, the Phase 5 cascade controller slice, the Phase 6
 discrete linear Kalman filter slice, the Phase 7 state-space
-controller and Luenberger observer slice, and the Phase 8 relay-feedback
-auto-tuner slice. The current public surface is:
+controller and Luenberger observer slice, the Phase 8 relay-feedback
+auto-tuner slice, and the Phase 9 control-loop health monitor slice. The
+current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
@@ -45,6 +46,7 @@ auto-tuner slice. The current public surface is:
 - `regulon-c/include/ron/ron_observer.h`
 - `regulon-c/include/ron/ron_statespace.h`
 - `regulon-c/include/ron/ron_autotune.h`
+- `regulon-c/include/ron/ron_health.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
@@ -66,7 +68,10 @@ of `ron_kalman.c` into the shared internal `ron_matrix` helper now used by
 the Kalman, state-space, and observer modules. Phase 8 relay-feedback
 auto-tuning covers `RON-FR-800` through `RON-FR-807` with active unit tests
 for `RON-TC-AT-001` through `RON-TC-AT-008` and a `RON-TC-AT-007-FV` CBMC
-relay-bound / no-heap harness.
+relay-bound / no-heap harness. Phase 9 control-loop health monitoring covers
+`RON-FR-900` through `RON-FR-905` with active unit tests for `RON-TC-HLTH-001`
+through `RON-TC-HLTH-010` and a `RON-TC-HLTH-008-FV` CBMC no-heap /
+monotonic-latch harness.
 
 ## Sequencing Strategy
 
@@ -503,6 +508,21 @@ Verification evidence:
   coverage, and CBMC source sets.
 
 ## Phase 9: Health Monitor
+
+Status: **COMPLETE** (2026-06-05). Closure evidence is recorded in
+`docs/plans/c/c11-phase-9-health-monitor.md` and
+`docs/plans/c/c11-rollout.md`. The passive `ron_health` monitor implements the
+five-condition latched bitmask (output-stuck, diverging, oscillating,
+sensor-dropout, setpoint-unreachable), independent per-condition thresholds, the
+first-activation callback, and latch/clear semantics, with `RON-TC-HLTH-001`
+through `RON-TC-HLTH-010` unit tests and the `RON-TC-HLTH-008-FV` CBMC no-heap /
+monotonic-latch harness. The module is standalone (no PID or `ron_matrix`
+dependency) and reads only `(r, y, u, dt)`. Output-stuck is detected as an
+unchanged output for `t_sat_max` — the only reading consistent with the IS
+config, which exposes no saturation limits — and two opaque state fields
+(`u_prev`, `prev_valid`) extend the IS-enumerated set for that comparator and
+the first-step guard. Residual local CBMC/cppcheck/lizard/ARM gaps are
+tool-availability gaps covered by CI wiring.
 
 Requirement scope:
 

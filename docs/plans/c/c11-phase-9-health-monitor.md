@@ -1,7 +1,7 @@
 # C11 Phase 9 Control Loop Health Monitor Plan
 
-Date: 2026-06-05 (planned)
-Status: Planned
+Date: 2026-06-05 (planned), 2026-06-05 (closed)
+Status: Complete
 
 ## Objective
 
@@ -166,3 +166,48 @@ the `health_no_heap_proof.c` CBMC proof, MISRA static analysis, lizard
 complexity (CCN <= 10), the LLVM `llvm-cov` 100% gate, and the ARM cross-compile
 smoke build remain CI responsibilities. The dynamic `*_proof.c` discovery picks
 up the health harness automatically once `cbmc` is available.
+
+## Verification Results
+
+Collected on 2026-06-05 (Linux host, GCC + Clang + CMake + gcov):
+
+- `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON` and
+  `cmake --build regulon-c/build`: pass, warning-free under
+  `-Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wundef`.
+- `ctest --test-dir regulon-c/build`: 13/13 suites pass, including the new
+  `test_ron_health` (`RON-TC-HLTH-001`..`010`).
+- Double-precision (`RON_USE_DOUBLE=ON`), standalone Clang, and GCC
+  `-fsanitize=address,undefined -fno-sanitize-recover=all` builds: 13/13 pass
+  each.
+- `clang-format --dry-run --Werror` over every new source / header / test /
+  harness, and `gcc -std=c11 -Wall -Wextra -Werror -fsyntax-only` over
+  `health_no_heap_proof.c`: clean.
+- `gcov -b` on `ron_health.c`: 100% line and 100% branch coverage (both
+  directions taken).
+- `git diff --check`: passes.
+
+## Deliberate Design Choices
+
+- **OUTPUT_STUCK = output unchanged.** The IS `ron_health_config_t` exposes no
+  `u_min` / `u_max`, so the SADS "output equals `u_min` or `u_max`" description
+  is realised as the output staying within `RON_HEALTH_STUCK_EPS` of its
+  previous value for `t_sat_max`. This is the only reading consistent with the
+  API and with the `RON-TC-HLTH-002` fixture (a constant `u` for >= 50 steps).
+- **Two opaque state extensions.** `u_prev` (the stuck reference) and
+  `prev_valid` (the first-step guard, which lets stuck counting begin on the
+  first observed step so the threshold lands exactly on step 50) extend the
+  IS-enumerated `ron_health_state_t`. They are documented as opaque internal
+  bookkeeping; no IS-named field, function, or struct was altered, consistent
+  with the Phase 8 precedent that the IS state layout is not byte-frozen.
+- **Nearest-sample duration rounding.** Time-based conditions trip when
+  `accum + 0.5*dt >= threshold`, so a single-precision accumulation of `N*dt`
+  crosses the threshold on the intended step rather than one step late.
+- **Setpoint recovered, not stored.** The previous setpoint for step detection
+  is reconstructed as `e_prev + y_prev`, avoiding a redundant `r_prev` field.
+- **Redundant window guard removed.** Because empty oscillation-window slots
+  form a contiguous prefix of the oldest->newest walk, a non-empty `a` is always
+  followed by a non-empty `b`; the change-count test drops the unreachable
+  `b != 0` term so the active source has no dead branch.
+- **CBMC harness mapped to `RON-TC-HLTH-008-FV`.** The no-heap / monotonic-latch
+  proof reuses the passivity test ID (`RON-TC-HLTH-008`, RON-FR-903) with the
+  `-FV` formal suffix; no new TP ID was introduced.
