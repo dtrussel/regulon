@@ -94,3 +94,9 @@ ron_add_test(test_ron_cascade    unit/test_ron_cascade.c)
 
 # Sprint 9 - Discrete linear Kalman filter (TC-KF-001..008)
 ron_add_test(test_ron_kalman     unit/test_ron_kalman.c)
+
+# Sprint 10 - Luenberger observer (TC-SS-006..009)
+ron_add_test(test_ron_observer   unit/test_ron_observer.c)
+
+# Sprint 10 - State-space controller (TC-SS-001..005, TC-SS-009)
+ron_add_test(test_ron_statespace unit/test_ron_statespace.c)

@@ -1968,6 +1968,136 @@ established for ``ron_pid.h`` apply equally to all headers.
    #endif
    #endif /* RON_KALMAN_H */
 
+``ron_observer.h`` — Discrete-Time Luenberger Observer
+--------------------------------------------------------
+
+.. code-block:: c
+
+   #ifndef RON_OBSERVER_H
+   #define RON_OBSERVER_H
+   #include "ron/ron_pid_types.h"
+   #ifdef __cplusplus
+   extern "C" {
+   #endif
+
+   typedef struct {
+       uint8_t      n, m, p;
+       ron_float_t A[RON_SS_MAX_STATES][RON_SS_MAX_STATES];
+       ron_float_t B[RON_SS_MAX_STATES][RON_SS_MAX_INPUTS];
+       ron_float_t C[RON_SS_MAX_OUTPUTS][RON_SS_MAX_STATES];
+       ron_float_t L[RON_SS_MAX_STATES][RON_SS_MAX_OUTPUTS];
+       ron_float_t x0[RON_SS_MAX_STATES];
+   } ron_obs_config_t;
+
+   typedef struct {
+       ron_float_t x_hat[RON_SS_MAX_STATES];
+       bool         is_initialised;
+   } ron_obs_state_t;
+
+   typedef struct { ron_obs_config_t cfg;
+                    ron_obs_state_t  state; } ron_obs_t;
+
+   ron_fault_t ron_obs_init      (ron_obs_t *obs, const ron_obs_config_t *cfg);
+   ron_fault_t ron_obs_reset     (ron_obs_t *obs);
+   ron_fault_t ron_obs_step      (ron_obs_t *obs,
+                                     const ron_float_t y[RON_SS_MAX_OUTPUTS],
+                                     const ron_float_t u[RON_SS_MAX_INPUTS]);
+   ron_fault_t ron_obs_get_state (const ron_obs_t *obs,
+                                     ron_float_t x_hat[RON_SS_MAX_STATES]);
+
+   #ifdef __cplusplus
+   }
+   #endif
+   #endif /* RON_OBSERVER_H */
+
+The observer realises ``x_hat(k+1) = A x_hat(k) + B u(k) + L (y(k) - C x_hat(k))``
+(``RON-FR-720``).  The caller supplies ``A``, ``B``, ``C``, ``L``
+(``RON-FR-721``); ``p`` may be ``0`` for an autonomous plant, in which case
+``ron_obs_step`` accepts ``u == NULL``.  The discrete recursion does not use a
+sample period, so no ``dt`` argument is taken.  Storage is bounded by the
+``RON_SS_MAX_*`` constants (``RON-FR-723``) and the full estimate is read back
+via ``ron_obs_get_state`` (``RON-FR-722``).
+
+``ron_statespace.h`` — State-Feedback Controller
+--------------------------------------------------
+
+.. code-block:: c
+
+   #ifndef RON_STATESPACE_H
+   #define RON_STATESPACE_H
+   #include "ron/ron_kalman.h"
+   #include "ron/ron_observer.h"
+   #ifdef __cplusplus
+   extern "C" {
+   #endif
+
+   typedef enum {
+       RON_SS_SOURCE_EXTERNAL   = 0,
+       RON_SS_SOURCE_LUENBERGER = 1,
+       RON_SS_SOURCE_KALMAN     = 2
+   } ron_ss_source_t;
+
+   typedef struct {
+       uint8_t            n;
+       ron_ss_source_t    source;
+       const ron_float_t *x_ext;
+       ron_float_t        K[RON_SS_MAX_STATES];
+       ron_float_t        Kr;
+       bool               use_integral;
+       ron_float_t        Ki_aug;
+       ron_float_t        C_out[RON_SS_MAX_STATES];
+       ron_float_t        i_min, i_max;
+       ron_float_t        u_min, u_max, du_max;
+       ron_obs_config_t   obs_cfg;
+       ron_kf_config_t    kf_cfg;
+   } ron_ss_config_t;
+
+   typedef struct {
+       ron_float_t  integral;
+       ron_float_t  u_prev;
+       ron_fault_t  faults;
+       bool         is_initialised;
+   } ron_ss_state_t;
+
+   typedef struct { ron_ss_config_t cfg;
+                    ron_ss_state_t  state;
+                    ron_obs_t       observer;
+                    ron_kf_t        kalman; } ron_ss_t;
+
+   ron_fault_t ron_ss_init           (ron_ss_t *ss, const ron_ss_config_t *cfg);
+   ron_fault_t ron_ss_reset          (ron_ss_t *ss);
+   ron_fault_t ron_ss_step           (ron_ss_t *ss, ron_float_t r, ron_float_t dt,
+                                         ron_float_t *u, ron_status_t *status);
+   ron_fault_t ron_ss_set_gains      (ron_ss_t *ss,
+                                         const ron_float_t K[RON_SS_MAX_STATES],
+                                         ron_float_t Kr);
+   ron_fault_t ron_ss_observer_step  (ron_ss_t *ss,
+                                         const ron_float_t y[RON_SS_MAX_OUTPUTS],
+                                         const ron_float_t u[RON_SS_MAX_INPUTS]);
+   ron_fault_t ron_ss_kalman_predict (ron_ss_t *ss,
+                                         const ron_float_t u[RON_KF_MAX_INPUTS]);
+   ron_fault_t ron_ss_kalman_update  (ron_ss_t *ss,
+                                         const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
+                                         bool z_valid);
+
+   #ifdef __cplusplus
+   }
+   #endif
+   #endif /* RON_STATESPACE_H */
+
+``ron_ss_step`` computes ``u = -K x_hat + Kr r`` (``RON-FR-700``), reading
+``x_hat`` from the configured source — an external vector, the embedded
+Luenberger observer, or the embedded Kalman filter (``RON-FR-701``).  When
+``use_integral`` is set, an augmented integral on the regulated output
+``e = r - C_out x_hat`` is accumulated, clamped to ``[i_min, i_max]``, and added
+to the control (``RON-FR-702``).  The output is then saturated to
+``[u_min, u_max]`` and rate-limited by ``du_max`` using the same semantics as the
+PID module, with ``RON_STATUS_SATURATED`` / ``RON_STATUS_RATE_LIMITED`` reported
+in ``status`` (``RON-FR-703``).  ``K`` and ``Kr`` may be replaced at run time via
+``ron_ss_set_gains`` (``RON-FR-704``).  The embedded observer / Kalman estimators
+are advanced by ``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` /
+``ron_ss_kalman_update`` before the consuming ``ron_ss_step`` call.
+
 ``ron_autotune.h`` — Relay Feedback Auto-Tuning
 -------------------------------------------------
 

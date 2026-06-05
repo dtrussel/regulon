@@ -28,8 +28,9 @@ Ground-truth inputs:
 The active C11 implementation now contains the closed PID baseline, the
 Phase 1 signal-conditioning filter module, the Phase 2 feed-forward PID
 extension, the Phase 3 gain-scheduling slice, the Phase 4 trajectory
-generator slice, the Phase 5 cascade controller slice, and the Phase 6
-discrete linear Kalman filter slice. The current public surface is:
+generator slice, the Phase 5 cascade controller slice, the Phase 6
+discrete linear Kalman filter slice, and the Phase 7 state-space
+controller and Luenberger observer slice. The current public surface is:
 
 - `regulon-c/include/ron/ron_platform.h`
 - `regulon-c/include/ron/ron_pid_types.h`
@@ -40,6 +41,8 @@ discrete linear Kalman filter slice. The current public surface is:
 - `regulon-c/include/ron/ron_trajectory.h`
 - `regulon-c/include/ron/ron_cascade.h`
 - `regulon-c/include/ron/ron_kalman.h`
+- `regulon-c/include/ron/ron_observer.h`
+- `regulon-c/include/ron/ron_statespace.h`
 
 The PID slice covers `RON-FR-001` through `RON-FR-071` with supporting safety, performance, quality, and diagnostics evidence. Phase 0 PID closure has been accepted for opening non-PID work. Phase 1 filters cover `RON-FR-100` through `RON-FR-131` with active unit tests and local 100% statement/branch coverage.
 Phase 2 feed-forward covers `RON-FR-200` through `RON-FR-205` with active
@@ -52,7 +55,13 @@ covers `RON-FR-400` through `RON-FR-406` with active unit tests for
 `RON-TC-CASC-001` through `RON-TC-CASC-012`. Phase 6 discrete linear Kalman
 filter covers `RON-FR-600` through `RON-FR-607` with active unit tests for
 `RON-TC-KF-001` through `RON-TC-KF-008` and a `RON-TC-KF-008-FV` CBMC
-no-heap harness.
+no-heap harness. Phase 7 state-space controller and Luenberger observer
+cover `RON-FR-700` through `RON-FR-704` and `RON-FR-720` through
+`RON-FR-723` with active unit tests for `RON-TC-SS-001` through
+`RON-TC-SS-009` and a `RON-TC-SS-004-FV` CBMC saturation / no-heap
+harness. Phase 7 also factored the bounded fixed-size matrix primitives out
+of `ron_kalman.c` into the shared internal `ron_matrix` helper now used by
+the Kalman, state-space, and observer modules.
 
 ## Sequencing Strategy
 
@@ -377,6 +386,15 @@ responsibilities), and `cbmc`, `cppcheck`, `lizard`, and
 complexity, and ARM GCC cross-compile remain CI responsibilities).
 
 ## Phase 7: State-Space Controller And Luenberger Observer
+
+Status: **COMPLETE** (2026-06-04). Closure evidence is recorded in
+`docs/plans/c/c11-phase-7-statespace-observer.md` and
+`docs/plans/c/c11-rollout.md`. The state-feedback controller, Luenberger
+observer, and the shared internal `ron_matrix` helper (factored out of the
+Phase 6 Kalman source) are implemented with `RON-TC-SS-001` through
+`RON-TC-SS-009` unit tests and the `RON-TC-SS-004-FV` CBMC harness; the
+Kalman suite is unchanged. Residual local ARM/CBMC/cppcheck/lizard gaps are
+tool-availability gaps covered by CI wiring.
 
 Requirement scope:
 

@@ -52,6 +52,56 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_statespace.h`` /
+  ``regulon-c/src/ron_statespace.c`` and
+  ``regulon-c/include/ron/ron_observer.h`` /
+  ``regulon-c/src/ron_observer.c``: added the complete C11 Phase 7
+  state-space controller and Luenberger observer slice.  The
+  state-feedback controller computes ``u = -K x_hat + Kr r`` (RON-FR-700)
+  with external-vector, embedded-Luenberger, and embedded-Kalman estimate
+  sources (RON-FR-701), optional integral augmentation on the regulated
+  output (RON-FR-702), PID-equivalent output saturation / rate limiting and
+  fault detection (RON-FR-703), and runtime-updatable ``K`` / ``Kr``
+  (RON-FR-704).  The observer implements
+  ``x_hat(k+1) = A x_hat + B u + L (y - C x_hat)`` (RON-FR-720) with
+  caller-supplied ``A``, ``B``, ``C``, ``L`` (RON-FR-721), a full-state
+  getter (RON-FR-722), and compile-time-bounded storage (RON-FR-723).
+
+- ``regulon-c/src/ron_matrix.c`` and
+  ``regulon-c/src/ron_matrix_internal.h``: added an internal, non-public
+  shared bounded matrix / vector helper (uniform ``RON_MAT_MAX_DIM``
+  stride) factored out of ``ron_kalman.c`` and now used by the Kalman,
+  state-space, and observer modules.  ``ron_kalman.c`` was refactored onto
+  it as a pure extraction with unchanged public API, numerics, and tests.
+
+- ``regulon-c/test/unit/test_ron_observer.c`` and
+  ``regulon-c/test/unit/test_ron_statespace.c``: added traceable Unity
+  tests ``RON-TC-SS-001`` through ``RON-TC-SS-009`` covering reference
+  state feedback, all three estimate sources with embedded-estimator
+  advance and cross-source rejection, integral accumulation / clamp /
+  reset, saturation and bidirectional rate limiting matching the PID
+  pipeline, runtime gain update, the Luenberger step / convergence /
+  parameterisation, the observer state getter, and the full
+  configuration-validation, defensive, maximum-dimension, and
+  numeric-overflow surfaces.  All four affected sources retain 100%
+  line and branch coverage.
+
+- ``regulon-c/test/formal/statespace_sat_proof.c``: added the
+  ``RON-TC-SS-004-FV`` CBMC harness proving the state-space output stays
+  within ``[u_min, u_max]`` and that the state-space path performs no heap
+  allocation.
+
+- ``docs/specs/IS_ControlLib.rst``: added the ``ron_observer.h`` and
+  ``ron_statespace.h`` API blocks.  ``docs/specs/TP_ControlLib.rst``: added
+  detailed descriptions for ``RON-TC-SS-001`` through ``RON-TC-SS-009`` and
+  ``RON-TC-SS-004-FV``.  ``regulon-c/include/ron/ron_platform.h``: added the
+  ``RON_SS_MAX_*`` minimum-bound static asserts and the ``RON_MAT_MAX_DIM``
+  definition with its coverage asserts.
+
+- ``docs/plans/c/c11-phase-7-statespace-observer.md``: added and closed the
+  living Phase 7 implementation plan with verification evidence and design
+  choices.
+
 - ``regulon-c/include/ron/ron_kalman.h`` and
   ``regulon-c/src/ron_kalman.c``: added the complete C11 Phase 6 discrete
   linear Kalman filter slice with caller-owned fixed-maximum matrix/vector
