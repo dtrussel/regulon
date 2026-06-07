@@ -14,35 +14,93 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS        OFF)
 
 # ---------------------------------------------------------------------------
-# Build options (RON_USE_DOUBLE, RON_BUILD_TESTS, RON_ENABLE_ASSERT)
+# Build options (precision, tests, examples, per-module selection)
 # ---------------------------------------------------------------------------
 include(cmake/ron_options.cmake)
 
 # ---------------------------------------------------------------------------
-# Library target
+# Module dependency resolution
+#
+# State-space depends on the Kalman filter (ron_statespace.c calls ron_kf_*),
+# so enabling state-space forces the Kalman module on.  Kalman, state-space,
+# and observer all require the internal fixed-size matrix helper.
 # ---------------------------------------------------------------------------
-add_library(regulon STATIC
-    src/ron_autotune.c
-    src/ron_cascade.c
-    src/ron_feedforward.c
-    src/ron_filter.c
-    src/ron_gain_sched.c
-    src/ron_health.c
-    src/ron_kalman.c
-    src/ron_matrix.c
-    src/ron_metrics.c
-    src/ron_observer.c
+if(RON_ENABLE_STATESPACE AND NOT RON_ENABLE_KALMAN)
+    message(STATUS "regulon: RON_ENABLE_STATESPACE forces RON_ENABLE_KALMAN ON")
+    set(RON_ENABLE_KALMAN ON CACHE BOOL "" FORCE)
+endif()
+
+# ---------------------------------------------------------------------------
+# Generated module-availability header (ron/ron_config.h)
+# ---------------------------------------------------------------------------
+foreach(_mod FILTER GAIN_SCHED TRAJECTORY CASCADE KALMAN STATESPACE AUTOTUNE HEALTH METRICS)
+    if(RON_ENABLE_${_mod})
+        set(RON_HAVE_${_mod} 1)
+    else()
+        set(RON_HAVE_${_mod} 0)
+    endif()
+endforeach()
+
+set(RON_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/include)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ron_config.h.in
+    ${RON_GENERATED_INCLUDE_DIR}/ron/ron_config.h
+    @ONLY
+)
+
+# ---------------------------------------------------------------------------
+# Library source list (mandatory baseline + selected modules)
+# ---------------------------------------------------------------------------
+# Mandatory baseline: PID core + integrated feed-forward path.
+set(RON_LIB_SOURCES
+    src/ron_pid_api.c
     src/ron_pid_config.c
     src/ron_pid_core.c
     src/ron_pid_fault.c
-    src/ron_pid_api.c
-    src/ron_statespace.c
-    src/ron_trajectory_scurve.c
-    src/ron_trajectory_trap.c
+    src/ron_feedforward.c
 )
 
+if(RON_ENABLE_FILTER)
+    list(APPEND RON_LIB_SOURCES src/ron_filter.c)
+endif()
+if(RON_ENABLE_GAIN_SCHED)
+    list(APPEND RON_LIB_SOURCES src/ron_gain_sched.c)
+endif()
+if(RON_ENABLE_TRAJECTORY)
+    list(APPEND RON_LIB_SOURCES src/ron_trajectory_trap.c src/ron_trajectory_scurve.c)
+endif()
+if(RON_ENABLE_CASCADE)
+    list(APPEND RON_LIB_SOURCES src/ron_cascade.c)
+endif()
+if(RON_ENABLE_AUTOTUNE)
+    list(APPEND RON_LIB_SOURCES src/ron_autotune.c)
+endif()
+if(RON_ENABLE_HEALTH)
+    list(APPEND RON_LIB_SOURCES src/ron_health.c)
+endif()
+if(RON_ENABLE_METRICS)
+    list(APPEND RON_LIB_SOURCES src/ron_metrics.c)
+endif()
+# Matrix / state-estimation modules (share the internal ron_matrix helper).
+if(RON_ENABLE_KALMAN OR RON_ENABLE_STATESPACE)
+    list(APPEND RON_LIB_SOURCES src/ron_matrix.c)
+endif()
+if(RON_ENABLE_KALMAN)
+    list(APPEND RON_LIB_SOURCES src/ron_kalman.c)
+endif()
+if(RON_ENABLE_STATESPACE)
+    list(APPEND RON_LIB_SOURCES src/ron_statespace.c src/ron_observer.c)
+endif()
+
+# ---------------------------------------------------------------------------
+# Library target
+# ---------------------------------------------------------------------------
+add_library(regulon STATIC ${RON_LIB_SOURCES})
+
 target_include_directories(regulon
-    PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PUBLIC  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<BUILD_INTERFACE:${RON_GENERATED_INCLUDE_DIR}>
+            $<INSTALL_INTERFACE:include>
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -84,7 +142,15 @@ if(RON_BUILD_TESTS AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 # ---------------------------------------------------------------------------
+# Examples (host only — never cross-compiled; not part of any production gate)
+# ---------------------------------------------------------------------------
+if(RON_BUILD_EXAMPLES AND NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(examples)
+endif()
+
+# ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 install(TARGETS regulon ARCHIVE DESTINATION lib)
 install(DIRECTORY include/ron DESTINATION include)
+install(FILES ${RON_GENERATED_INCLUDE_DIR}/ron/ron_config.h DESTINATION include/ron)
