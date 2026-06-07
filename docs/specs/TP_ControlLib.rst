@@ -259,6 +259,9 @@ zero-padded three-digit sequence number.
    * - ``MET``
      - Performance metrics
      - RON-FR-950 – FR-954
+   * - ``INT``
+     - Full-library integration
+     - Cross-module composition; RON-QR-031, RON-DC-001
    * - ``SAFE``
      - Safety, fault, defensive programming
      - RON-SR-001 – SR-022
@@ -1093,12 +1096,12 @@ that verify it. Every requirement **shall** appear in at least one row.
      - RON-TC-QUAL-016-FV
    * - RON-QR-031
      - Deterministic reproducible behaviour
-     - UT
-     - RON-TC-QUAL-017
+     - UT, IT
+     - RON-TC-QUAL-017, RON-TC-INT-002, RON-TC-INT-005
    * - RON-DC-001
-     - Language: C11 or Rust Edition 2021
-     - Review
-     - RON-TC-QUAL-018
+     - Language: C11 or Rust Edition 2021; aggregate header include topology
+     - Review, IT
+     - RON-TC-QUAL-018, RON-TC-INT-001
    * - RON-DC-002
      - Minimal stdlib dependencies
      - UT (static)
@@ -1311,6 +1314,10 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-QUAL-001 – QUAL-022
      - UT (static) / Review / PT
      - RON-SR-030 – SR-033, RON-QR-001 – QR-031, RON-DC-001 – DC-005
+   * - RON-TC-INT-001 – INT-005
+     - IT
+     - RON-DC-001, RON-FR-401, RON-FR-500, RON-FR-701, RON-FR-804,
+       RON-FR-900, RON-FR-950, RON-FR-062, RON-QR-031
 
 ------------------------------------------------------------------------
 
@@ -3466,6 +3473,118 @@ RON-TC-AT-005 — Gains Applied Only on Explicit Call
 
 ------------------------------------------------------------------------
 
+Integration Tests (RON-TC-INT-xxx)
+====================================
+
+Integration tests exercise several modules composed into one control loop.
+They include only the aggregate header ``ron/ron.h`` and run in
+``ENV-HOST``.  Each is registered in the full default build only.
+
+RON-TC-INT-001 — Aggregate Header and Include Topology
+-------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-DC-001
+   * - **Level**
+     - IT (static / compile) / ENV-HOST
+   * - **Preconditions**
+     - A translation unit whose only Regulon include is ``ron/ron.h``.
+   * - **Stimulus**
+     - Compile and link the unit and reach one public entry point per enabled
+       module (each called with NULL), guarded by the generated
+       ``RON_HAVE_<MODULE>`` macros.
+   * - **Pass Criterion**
+     - The unit compiles with no circular-include or symbol-collision error and
+       every reachable entry point returns ``RON_FAULT_NULL_POINTER``.
+
+RON-TC-INT-002 — End-to-End Trajectory / Cascade / Health / Metrics Loop
+-------------------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-401, RON-FR-500, RON-FR-900, RON-FR-950, RON-QR-031
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - A trapezoidal trajectory, a cascade (position/velocity) controller, a
+       health monitor, and a metrics accumulator over a two-state plant.
+   * - **Stimulus**
+     - Run the composed loop for a fixed horizon; the trajectory supplies the
+       position setpoint, the cascade drives the plant, and the monitor and
+       metrics observe ``(r, y, u)``.  Repeat the run from identical initial
+       state.
+   * - **Pass Criterion**
+     - The plant tracks the setpoint to within band; no fault is raised; the
+       health monitor reports neither divergence nor oscillation; the metric
+       integrals are finite and positive; the two runs produce bit-identical
+       command trajectories (RON-QR-031).
+
+RON-TC-INT-003 — Estimator in the Loop
+---------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - A first-order low-pass measurement filter feeding the embedded
+       Luenberger observer of a state-space controller driving a scalar plant.
+   * - **Stimulus**
+     - Run the loop with a large reference so the controller output saturates.
+   * - **Pass Criterion**
+     - The output never exceeds the configured ``[u_min, u_max]`` (saturation
+       is honored end-to-end and the saturated status is observed), and the
+       observer estimate converges to the true plant state.
+
+RON-TC-INT-004 — Auto-Tune then Deploy
+---------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-804
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - A relay auto-tuner attached to a PID; a deterministic synthetic
+       oscillation (:math:`K_u = 4`, :math:`T_u = 0.5\,s`).
+   * - **Stimulus**
+     - Drive the auto-tuner to completion, apply the computed gains to the PID,
+       then run the tuned controller on a first-order plant.
+   * - **Pass Criterion**
+     - The applied PID gains equal the computed tuning gains, and the tuned
+       loop converges to the setpoint without fault and stays bounded.
+
+RON-TC-INT-005 — Multi-Instance Isolation
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-062, RON-QR-031
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - Two independent cascade control loops with different setpoints.
+   * - **Stimulus**
+     - Record loop A's command trajectory when run alone, then when run
+       interleaved with loop B.
+   * - **Pass Criterion**
+     - Loop A's command trajectory is bit-identical in both runs, proving the
+       library holds no shared mutable state.
+
+------------------------------------------------------------------------
+
 Formal Verification Summary
 =============================
 
@@ -3560,6 +3679,104 @@ expected property proofs.
      - Miri / CBMC
      - 1
      - No UB/data races in Rust; no C global mutable state dependency
+
+CBMC Harness Inventory (C Track)
+---------------------------------
+
+The C11 formal harnesses live under ``regulon-c/test/formal/*_proof.c`` and are
+discovered automatically by the verify script and CI (the harness file's base
+name is its CBMC entry function).  Phase 11 audited the inventory: 25 harnesses
+are present, one entry function each, covering every safety-critical module.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 24 18
+
+   * - Harness file
+     - Test Case ID
+     - Primary Requirement
+   * - ``pid_saturation_proof.c``
+     - RON-TC-PID-015-FV
+     - RON-FR-020
+   * - ``pid_backcalc_proof.c``
+     - RON-TC-PID-022-FV
+     - RON-FR-031
+   * - ``pid_integral_clamp_proof.c``
+     - RON-TC-PID-026-FV
+     - RON-FR-035
+   * - ``pid_multi_instance_proof.c``
+     - RON-TC-PID-036-FV
+     - RON-FR-060
+   * - ``pid_api_validation_proof.c``
+     - RON-TC-SAFE-001-FV
+     - RON-SR-001
+   * - ``pid_null_pointer_proof.c``
+     - RON-TC-SAFE-006-FV
+     - RON-SR-001
+   * - ``pid_division_guard_proof.c``
+     - RON-TC-SAFE-002-FV
+     - RON-SR-002
+   * - ``pid_no_heap_proof.c``
+     - RON-TC-SAFE-003-FV
+     - RON-SR-003
+   * - ``pid_no_recursion_proof.c``
+     - RON-TC-SAFE-004-FV
+     - RON-SR-004
+   * - ``pid_array_bounds_proof.c``
+     - RON-TC-SAFE-005-FV
+     - RON-SR-005
+   * - ``pid_fault_detection_proof.c``
+     - RON-TC-SAFE-007-FV
+     - RON-SR-010
+   * - ``pid_nan_inf_proof.c``
+     - RON-TC-SAFE-011-FV
+     - RON-SR-020
+   * - ``pid_integral_overflow_proof.c``
+     - RON-TC-SAFE-013-FV
+     - RON-SR-013
+   * - ``pid_bounded_step_proof.c``
+     - RON-TC-PERF-002-FV
+     - RON-PR-001
+   * - ``pid_no_blocking_proof.c``
+     - RON-TC-PERF-004-FV
+     - RON-PR-004
+   * - ``pid_no_global_state_proof.c``
+     - RON-TC-QUAL-016-FV
+     - RON-QR-030
+   * - ``filter_no_heap_proof.c``
+     - RON-TC-FILT-002-FV
+     - RON-FR-101
+   * - ``filter_null_pointer_proof.c``
+     - RON-TC-FILT-003-FV
+     - RON-FR-102
+   * - ``filter_array_bounds_proof.c``
+     - RON-TC-FILT-009-FV
+     - RON-FR-116
+   * - ``filter_bounded_execution_proof.c``
+     - RON-TC-FILT-010-FV
+     - RON-FR-101
+   * - ``cascade``-class (``statespace_sat_proof.c``)
+     - RON-TC-SS-004-FV
+     - RON-FR-703
+   * - ``kalman_no_heap_proof.c``
+     - RON-TC-KF-008-FV
+     - RON-FR-607
+   * - ``autotune_relay_bound_proof.c``
+     - RON-TC-AT-007-FV
+     - RON-FR-806
+   * - ``health_no_heap_proof.c``
+     - RON-TC-HLTH-008-FV
+     - RON-FR-903
+   * - ``metrics_no_heap_proof.c``
+     - RON-TC-MET-001-FV
+     - RON-FR-951
+
+.. note::
+
+   ``pid_backcalc_proof.c`` and the cascade outer-integral property
+   (RON-TC-CASC-004-FV) listed in the Formal Verification Summary share the
+   back-calculation anti-windup logic; the standalone cascade harness is an open
+   item (OI-TP-06) and is tracked alongside the existing PID back-calc proof.
 
 ------------------------------------------------------------------------
 
@@ -3711,6 +3928,13 @@ Open Items
      - OTAWA static WCET analysis to be evaluated for ARM Cortex-M target;
        results to supplement RON-TC-PERF-003 measurement.
      - Integration phase
+   * - OI-TP-06
+     - RON-TC-CASC-004-FV (outer-integral-bounded property) is listed in the
+       Formal Verification Summary but has no dedicated ``cascade_*_proof.c``
+       harness yet; the shared back-calculation logic is covered by
+       ``pid_backcalc_proof.c`` in the interim. (Identified by the Phase 11
+       CBMC harness inventory audit.)
+     - Implementation phase
 
 ------------------------------------------------------------------------
 

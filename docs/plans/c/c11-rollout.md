@@ -530,3 +530,50 @@ same traceability and quality evidence bar.
   ARM GCC cross-compile smoke build remain CI responsibilities.  The dynamic
   harness discovery picks up `metrics_no_heap_proof.c` automatically once `cbmc`
   is available.
+
+## Phase 11 Full-Library Integration And Release Hardening Closure Evidence
+
+- Phase 11 hardens the library for release rather than adding a module. The
+  active public surface is now the complete set: `ron_platform.h`,
+  `ron_pid_types.h`, `ron_pid.h`, `ron_feedforward.h`, `ron_filter.h`,
+  `ron_gain_sched.h`, `ron_cascade.h`, `ron_trajectory.h`, `ron_kalman.h`,
+  `ron_statespace.h`, `ron_observer.h`, `ron_autotune.h`, `ron_health.h`,
+  `ron_metrics.h`, the aggregate `ron.h`, and the generated `ron_modules.h`.
+
+- Added the aggregate header `ron/ron.h` (guarded by `RON_HAVE_<MODULE>` macros
+  from the CMake-generated `ron/ron_modules.h`); per-module `RON_ENABLE_*`
+  options with dependency resolution (state-space forces Kalman; PID core +
+  feed-forward are the mandatory baseline); the `RON-TC-INT-001`..`INT-005`
+  integration suite; host examples behind `RON_BUILD_EXAMPLES`; and centralized
+  CI source manifests (`scripts/lib_sources.txt`, `scripts/format_files.txt`)
+  with a drift-check (`scripts/check_manifest.sh`).
+
+- The drift check and CBMC inventory audit closed real gaps: the CI format list
+  was missing `ron_matrix_internal.h`; `verify_pid.ps1` omitted four sources
+  from its CBMC set; and `RON-TC-CASC-004-FV` has no dedicated harness yet
+  (recorded as OI-TP-06). The specs were reconciled: TP gained the `INT` module,
+  the five `RON-TC-INT-*` blocks, both matrices, and the CBMC harness inventory;
+  IS and SADS gained the aggregate header and module-selection options.
+
+- Local evidence after completing the Phase 11 slice:
+  - Full default build (GCC) `ctest`: 15/15 suites pass, including
+    `test_ron_integration` (`RON-TC-INT-001`..`005`).
+  - Clang full build, double-precision (`RON_USE_DOUBLE=ON`), and GCC
+    `-fsanitize=address,undefined -fno-sanitize-recover=all`: 15/15 each.
+  - Minimal-subset build (all `RON_ENABLE_*` OFF): PID-only library compiles and
+    links. Partial subset (filter+health+metrics): 7/7 suites; integration suite
+    correctly not registered. `RON_ENABLE_STATESPACE` force-enables Kalman.
+  - Single-include compile of `ron/ron.h` under the strict flag set: clean.
+  - `RON_BUILD_EXAMPLES=ON` (GCC): both examples build and run.
+  - `clang-format --dry-run --Werror` over the format manifest (incl. `ron.h`):
+    clean. `bash regulon-c/scripts/check_manifest.sh`: manifests in sync.
+  - `git diff --check`: passes.
+
+### Residual Tool Gaps (Phase 11)
+
+- As in Phases 6 through 10, this verification host lacks the clang LLVM coverage
+  / ASan runtime libraries, `cppcheck`, `lizard`, `cbmc`, and
+  `arm-none-eabi-gcc`; the LLVM `llvm-cov` 100% gate, MISRA static analysis,
+  lizard complexity (CCN <= 10), the CBMC proofs, and the ARM cross-compile smoke
+  builds remain CI responsibilities. The new `manifest-check`, `build-subset`,
+  and `build-examples` CI jobs run on stock Ubuntu runners with no extra tooling.

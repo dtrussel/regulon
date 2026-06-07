@@ -11,6 +11,65 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — C11 Phase 11 Full-Library Integration And Release Hardening
+-----------------------------------------------------------------------
+
+This entry completes the C11 implementation: all eleven roadmap phases
+(PID, filters, feed-forward, gain scheduling, trajectory, cascade, Kalman,
+state-space/observer, auto-tune, health, metrics) are now integrated,
+release-hardened, and traceable end to end.
+
+Added
+~~~~~
+- ``regulon-c/include/ron/ron.h``: aggregate convenience header that
+  transitively includes every public module header in dependency order,
+  guarded by ``RON_HAVE_<MODULE>`` macros from the generated
+  ``ron/ron_modules.h``.
+
+- Per-module CMake selection (``RON_ENABLE_FILTER`` … ``RON_ENABLE_METRICS``,
+  default ON) generating ``ron/ron_modules.h`` via ``cmake/ron_modules.h.in``.
+  The PID core and integrated feed-forward path are the mandatory baseline;
+  ``RON_ENABLE_STATESPACE`` forces ``RON_ENABLE_KALMAN``.
+
+- ``regulon-c/test/integration/test_ron_integration.c``: full-library
+  integration suite ``RON-TC-INT-001`` … ``RON-TC-INT-005`` (aggregate-header
+  include-topology check, trajectory→cascade→health→metrics loop with a
+  determinism check, estimator-in-the-loop, auto-tune deploy, and
+  multi-instance isolation).
+
+- Host example programs behind ``RON_BUILD_EXAMPLES``:
+  ``regulon-c/examples/pid_quickstart.c`` and
+  ``regulon-c/examples/cascade_control_loop.c``.
+
+- Centralized CI source manifests ``regulon-c/scripts/lib_sources.txt`` and
+  ``regulon-c/scripts/format_files.txt`` with a drift guard
+  ``regulon-c/scripts/check_manifest.sh``; new CI jobs ``manifest-check``,
+  ``build-subset`` (PID-only smoke build), and ``build-examples``
+  (GCC + Clang under ``-Werror``).
+
+- ``docs/plans/c/c11-phase-11-integration.md``: Phase 11 living plan / closure
+  record. CBMC harness inventory added to ``docs/specs/TP_ControlLib.rst``.
+
+Changed
+~~~~~~~
+- ``.github/workflows/ci_c.yml`` and ``regulon-c/scripts/verify_pid.ps1`` now
+  read the shared manifests instead of five parallel hard-coded source lists,
+  removing the per-file maintenance hazard.
+
+- ``docs/specs/IS_ControlLib.rst`` and ``docs/specs/SADS_ControlLib.rst``
+  document the aggregate header, the generated ``ron_modules.h``, and the
+  per-module build options. ``TP_ControlLib.rst`` adds the ``INT`` module and
+  both traceability matrices for the integration suite.
+
+Fixed
+~~~~~
+- Closed CI gate gaps surfaced by the manifest drift check:
+  ``ron_matrix_internal.h`` was missing from the clang-format list, and
+  ``verify_pid.ps1`` omitted ``ron_matrix.c`` / ``ron_metrics.c`` /
+  ``ron_observer.c`` / ``ron_statespace.c`` from its CBMC source set.
+
+------------------------------------------------------------------------
+
 Unreleased — Rust-First PID Kickoff
 -----------------------------------
 

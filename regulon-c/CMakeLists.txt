@@ -31,7 +31,7 @@ if(RON_ENABLE_STATESPACE AND NOT RON_ENABLE_KALMAN)
 endif()
 
 # ---------------------------------------------------------------------------
-# Generated module-availability header (ron/ron_config.h)
+# Generated module-availability header (ron/ron_modules.h)
 # ---------------------------------------------------------------------------
 foreach(_mod FILTER GAIN_SCHED TRAJECTORY CASCADE KALMAN STATESPACE AUTOTUNE HEALTH METRICS)
     if(RON_ENABLE_${_mod})
@@ -43,8 +43,8 @@ endforeach()
 
 set(RON_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/include)
 configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ron_config.h.in
-    ${RON_GENERATED_INCLUDE_DIR}/ron/ron_config.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ron_modules.h.in
+    ${RON_GENERATED_INCLUDE_DIR}/ron/ron_modules.h
     @ONLY
 )
 
@@ -153,4 +153,4 @@ endif()
 # ---------------------------------------------------------------------------
 install(TARGETS regulon ARCHIVE DESTINATION lib)
 install(DIRECTORY include/ron DESTINATION include)
-install(FILES ${RON_GENERATED_INCLUDE_DIR}/ron/ron_config.h DESTINATION include/ron)
+install(FILES ${RON_GENERATED_INCLUDE_DIR}/ron/ron_modules.h DESTINATION include/ron)

@@ -200,6 +200,25 @@ New modules added in v1.1.0:
      - Passive loop health monitor. Per-condition threshold comparators, sliding window oscillation detector, latch/clear model, health callback dispatch.
    * - ``ron_metrics``
      - IAE/ISE/ITAE accumulators, peak overshoot tracker, settling-time and rise-time state machines, step detection, windowed/cumulative modes.
+   * - ``ron`` (aggregate header)
+     - Header-only convenience surface (``ron/ron.h``) that transitively
+       includes every public module header in dependency order, each guarded by
+       the generated ``RON_HAVE_<MODULE>`` macros in ``ron/ron_modules.h``.  Adds
+       no symbols and no translation unit.
+
+Build-Time Module Selection
+---------------------------
+
+The library is composed from a mandatory baseline (``ron_platform``,
+``ron_pid_types``, ``ron_pid_*`` core, and the integrated ``ron_feedforward``
+path required by ``pid_config_validate()``) plus independently selectable
+modules.  Each ``RON_ENABLE_<MODULE>`` CMake option (default ON) adds its
+source(s) to the static library and sets ``RON_HAVE_<MODULE>=1`` in the
+generated ``ron/ron_modules.h``.  Dependency edges are resolved at configure
+time: state-space requires the Kalman filter, and Kalman / state-space /
+observer share the internal ``ron_matrix`` helper.  The include topology rooted
+at ``ron_platform.h`` is acyclic and is exercised by the full-library
+integration suite (RON-TC-INT-001).
 
 Data Flow Overview
 ------------------

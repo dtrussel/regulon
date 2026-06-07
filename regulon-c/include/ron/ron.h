@@ -15,7 +15,7 @@
  * Headers are included in dependency order, rooted at ron_platform.h, so the
  * include topology is exercised as an acyclic graph (RON-TC-INT-001).  Each
  * optional module header is guarded by its RON_HAVE_<MODULE> macro (from the
- * generated ron/ron_config.h), so when the library is built with a subset of
+ * generated ron/ron_modules.h), so when the library is built with a subset of
  * modules this header includes only the headers whose implementations are
  * present.  The PID core and its integrated feed-forward path are the mandatory
  * baseline and are always included.
@@ -28,7 +28,7 @@
 #define RON_RON_H
 
 /* Build-time module availability (generated). */
-#include "ron/ron_config.h"
+#include "ron/ron_modules.h"
 
 /* ── Mandatory baseline ──────────────────────────────────────────────────── */
 #include "ron/ron_feedforward.h"
