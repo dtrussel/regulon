@@ -157,41 +157,23 @@ function Test-CoverageSummary {
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $RegulonC = Join-Path $RepoRoot "regulon-c"
-$ActiveSources = @(
-    (Join-Path $RegulonC "src\ron_autotune.c"),
-    (Join-Path $RegulonC "src\ron_cascade.c"),
-    (Join-Path $RegulonC "src\ron_feedforward.c"),
-    (Join-Path $RegulonC "src\ron_filter.c"),
-    (Join-Path $RegulonC "src\ron_gain_sched.c"),
-    (Join-Path $RegulonC "src\ron_health.c"),
-    (Join-Path $RegulonC "src\ron_kalman.c"),
-    (Join-Path $RegulonC "src\ron_matrix.c"),
-    (Join-Path $RegulonC "src\ron_matrix_internal.h"),
-    (Join-Path $RegulonC "src\ron_metrics.c"),
-    (Join-Path $RegulonC "src\ron_observer.c"),
-    (Join-Path $RegulonC "src\ron_pid_api.c"),
-    (Join-Path $RegulonC "src\ron_pid_config.c"),
-    (Join-Path $RegulonC "src\ron_pid_core.c"),
-    (Join-Path $RegulonC "src\ron_pid_fault.c"),
-    (Join-Path $RegulonC "src\ron_pid_internal.h"),
-    (Join-Path $RegulonC "src\ron_statespace.c"),
-    (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
-    (Join-Path $RegulonC "src\ron_trajectory_trap.c"),
-    (Join-Path $RegulonC "include\ron\ron_autotune.h"),
-    (Join-Path $RegulonC "include\ron\ron_cascade.h"),
-    (Join-Path $RegulonC "include\ron\ron_feedforward.h"),
-    (Join-Path $RegulonC "include\ron\ron_filter.h"),
-    (Join-Path $RegulonC "include\ron\ron_gain_sched.h"),
-    (Join-Path $RegulonC "include\ron\ron_health.h"),
-    (Join-Path $RegulonC "include\ron\ron_kalman.h"),
-    (Join-Path $RegulonC "include\ron\ron_metrics.h"),
-    (Join-Path $RegulonC "include\ron\ron_observer.h"),
-    (Join-Path $RegulonC "include\ron\ron_platform.h"),
-    (Join-Path $RegulonC "include\ron\ron_pid_types.h"),
-    (Join-Path $RegulonC "include\ron\ron_pid.h"),
-    (Join-Path $RegulonC "include\ron\ron_statespace.h"),
-    (Join-Path $RegulonC "include\ron\ron_trajectory.h")
-)
+
+# Read a CI source manifest (one repo-root-relative path per line, '#' comments
+# and blanks ignored) and resolve each entry to a full path.  These manifests
+# (scripts/lib_sources.txt, scripts/format_files.txt) are the single source of
+# truth shared with .github/workflows/ci_c.yml so the lists cannot drift.
+function Read-Manifest {
+    param([string]$Name)
+    $path = Join-Path $PSScriptRoot $Name
+    Get-Content $path |
+        Where-Object { $_ -and ($_ -notmatch '^[\s]*#') } |
+        ForEach-Object { Join-Path $RepoRoot ($_ -replace '/', '\') }
+}
+
+# Production library sources (cppcheck / complexity / coverage / CBMC).
+$ProductionSources = @(Read-Manifest "lib_sources.txt")
+# Production sources + public/internal headers (clang-format gate).
+$ActiveSources = @(Read-Manifest "format_files.txt")
 
 $CMake = Find-CommandPath -Names @("cmake")
 $CTest = Find-CommandPath -Names @("ctest")
@@ -314,25 +296,8 @@ foreach ($step in $Steps) {
                 "--suppress=misra-c2012-15.7",
                 "--suppress=misra-c2012-20.10",
                 "-I", (Join-Path $RegulonC "include"),
-                "-I", (Join-Path $RegulonC "src"),
-                (Join-Path $RegulonC "src\ron_autotune.c"),
-                (Join-Path $RegulonC "src\ron_cascade.c"),
-                (Join-Path $RegulonC "src\ron_feedforward.c"),
-                (Join-Path $RegulonC "src\ron_filter.c"),
-                (Join-Path $RegulonC "src\ron_gain_sched.c"),
-                (Join-Path $RegulonC "src\ron_health.c"),
-                (Join-Path $RegulonC "src\ron_kalman.c"),
-                (Join-Path $RegulonC "src\ron_matrix.c"),
-                (Join-Path $RegulonC "src\ron_metrics.c"),
-                (Join-Path $RegulonC "src\ron_observer.c"),
-                (Join-Path $RegulonC "src\ron_statespace.c"),
-                (Join-Path $RegulonC "src\ron_pid_api.c"),
-                (Join-Path $RegulonC "src\ron_pid_config.c"),
-                (Join-Path $RegulonC "src\ron_pid_core.c"),
-                (Join-Path $RegulonC "src\ron_pid_fault.c"),
-                (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
-                (Join-Path $RegulonC "src\ron_trajectory_trap.c")
-            )
+                "-I", (Join-Path $RegulonC "src")
+            ) + $ProductionSources
             Invoke-External "cppcheck MISRA pass" $Cppcheck $CppcheckArgs
             Add-Result $Results "cppcheck" "ok" $Cppcheck
         }
@@ -343,24 +308,7 @@ foreach ($step in $Steps) {
                 continue
             }
 
-            Invoke-External "lizard complexity pass" $Python @("-m", "lizard", "-C", "10",
-                (Join-Path $RegulonC "src\ron_autotune.c"),
-                (Join-Path $RegulonC "src\ron_cascade.c"),
-                (Join-Path $RegulonC "src\ron_feedforward.c"),
-                (Join-Path $RegulonC "src\ron_filter.c"),
-                (Join-Path $RegulonC "src\ron_gain_sched.c"),
-                (Join-Path $RegulonC "src\ron_health.c"),
-                (Join-Path $RegulonC "src\ron_kalman.c"),
-                (Join-Path $RegulonC "src\ron_matrix.c"),
-                (Join-Path $RegulonC "src\ron_metrics.c"),
-                (Join-Path $RegulonC "src\ron_observer.c"),
-                (Join-Path $RegulonC "src\ron_statespace.c"),
-                (Join-Path $RegulonC "src\ron_pid_api.c"),
-                (Join-Path $RegulonC "src\ron_pid_config.c"),
-                (Join-Path $RegulonC "src\ron_pid_core.c"),
-                (Join-Path $RegulonC "src\ron_pid_fault.c"),
-                (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
-                (Join-Path $RegulonC "src\ron_trajectory_trap.c"))
+            Invoke-External "lizard complexity pass" $Python (@("-m", "lizard", "-C", "10") + $ProductionSources)
             Add-Result $Results "complexity" "ok" "python -m lizard"
         }
         "coverage" {
@@ -405,25 +353,7 @@ foreach ($step in $Steps) {
                     $CoverageObjects += @("-object", $executable)
                 }
             }
-            $CoverageSources = @(
-                (Join-Path $RegulonC "src\ron_autotune.c"),
-                (Join-Path $RegulonC "src\ron_cascade.c"),
-                (Join-Path $RegulonC "src\ron_feedforward.c"),
-                (Join-Path $RegulonC "src\ron_filter.c"),
-                (Join-Path $RegulonC "src\ron_gain_sched.c"),
-                (Join-Path $RegulonC "src\ron_health.c"),
-                (Join-Path $RegulonC "src\ron_kalman.c"),
-                (Join-Path $RegulonC "src\ron_matrix.c"),
-                (Join-Path $RegulonC "src\ron_metrics.c"),
-                (Join-Path $RegulonC "src\ron_observer.c"),
-                (Join-Path $RegulonC "src\ron_statespace.c"),
-                (Join-Path $RegulonC "src\ron_pid_api.c"),
-                (Join-Path $RegulonC "src\ron_pid_config.c"),
-                (Join-Path $RegulonC "src\ron_pid_core.c"),
-                (Join-Path $RegulonC "src\ron_pid_fault.c"),
-                (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
-                (Join-Path $RegulonC "src\ron_trajectory_trap.c")
-            )
+            $CoverageSources = $ProductionSources
             $CoverageSourceArgs = @()
             foreach ($source in $CoverageSources) {
                 $CoverageSourceArgs += @("-sources", $source)
@@ -518,30 +448,18 @@ foreach ($step in $Steps) {
                 ForEach-Object { $_.FullName }
             foreach ($harness in $Harnesses) {
                 $EntryPoint = [System.IO.Path]::GetFileNameWithoutExtension($harness)
-                Invoke-External "CBMC $(Split-Path $harness -Leaf)" $Cbmc @(
+                Invoke-External "CBMC $(Split-Path $harness -Leaf)" $Cbmc (@(
                     "--function", $EntryPoint,
                     "--unwind", "65",
                     "--unwinding-assertions",
                     "--bounds-check",
                     "--pointer-check",
-                    $harness,
-                    (Join-Path $RegulonC "src\ron_autotune.c"),
-                    (Join-Path $RegulonC "src\ron_cascade.c"),
-                    (Join-Path $RegulonC "src\ron_feedforward.c"),
-                    (Join-Path $RegulonC "src\ron_filter.c"),
-                    (Join-Path $RegulonC "src\ron_gain_sched.c"),
-                    (Join-Path $RegulonC "src\ron_health.c"),
-                    (Join-Path $RegulonC "src\ron_kalman.c"),
-                    (Join-Path $RegulonC "src\ron_pid_api.c"),
-                    (Join-Path $RegulonC "src\ron_pid_config.c"),
-                    (Join-Path $RegulonC "src\ron_pid_core.c"),
-                    (Join-Path $RegulonC "src\ron_pid_fault.c"),
-                    (Join-Path $RegulonC "src\ron_trajectory_scurve.c"),
-                    (Join-Path $RegulonC "src\ron_trajectory_trap.c"),
+                    $harness
+                ) + $ProductionSources + @(
                     "-I", (Join-Path $RegulonC "include"),
                     "-I", (Join-Path $RegulonC "src"),
                     "-I", (Join-Path $RegulonC "test\formal")
-                )
+                ))
             }
             Add-Result $Results "cbmc" "ok" $Cbmc
         }
