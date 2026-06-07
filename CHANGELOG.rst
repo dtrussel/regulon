@@ -52,6 +52,25 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_health.h`` /
+  ``regulon-c/src/ron_health.c``: added the complete C11 Phase 9 control-loop
+  health monitor slice (replacing the prior stub).  The passive observer
+  attaches to any controller and evaluates loop health each step from
+  ``(r, y, u, dt)`` (RON-FR-900), reporting output-stuck, diverging,
+  oscillating, sensor-dropout, and setpoint-unreachable conditions through a
+  latched bitmask (RON-FR-901) with independently configurable per-condition
+  thresholds (RON-FR-902).  It never modifies the controller (RON-FR-903,
+  SADS DD-16), fires an optional callback on each condition's first activation
+  (RON-FR-904), and latches every condition until ``ron_health_clear()``
+  (RON-FR-905).  Output-stuck is detected as an unchanged output for
+  ``t_sat_max`` (the only reading consistent with the IS configuration, which
+  exposes no saturation limits); two opaque state fields (``u_prev``,
+  ``prev_valid``) extend the IS-enumerated set for that comparator and the
+  first-step guard.  Verified by ``RON-TC-HLTH-001`` through
+  ``RON-TC-HLTH-010`` Unity tests and the ``health_no_heap_proof.c`` CBMC
+  no-heap / monotonic-latch harness, with 100% line and branch coverage on
+  ``ron_health.c``.
+
 - ``regulon-c/include/ron/ron_autotune.h`` /
   ``regulon-c/src/ron_autotune.c``: added the complete C11 Phase 8 relay-
   feedback PID auto-tuner slice (replacing the prior stub).  The module

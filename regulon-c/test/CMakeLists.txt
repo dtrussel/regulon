@@ -103,3 +103,6 @@ ron_add_test(test_ron_statespace unit/test_ron_statespace.c)
 
 # Sprint 11 - Relay feedback auto-tuner (TC-AT-001..008)
 ron_add_test(test_ron_autotune  unit/test_ron_autotune.c)
+
+# Sprint 12 - Control-loop health monitor (TC-HLTH-001..010)
+ron_add_test(test_ron_health    unit/test_ron_health.c)

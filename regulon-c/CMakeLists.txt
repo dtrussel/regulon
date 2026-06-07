@@ -27,6 +27,7 @@ add_library(regulon STATIC
     src/ron_feedforward.c
     src/ron_filter.c
     src/ron_gain_sched.c
+    src/ron_health.c
     src/ron_kalman.c
     src/ron_matrix.c
     src/ron_observer.c

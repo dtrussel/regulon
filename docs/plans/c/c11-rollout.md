@@ -375,3 +375,80 @@ same traceability and quality evidence bar.
   ARM GCC cross-compile smoke build remain CI responsibilities.  The dynamic
   harness discovery picks up `autotune_relay_bound_proof.c` automatically once
   `cbmc` is available.
+
+## Phase 9 Health Monitor Opening Evidence
+
+- `ron_health.h` / `ron_health.c` are now active in the default C11 build,
+  replacing the previous `ron_health.c` stub.  The module is a passive
+  control-loop health monitor: it attaches to any controller and evaluates loop
+  health each step from `(r, y, u, dt)` (`RON-FR-900`), reporting five
+  conditions through a latched `ron_health_status_t` bitmask — output-stuck,
+  diverging, oscillating, sensor-dropout, and setpoint-unreachable
+  (`RON-FR-901`) — each with its own threshold and time constant
+  (`RON-FR-902`).  It never modifies the controller (`RON-FR-903`, SADS DD-16),
+  fires the optional `ron_health_cb_t` on each condition's first activation
+  (`RON-FR-904`), and latches every condition until `ron_health_clear`
+  (`RON-FR-905`).  The header includes `ron/ron_pid_types.h` for the shared
+  `ron_float_t` / `ron_fault_t` conventions and carries no PID or `ron_matrix`
+  dependency.
+
+- The detectors implement the SADS comparators directly: a saturation /
+  dropout / settling duration counter per condition (rounded to the nearest
+  sample so time-based thresholds land deterministically under single
+  precision), a fixed `RON_HEALTH_OSC_WINDOW` ring of error signs for the
+  oscillation count, and a growing-magnitude test for divergence.  Output-stuck
+  is realised as an unchanged output for `t_sat_max`, the only reading
+  consistent with the IS configuration (which exposes no `u_min` / `u_max`);
+  the previous setpoint for step detection is recovered from the stored
+  `e_prev + y_prev`, and two opaque state fields (`u_prev`, `prev_valid`)
+  extend the IS-enumerated `ron_health_state_t` for the stuck reference and the
+  first-step guard.  No new `ron_fault_t` bits were added — misuse reuses
+  `RON_FAULT_NULL_POINTER` / `RON_FAULT_CONFIG_INVALID`.
+
+- `test_ron_health.c` covers `RON-TC-HLTH-001` through `RON-TC-HLTH-010`,
+  including the init / attach lifecycle and full per-field configuration and
+  defensive validation, the threshold-boundary output-stuck case (not set at
+  step 49, set at step 50, callback once), each of the other four condition
+  detectors with isolated deterministic stimuli, independent per-condition
+  thresholds, a passivity check that compares a 200-step PID loop with and
+  without the monitor attached and asserts bit-identical controller output,
+  callback-once-per-first-activation across two conditions plus a NULL-callback
+  path, and the latch / clear / re-detect cycle.
+
+- `regulon-c/test/formal/health_no_heap_proof.c` adds the `RON-TC-HLTH-008-FV`
+  CBMC harness proving that one bounded finite step performs no heap allocation
+  (`RON-SR-003`) and only ever sets status bits (monotonic latch, `RON-FR-905`,
+  supporting the `RON-FR-903` passive property); it is discovered automatically
+  by the dynamic `*_proof.c` enumeration in the verify script and CI.
+
+- `regulon-c/scripts/verify_pid.ps1` and `.github/workflows/ci_c.yml` now list
+  `ron_health.c` and `ron_health.h` in the format, cppcheck/MISRA, complexity,
+  coverage, and CBMC source sets.  The library `add_library(regulon STATIC ...)`
+  source list and the `regulon-c/test/CMakeLists.txt` test enumeration now
+  include `ron_health.c` and `test_ron_health` respectively.
+
+- Local evidence after enabling the Phase 9 slice:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON` and
+    `cmake --build regulon-c/build`: pass, warning-free under
+    `-Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wundef`.
+  - `ctest --test-dir regulon-c/build`: 13/13 suites pass, including the new
+    `test_ron_health`.
+  - Default and double-precision (`RON_USE_DOUBLE=ON`) GCC builds, standalone
+    Clang build, and GCC `-fsanitize=address,undefined -fno-sanitize-recover=all`
+    build: all 13 suites pass on each configuration.
+  - `clang-format --dry-run --Werror` over the new source / header / test /
+    harness and `gcc -std=c11 -Wall -Wextra -Werror -fsyntax-only` over
+    `health_no_heap_proof.c`: clean.
+  - `gcov -b` on `ron_health.c`: 100% line and 100% branch coverage (both
+    directions taken).
+  - `git diff --check`: passes.
+
+### Residual Tool Gaps (Phase 9)
+
+- As in Phases 6 through 8, this verification host lacks the clang LLVM coverage
+  / ASan runtime libraries, `cppcheck`, `lizard`, `cbmc`, and
+  `arm-none-eabi-gcc`; the LLVM `llvm-cov` 100% gate, MISRA static analysis,
+  lizard complexity (CCN <= 10), the `RON-TC-HLTH-008-FV` CBMC proof, and the
+  ARM GCC cross-compile smoke build remain CI responsibilities.  The dynamic
+  harness discovery picks up `health_no_heap_proof.c` automatically once `cbmc`
+  is available.
