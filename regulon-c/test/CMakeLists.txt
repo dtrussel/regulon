@@ -67,6 +67,11 @@ endmacro()
 
 # ---------------------------------------------------------------------------
 # Unit test suites
+#
+# Baseline suites (PID core + integrated feed-forward) are always registered.
+# Optional-module suites are registered only when their module is enabled, so a
+# subset build (e.g. the CI minimal-subset smoke build) still produces a
+# self-consistent, linkable test set.
 # ---------------------------------------------------------------------------
 # Sprint 1 — Type definitions and compile-time size assertions
 ron_add_test(test_ron_pid_types  unit/test_ron_pid_types.c)
@@ -77,35 +82,63 @@ ron_add_test(test_ron_pid_core   unit/test_ron_pid_core.c)
 # Sprint 3 — PID API, fault detection, anti-windup (TC-PID-015..039)
 ron_add_test(test_ron_pid_api    unit/test_ron_pid_api.c)
 
-# Sprint 4 — Signal conditioning filters (TC-FILT-001..017)
-ron_add_test(test_ron_filter     unit/test_ron_filter.c)
-
-# Sprint 5 - Feed-forward PID extension (TC-FF-001..009)
+# Sprint 5 - Feed-forward PID extension (TC-FF-001..009) — baseline
 ron_add_test(test_ron_feedforward unit/test_ron_feedforward.c)
 
+# Sprint 4 — Signal conditioning filters (TC-FILT-001..017)
+if(RON_ENABLE_FILTER)
+    ron_add_test(test_ron_filter     unit/test_ron_filter.c)
+endif()
+
 # Sprint 6 - Gain scheduling (TC-GS-001..008)
-ron_add_test(test_ron_gain_sched unit/test_ron_gain_sched.c)
+if(RON_ENABLE_GAIN_SCHED)
+    ron_add_test(test_ron_gain_sched unit/test_ron_gain_sched.c)
+endif()
 
 # Sprint 7 - Trajectory generators (TC-TRAJ-001..008)
-ron_add_test(test_ron_trajectory unit/test_ron_trajectory.c)
+if(RON_ENABLE_TRAJECTORY)
+    ron_add_test(test_ron_trajectory unit/test_ron_trajectory.c)
+endif()
 
 # Sprint 8 - Cascade controller (TC-CASC-001..012)
-ron_add_test(test_ron_cascade    unit/test_ron_cascade.c)
+if(RON_ENABLE_CASCADE)
+    ron_add_test(test_ron_cascade    unit/test_ron_cascade.c)
+endif()
 
 # Sprint 9 - Discrete linear Kalman filter (TC-KF-001..008)
-ron_add_test(test_ron_kalman     unit/test_ron_kalman.c)
+if(RON_ENABLE_KALMAN)
+    ron_add_test(test_ron_kalman     unit/test_ron_kalman.c)
+endif()
 
-# Sprint 10 - Luenberger observer (TC-SS-006..009)
-ron_add_test(test_ron_observer   unit/test_ron_observer.c)
-
-# Sprint 10 - State-space controller (TC-SS-001..005, TC-SS-009)
-ron_add_test(test_ron_statespace unit/test_ron_statespace.c)
+# Sprint 10 - Luenberger observer + state-space controller (TC-SS-001..009)
+if(RON_ENABLE_STATESPACE)
+    ron_add_test(test_ron_observer   unit/test_ron_observer.c)
+    ron_add_test(test_ron_statespace unit/test_ron_statespace.c)
+endif()
 
 # Sprint 11 - Relay feedback auto-tuner (TC-AT-001..008)
-ron_add_test(test_ron_autotune  unit/test_ron_autotune.c)
+if(RON_ENABLE_AUTOTUNE)
+    ron_add_test(test_ron_autotune  unit/test_ron_autotune.c)
+endif()
 
 # Sprint 12 - Control-loop health monitor (TC-HLTH-001..010)
-ron_add_test(test_ron_health    unit/test_ron_health.c)
+if(RON_ENABLE_HEALTH)
+    ron_add_test(test_ron_health    unit/test_ron_health.c)
+endif()
 
 # Sprint 13 - Runtime performance metrics (TC-MET-001..007)
-ron_add_test(test_ron_metrics   unit/test_ron_metrics.c)
+if(RON_ENABLE_METRICS)
+    ron_add_test(test_ron_metrics   unit/test_ron_metrics.c)
+endif()
+
+# ---------------------------------------------------------------------------
+# Phase 11 - Full-library integration suite (TC-INT-001..005)
+#
+# Composes modules across the library through the aggregate ron/ron.h header.
+# Registered only when every module it exercises is enabled (the default build).
+# ---------------------------------------------------------------------------
+if(RON_ENABLE_FILTER AND RON_ENABLE_TRAJECTORY AND RON_ENABLE_CASCADE
+   AND RON_ENABLE_KALMAN AND RON_ENABLE_STATESPACE AND RON_ENABLE_AUTOTUNE
+   AND RON_ENABLE_HEALTH AND RON_ENABLE_METRICS)
+    ron_add_test(test_ron_integration integration/test_ron_integration.c)
+endif()

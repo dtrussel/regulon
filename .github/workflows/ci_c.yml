@@ -137,39 +137,8 @@ jobs:
 
       - name: Check formatting
         run: |
-          clang-format --dry-run --Werror \
-            regulon-c/src/ron_autotune.c \
-            regulon-c/src/ron_cascade.c \
-            regulon-c/src/ron_feedforward.c \
-            regulon-c/src/ron_filter.c \
-            regulon-c/src/ron_gain_sched.c \
-            regulon-c/src/ron_health.c \
-            regulon-c/src/ron_kalman.c \
-            regulon-c/src/ron_matrix.c \
-            regulon-c/src/ron_metrics.c \
-            regulon-c/src/ron_observer.c \
-            regulon-c/src/ron_statespace.c \
-            regulon-c/src/ron_pid_api.c \
-            regulon-c/src/ron_pid_config.c \
-            regulon-c/src/ron_pid_core.c \
-            regulon-c/src/ron_pid_fault.c \
-            regulon-c/src/ron_pid_internal.h \
-            regulon-c/src/ron_trajectory_scurve.c \
-            regulon-c/src/ron_trajectory_trap.c \
-            regulon-c/include/ron/ron_feedforward.h \
-            regulon-c/include/ron/ron_filter.h \
-            regulon-c/include/ron/ron_gain_sched.h \
-            regulon-c/include/ron/ron_health.h \
-            regulon-c/include/ron/ron_kalman.h \
-            regulon-c/include/ron/ron_metrics.h \
-            regulon-c/include/ron/ron_observer.h \
-            regulon-c/include/ron/ron_statespace.h \
-            regulon-c/include/ron/ron_platform.h \
-            regulon-c/include/ron/ron_pid_types.h \
-            regulon-c/include/ron/ron_pid.h \
-            regulon-c/include/ron/ron_trajectory.h \
-            regulon-c/include/ron/ron_cascade.h \
-            regulon-c/include/ron/ron_autotune.h
+          mapfile -t FILES < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/format_files.txt)
+          clang-format --dry-run --Werror "${FILES[@]}"
 
   # ---------------------------------------------------------------------------
   # Job 5: Static analysis - cppcheck (MISRA subset) + complexity
@@ -189,6 +158,7 @@ jobs:
 
       - name: Run cppcheck (MISRA addon)
         run: |
+          mapfile -t SRC < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/lib_sources.txt)
           cppcheck --addon=misra.py --check-level=exhaustive \
                    --enable=style --error-exitcode=1 \
                    --suppress=missingIncludeSystem \
@@ -199,45 +169,13 @@ jobs:
                    --suppress=misra-c2012-20.10 \
                    -I regulon-c/include \
                    -I regulon-c/src \
-                   regulon-c/src/ron_autotune.c \
-                   regulon-c/src/ron_cascade.c \
-                   regulon-c/src/ron_feedforward.c \
-                   regulon-c/src/ron_filter.c \
-                   regulon-c/src/ron_gain_sched.c \
-                   regulon-c/src/ron_health.c \
-                   regulon-c/src/ron_kalman.c \
-                   regulon-c/src/ron_matrix.c \
-                   regulon-c/src/ron_metrics.c \
-                   regulon-c/src/ron_observer.c \
-                   regulon-c/src/ron_statespace.c \
-                   regulon-c/src/ron_pid_api.c \
-                   regulon-c/src/ron_pid_config.c \
-                   regulon-c/src/ron_pid_core.c \
-                   regulon-c/src/ron_pid_fault.c \
-                   regulon-c/src/ron_trajectory_scurve.c \
-                   regulon-c/src/ron_trajectory_trap.c \
+                   "${SRC[@]}" \
                    2>&1 | tee cppcheck_results.txt
 
       - name: Run complexity check
         run: |
-          python3 -m lizard -C 10 \
-            regulon-c/src/ron_autotune.c \
-            regulon-c/src/ron_cascade.c \
-            regulon-c/src/ron_feedforward.c \
-            regulon-c/src/ron_filter.c \
-            regulon-c/src/ron_gain_sched.c \
-            regulon-c/src/ron_health.c \
-            regulon-c/src/ron_kalman.c \
-            regulon-c/src/ron_matrix.c \
-            regulon-c/src/ron_metrics.c \
-            regulon-c/src/ron_observer.c \
-            regulon-c/src/ron_statespace.c \
-            regulon-c/src/ron_pid_api.c \
-            regulon-c/src/ron_pid_config.c \
-            regulon-c/src/ron_pid_core.c \
-            regulon-c/src/ron_pid_fault.c \
-            regulon-c/src/ron_trajectory_scurve.c \
-            regulon-c/src/ron_trajectory_trap.c
+          mapfile -t SRC < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/lib_sources.txt)
+          python3 -m lizard -C 10 "${SRC[@]}"
 
       - name: Upload cppcheck results
         uses: actions/upload-artifact@v4
@@ -295,25 +233,10 @@ jobs:
             object_args+=("-object" "$bin")
           done
 
-          source_args=(
-            -sources regulon-c/src/ron_autotune.c
-            -sources regulon-c/src/ron_cascade.c
-            -sources regulon-c/src/ron_feedforward.c
-            -sources regulon-c/src/ron_filter.c
-            -sources regulon-c/src/ron_gain_sched.c
-            -sources regulon-c/src/ron_health.c
-            -sources regulon-c/src/ron_kalman.c
-            -sources regulon-c/src/ron_matrix.c
-            -sources regulon-c/src/ron_metrics.c
-            -sources regulon-c/src/ron_observer.c
-            -sources regulon-c/src/ron_statespace.c
-            -sources regulon-c/src/ron_pid_api.c
-            -sources regulon-c/src/ron_pid_config.c
-            -sources regulon-c/src/ron_pid_core.c
-            -sources regulon-c/src/ron_pid_fault.c
-            -sources regulon-c/src/ron_trajectory_scurve.c
-            -sources regulon-c/src/ron_trajectory_trap.c
-          )
+          source_args=()
+          while IFS= read -r src_file; do
+            source_args+=(-sources "$src_file")
+          done < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/lib_sources.txt)
 
           llvm-cov export "${object_args[@]}" \
             -instr-profile ${{ env.BUILD_DIR_COV }}/coverage.profdata \
@@ -419,6 +342,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p cbmc-results
+          mapfile -t SRC < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/lib_sources.txt)
           PROOFS=$(find regulon-c/test/formal -name "*_proof.c" 2>/dev/null || true)
           if [ -z "$PROOFS" ]; then
             echo "No CBMC harnesses yet - skipping formal verification."
@@ -431,23 +355,7 @@ jobs:
                  --unwind 65 --unwinding-assertions \
                  --bounds-check --pointer-check \
                  "$harness" \
-                 regulon-c/src/ron_autotune.c \
-                 regulon-c/src/ron_cascade.c \
-                 regulon-c/src/ron_feedforward.c \
-                 regulon-c/src/ron_filter.c \
-                 regulon-c/src/ron_gain_sched.c \
-                 regulon-c/src/ron_health.c \
-                 regulon-c/src/ron_kalman.c \
-                 regulon-c/src/ron_matrix.c \
-                 regulon-c/src/ron_metrics.c \
-                 regulon-c/src/ron_observer.c \
-                 regulon-c/src/ron_statespace.c \
-                 regulon-c/src/ron_pid_api.c \
-                 regulon-c/src/ron_pid_config.c \
-                 regulon-c/src/ron_pid_core.c \
-                 regulon-c/src/ron_pid_fault.c \
-                 regulon-c/src/ron_trajectory_scurve.c \
-                 regulon-c/src/ron_trajectory_trap.c \
+                 "${SRC[@]}" \
                  -I regulon-c/include \
                  -I regulon-c/src \
                  -I regulon-c/test/formal \
@@ -460,3 +368,88 @@ jobs:
         with:
           name: cbmc-results
           path: cbmc-results/
+
+  # ---------------------------------------------------------------------------
+  # Job 10: Source-manifest drift check (RON-IS-001 §8.1)
+  #
+  # The format / cppcheck / lizard / coverage / CBMC jobs read their file lists
+  # from scripts/lib_sources.txt and scripts/format_files.txt.  This job fails
+  # if a production source has been added without being registered in those
+  # manifests, so no file can silently escape a gate.
+  # ---------------------------------------------------------------------------
+  manifest-check:
+    name: Source Manifest Drift Check
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify manifests are in sync with the tree
+        run: bash regulon-c/scripts/check_manifest.sh
+
+  # ---------------------------------------------------------------------------
+  # Job 11: Minimal-subset smoke build (per-module selection)
+  #
+  # Builds the mandatory PID baseline only (every RON_ENABLE_* OFF) to prove the
+  # module compile-guards and the RON_HAVE_<MODULE> aggregate-header gating are
+  # correct.  Tests are disabled; this is a compile + link smoke check.
+  # ---------------------------------------------------------------------------
+  build-subset:
+    name: Build (Minimal Subset, PID-only)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc
+
+      - name: Configure (all optional modules OFF, tests OFF)
+        run: |
+          cmake -B regulon-c/build_subset -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF \
+                -DRON_ENABLE_FILTER=OFF \
+                -DRON_ENABLE_GAIN_SCHED=OFF \
+                -DRON_ENABLE_TRAJECTORY=OFF \
+                -DRON_ENABLE_CASCADE=OFF \
+                -DRON_ENABLE_KALMAN=OFF \
+                -DRON_ENABLE_STATESPACE=OFF \
+                -DRON_ENABLE_AUTOTUNE=OFF \
+                -DRON_ENABLE_HEALTH=OFF \
+                -DRON_ENABLE_METRICS=OFF \
+                -DCMAKE_C_COMPILER=gcc
+
+      - name: Build PID-only library
+        run: cmake --build regulon-c/build_subset --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 12: Host example programs (RON_BUILD_EXAMPLES)
+  #
+  # Examples are host-only documentation programs that link the full library via
+  # ron/ron.h.  Building them on GCC and Clang under -Werror catches public-API
+  # drift and warning regressions.  Examples are not part of any production gate.
+  # ---------------------------------------------------------------------------
+  build-examples:
+    name: Build Examples (GCC + Clang)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc clang
+
+      - name: Build and run examples (GCC)
+        run: |
+          cmake -B regulon-c/build_ex_gcc -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DRON_BUILD_EXAMPLES=ON \
+                -DCMAKE_C_COMPILER=gcc
+          cmake --build regulon-c/build_ex_gcc --parallel
+          ./regulon-c/build_ex_gcc/examples/pid_quickstart
+          ./regulon-c/build_ex_gcc/examples/cascade_control_loop
+
+      - name: Build examples (Clang)
+        run: |
+          cmake -B regulon-c/build_ex_clang -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DRON_BUILD_EXAMPLES=ON \
+                -DCMAKE_C_COMPILER=clang
+          cmake --build regulon-c/build_ex_clang --parallel
