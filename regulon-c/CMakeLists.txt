@@ -30,6 +30,7 @@ add_library(regulon STATIC
     src/ron_health.c
     src/ron_kalman.c
     src/ron_matrix.c
+    src/ron_metrics.c
     src/ron_observer.c
     src/ron_pid_config.c
     src/ron_pid_core.c

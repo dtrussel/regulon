@@ -925,8 +925,8 @@ that verify it. Every requirement **shall** appear in at least one row.
      - RON-TC-MET-005
    * - RON-FR-953
      - Zero overhead when disabled
-     - UT, PT
-     - RON-TC-MET-006, RON-TC-PERF-007
+     - UT, PT, FV
+     - RON-TC-MET-006, RON-TC-PERF-007, RON-TC-MET-001-FV
    * - RON-FR-954
      - Setpoint step detection / metric restart
      - UT
@@ -1299,6 +1299,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-MET-001 – MET-007
      - UT
      - RON-FR-950 – FR-954
+   * - RON-TC-MET-001-FV
+     - FV
+     - RON-FR-953, RON-SR-003
    * - RON-TC-SAFE-001 – SAFE-013
      - UT / FV
      - RON-SR-001 – SR-022
@@ -3232,6 +3235,36 @@ RON-TC-HLTH-008 — Health Monitor Does Not Modify Controller
 Metrics Tests (RON-TC-MET-xxx)
 ================================
 
+RON-TC-MET-001 — Accumulator Lifecycle and Defensive Paths
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-950, RON-FR-953
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - A caller-allocated ``ron_metrics_t`` instance.
+   * - **Stimulus**
+     - Initialise with NULL pointers and with each configuration field
+       driven invalid in turn (unknown mode; windowed mode with
+       ``window_steps = 0``; non-positive or non-finite ``band_pct`` /
+       ``step_thresh``; negative or non-finite ``settle_confirm``).  Exercise
+       ``reset``, ``enable``, ``get``, and ``step`` against NULL and
+       uninitialised handles and against non-finite ``r`` / ``y`` and
+       non-positive / non-finite ``dt``.
+   * - **Expected Output**
+     - Valid initialisation returns ``RON_FAULT_NONE`` and leaves the
+       accumulator initialised but DISABLED.  Every invalid configuration
+       returns ``RON_FAULT_CONFIG_INVALID``; NULL handles return
+       ``RON_FAULT_NULL_POINTER``; uninitialised handles and bad step
+       arguments return ``RON_FAULT_CONFIG_INVALID``.
+   * - **Pass Criterion**
+     - All defensive paths return the documented fault codes; a freshly
+       initialised accumulator reports ``enabled == false``.
+
 RON-TC-MET-002 — IAE / ISE / ITAE Computation
 -----------------------------------------------
 
@@ -3254,6 +3287,73 @@ RON-TC-MET-002 — IAE / ISE / ITAE Computation
    * - **Pass Criterion**
      - All three values within 0.01% of analytical result.
 
+RON-TC-MET-003 — Peak-Overshoot Tracking
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-951
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Metrics accumulator enabled; ``step_thresh = 0.5``.
+   * - **Stimulus**
+     - A unit step (r: 0 → 1) followed by a process-variable trajectory that
+       rises, peaks at :math:`y = 1.2`, then recovers to the target.
+   * - **Expected Output**
+     - :math:`peak\_overshoot = (1.2 - 1.0) / 1.0 \times 100 = 20\,\%`.
+   * - **Pass Criterion**
+     - Reported peak overshoot is within 0.5 % of 20 %.
+
+RON-TC-MET-004 — Rise-Time and Settling-Time Tracking
+------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-951
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Metrics accumulator enabled; ``band_pct = 0.02``,
+       ``settle_confirm = 0.05``, ``dt = 0.01``.
+   * - **Stimulus**
+     - A unit step (ref 0, target 1) driven by a linear ramp that crosses the
+       10 % level at t = 0.03 s and the 90 % level at t = 0.19 s, then holds at
+       the target so the loop settles within the band.
+   * - **Expected Output**
+     - :math:`rise\_time = 0.19 - 0.03 = 0.16\,\mathrm{s}`; settling time is
+       confirmed five samples after the band is entered (≈ 0.25 s).
+   * - **Pass Criterion**
+     - Rise time within 0.02 s of 0.16 s; settling time positive and within
+       0.03 s of 0.25 s.
+
+RON-TC-MET-005 — Windowed vs Cumulative Accumulation
+-----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-952
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Two accumulators fed identical signals: one cumulative, one windowed
+       with ``window_steps = 10``.
+   * - **Stimulus**
+     - 25 steps with constant error :math:`e = 0.5`, :math:`dt = 0.01`.
+   * - **Expected Output**
+     - Cumulative :math:`IAE = 0.5 \times 0.01 \times 25 = 0.125`.  Windowed
+       :math:`IAE` reflects the current (third) window of five samples:
+       :math:`0.5 \times 0.01 \times 5 = 0.025`.
+   * - **Pass Criterion**
+     - Both integrals within 0.0001 of the analytical values, and the windowed
+       integral is strictly less than the cumulative integral.
+
 RON-TC-MET-006 — Zero Overhead When Disabled
 ----------------------------------------------
 
@@ -3269,6 +3369,54 @@ RON-TC-MET-006 — Zero Overhead When Disabled
        Compare outputs.
    * - **Pass Criterion**
      - Controller outputs identical. Metrics state unchanged when disabled.
+
+RON-TC-MET-007 — Setpoint-Step Detection Restarts Transients
+-------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-954
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Metrics accumulator enabled; ``step_thresh = 0.5``.
+   * - **Stimulus**
+     - A quiescent phase with ``r = y = 0`` (zero step, no transient), then a
+       setpoint step (r: 0 → 1, :math:`|\Delta r| = 1.0 \ge 0.5`) followed by an
+       overshooting process-variable trajectory.
+   * - **Expected Output**
+     - During the zero-step phase the transient metrics stay at their unset
+       sentinels (rise / settling = −1, overshoot = 0).  After the step the
+       reference frame snaps to ``(step_ref = 0, step_target = 1, step_size =
+       1)`` and a fresh overshoot is measured against the new target.
+   * - **Pass Criterion**
+     - Transient metrics remain unset until the step; the post-step reference
+       frame matches the new step and peak overshoot is measured (≈ 20 %).
+
+RON-TC-MET-001-FV — No Heap Allocation in Metrics (Formal)
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-951, RON-FR-953, RON-SR-003
+   * - **Level**
+     - FV / CBMC
+   * - **Preconditions**
+     - A cumulative metrics configuration constructed entirely in stack
+       storage over bounded, finite ``(r, y, dt)``; the harness defines stub
+       ``malloc``, ``calloc``, ``realloc``, and ``free`` symbols whose bodies
+       assert unreachable.
+   * - **Stimulus**
+     - One lifecycle: ``ron_metrics_init`` → ``ron_metrics_enable`` →
+       ``ron_metrics_step``.
+   * - **Pass Criterion**
+     - CBMC reports no allocator-stub assertion failures, the step returns
+       ``RON_FAULT_NONE``, and the IAE / ISE integrals are monotone
+       non-decreasing across the step.
 
 ------------------------------------------------------------------------
 
@@ -3471,7 +3619,7 @@ must reach 100% before a release is considered verified.
      - All mapped
    * - RON-FR-950 – FR-954 (Metrics)
      - 5
-     - 7 UT
+     - 7 UT + 1 FV
      - All mapped
    * - RON-PR-001 – PR-022 (Performance)
      - 10

@@ -452,3 +452,81 @@ same traceability and quality evidence bar.
   ARM GCC cross-compile smoke build remain CI responsibilities.  The dynamic
   harness discovery picks up `health_no_heap_proof.c` automatically once `cbmc`
   is available.
+
+## Phase 10 Runtime Metrics Opening Evidence
+
+- `ron_metrics.h` / `ron_metrics.c` are now active in the default C11 build,
+  replacing the previous `ron_metrics.c` stub.  The module is a passive runtime
+  performance metrics accumulator: it attaches to any controller and quantifies
+  closed-loop quality each step from `(r, y, dt)` (`RON-FR-950`), computing the
+  error integrals IAE, ISE, ITAE and the step-response transients peak
+  overshoot, rise time, and settling time (`RON-FR-951`).  It supports
+  cumulative and windowed accumulation (`RON-FR-952`), is enable/disable at
+  runtime and disabled by default with a zero-overhead disabled path
+  (`RON-FR-953`), and auto-restarts the transient metrics when it detects a
+  setpoint step `|Δr| >= step_thresh` (`RON-FR-954`).  The header includes
+  `ron/ron_pid_types.h` for the shared `ron_float_t` / `ron_fault_t`
+  conventions and carries no PID, health, or `ron_matrix` dependency.
+
+- The per-step update implements the SADS `ron_metrics` pseudocode directly:
+  the error integrals always accumulate (ITAE weighted by the elapsed time
+  since the last step / window restart), while the transient metrics are
+  evaluated only when the captured `|step_size|` exceeds `RON_METRICS_MIN_STEP`
+  so the divide by the step is never taken on a zero step.  Rise time is the
+  10 %→90 % fraction crossing, overshoot is the sign-normalised peak beyond the
+  target (a refinement of the SADS positive-step form that also handles
+  downward steps), and settling uses the same nearest-sample duration rounding
+  as the health monitor so the band dwell lands deterministically under single
+  precision.  Windowed mode rolls every `window_steps` samples by restarting the
+  integrals and timers while keeping the step reference frame.  No new
+  `ron_fault_t` bits were added — misuse reuses `RON_FAULT_NULL_POINTER` /
+  `RON_FAULT_CONFIG_INVALID`.
+
+- `test_ron_metrics.c` covers `RON-TC-MET-001` through `RON-TC-MET-007`,
+  including the init / enable / reset / get / step lifecycle and full per-field
+  configuration and defensive validation, the closed-form IAE/ISE/ITAE
+  reference (constant error 0.5 over 100 steps → 0.5 / 0.25 / 0.2525), peak
+  overshoot, rise and settling tracking against analytic step responses,
+  windowed vs cumulative accumulation, the disabled zero-overhead / no-state
+  change path alongside a 200-step PID loop whose output is bit-identical with
+  metrics enabled or disabled, and setpoint-step detection restarting the
+  transient frame.
+
+- `regulon-c/test/formal/metrics_no_heap_proof.c` adds the `RON-TC-MET-001-FV`
+  CBMC harness proving that one bounded finite step performs no heap allocation
+  (`RON-SR-003`) and only ever adds non-negative contributions to the IAE / ISE
+  integrals (`RON-FR-951`, supporting the `RON-FR-953` passive property); it is
+  discovered automatically by the dynamic `*_proof.c` enumeration in the verify
+  script and CI.
+
+- `regulon-c/scripts/verify_pid.ps1` and `.github/workflows/ci_c.yml` now list
+  `ron_metrics.c` and `ron_metrics.h` in the format, cppcheck/MISRA, complexity,
+  coverage, and CBMC source sets.  The library `add_library(regulon STATIC ...)`
+  source list and the `regulon-c/test/CMakeLists.txt` test enumeration now
+  include `ron_metrics.c` and `test_ron_metrics` respectively.
+
+- Local evidence after enabling the Phase 10 slice:
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON` and
+    `cmake --build regulon-c/build`: pass, warning-free under
+    `-Wall -Wextra -Wpedantic -Werror -Wconversion -Wshadow -Wundef`.
+  - `ctest --test-dir regulon-c/build`: 14/14 suites pass, including the new
+    `test_ron_metrics`.
+  - Default and double-precision (`RON_USE_DOUBLE=ON`) GCC builds, standalone
+    Clang build, and GCC `-fsanitize=address,undefined -fno-sanitize-recover=all`
+    build: all 14 suites pass on each configuration.
+  - `clang-format --dry-run --Werror` over the new source / header / test /
+    harness and `gcc -std=c11 -Wall -Wextra -Werror -fsyntax-only` over
+    `metrics_no_heap_proof.c`: clean.
+  - `gcov -b` on `ron_metrics.c`: 100% line and 100% branch coverage (both
+    directions taken).
+  - `git diff --check`: passes.
+
+### Residual Tool Gaps (Phase 10)
+
+- As in Phases 6 through 9, this verification host lacks the clang LLVM coverage
+  / ASan runtime libraries, `cppcheck`, `lizard`, `cbmc`, and
+  `arm-none-eabi-gcc`; the LLVM `llvm-cov` 100% gate, MISRA static analysis,
+  lizard complexity (CCN <= 10), the `RON-TC-MET-001-FV` CBMC proof, and the
+  ARM GCC cross-compile smoke build remain CI responsibilities.  The dynamic
+  harness discovery picks up `metrics_no_heap_proof.c` automatically once `cbmc`
+  is available.
