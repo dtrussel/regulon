@@ -106,3 +106,6 @@ ron_add_test(test_ron_autotune  unit/test_ron_autotune.c)
 
 # Sprint 12 - Control-loop health monitor (TC-HLTH-001..010)
 ron_add_test(test_ron_health    unit/test_ron_health.c)
+
+# Sprint 13 - Runtime performance metrics (TC-MET-001..007)
+ron_add_test(test_ron_metrics   unit/test_ron_metrics.c)

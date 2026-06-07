@@ -52,6 +52,22 @@ Unreleased C11 PID Vertical Slice
 
 Added
 ~~~~~
+- ``regulon-c/include/ron/ron_metrics.h`` /
+  ``regulon-c/src/ron_metrics.c``: added the complete C11 Phase 10 runtime
+  performance metrics slice (replacing the prior stub).  The passive
+  accumulator attaches to any controller and quantifies closed-loop quality
+  each step from ``(r, y, dt)`` (RON-FR-950), computing the error integrals
+  IAE, ISE, ITAE and the step-response transients peak overshoot, rise time,
+  and settling time (RON-FR-951).  It supports cumulative and windowed
+  accumulation (RON-FR-952), is enable/disable at runtime and disabled by
+  default with a zero-overhead disabled path (RON-FR-953), and auto-restarts
+  the transient metrics on a detected setpoint step (RON-FR-954).  The
+  authoritative metric set is the SRS/IS/SADS list (no RMSE / steady-state
+  error).  Verified by ``RON-TC-MET-001`` through ``RON-TC-MET-007`` Unity
+  tests and the ``metrics_no_heap_proof.c`` CBMC no-heap / monotone-integral
+  harness (``RON-TC-MET-001-FV``), with 100% line and branch coverage on
+  ``ron_metrics.c``.
+
 - ``regulon-c/include/ron/ron_health.h`` /
   ``regulon-c/src/ron_health.c``: added the complete C11 Phase 9 control-loop
   health monitor slice (replacing the prior stub).  The passive observer

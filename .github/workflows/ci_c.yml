@@ -146,6 +146,7 @@ jobs:
             regulon-c/src/ron_health.c \
             regulon-c/src/ron_kalman.c \
             regulon-c/src/ron_matrix.c \
+            regulon-c/src/ron_metrics.c \
             regulon-c/src/ron_observer.c \
             regulon-c/src/ron_statespace.c \
             regulon-c/src/ron_pid_api.c \
@@ -160,6 +161,7 @@ jobs:
             regulon-c/include/ron/ron_gain_sched.h \
             regulon-c/include/ron/ron_health.h \
             regulon-c/include/ron/ron_kalman.h \
+            regulon-c/include/ron/ron_metrics.h \
             regulon-c/include/ron/ron_observer.h \
             regulon-c/include/ron/ron_statespace.h \
             regulon-c/include/ron/ron_platform.h \
@@ -205,6 +207,7 @@ jobs:
                    regulon-c/src/ron_health.c \
                    regulon-c/src/ron_kalman.c \
                    regulon-c/src/ron_matrix.c \
+                   regulon-c/src/ron_metrics.c \
                    regulon-c/src/ron_observer.c \
                    regulon-c/src/ron_statespace.c \
                    regulon-c/src/ron_pid_api.c \
@@ -226,6 +229,7 @@ jobs:
             regulon-c/src/ron_health.c \
             regulon-c/src/ron_kalman.c \
             regulon-c/src/ron_matrix.c \
+            regulon-c/src/ron_metrics.c \
             regulon-c/src/ron_observer.c \
             regulon-c/src/ron_statespace.c \
             regulon-c/src/ron_pid_api.c \
@@ -300,6 +304,7 @@ jobs:
             -sources regulon-c/src/ron_health.c
             -sources regulon-c/src/ron_kalman.c
             -sources regulon-c/src/ron_matrix.c
+            -sources regulon-c/src/ron_metrics.c
             -sources regulon-c/src/ron_observer.c
             -sources regulon-c/src/ron_statespace.c
             -sources regulon-c/src/ron_pid_api.c
@@ -434,6 +439,7 @@ jobs:
                  regulon-c/src/ron_health.c \
                  regulon-c/src/ron_kalman.c \
                  regulon-c/src/ron_matrix.c \
+                 regulon-c/src/ron_metrics.c \
                  regulon-c/src/ron_observer.c \
                  regulon-c/src/ron_statespace.c \
                  regulon-c/src/ron_pid_api.c \

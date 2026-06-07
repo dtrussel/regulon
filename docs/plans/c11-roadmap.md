@@ -562,6 +562,19 @@ Exit criteria:
 
 ## Phase 10: Runtime Performance Metrics
 
+Status: **COMPLETE** (2026-06-07). Closure evidence is recorded in
+`docs/plans/c/c11-phase-10-metrics.md` and `docs/plans/c/c11-rollout.md`. The
+passive `ron_metrics` accumulator computes the error integrals (IAE, ISE, ITAE)
+and the step-response transients (peak overshoot, rise time, settling time) once
+per step from `(r, y, dt)`, supports cumulative and windowed modes, is
+disabled by default with a zero-overhead disabled path, and auto-restarts the
+transient metrics on a detected setpoint step. The authoritative metric set is
+the SRS/IS/SADS list above (the earlier "RMSE / steady-state error" wording in
+this section is superseded). Eight tests (`RON-TC-MET-001` – `MET-007` plus the
+`RON-TC-MET-001-FV` no-heap CBMC proof) all pass with 100 % line/branch coverage
+on `ron_metrics.c`; residual local CBMC/cppcheck/lizard/ARM gaps are
+tool-availability gaps covered by CI wiring.
+
 Requirement scope:
 
 - `RON-FR-950` through `RON-FR-954`
@@ -574,8 +587,8 @@ SADS/IS scope:
 
 Feature scope:
 
-- Error-integral metrics such as IAE, ISE, ITAE, and RMSE as specified.
-- Overshoot, settling, and steady-state error tracking.
+- Error-integral metrics: IAE, ISE, ITAE (per SRS/IS/SADS).
+- Peak-overshoot, rise-time, and settling-time tracking.
 - Enable/disable/reset behavior.
 - Setpoint-step restart handling.
 - Fixed-window or cumulative modes as defined by IS/SADS.
