@@ -498,6 +498,17 @@ void test_ron_tc_filt_013_biquad_coefficient_helpers_generate_valid_sections(voi
     TEST_ASSERT_TRUE(hp.b0 > RON_FLOAT_C(0.0));
     TEST_ASSERT_TRUE(bp.b0 > RON_FLOAT_C(0.0));
     TEST_ASSERT_TRUE(notch.b0 > RON_FLOAT_C(0.0));
+
+    /* High cut-off (fc=300, dt=1ms -> omega=1.885 > PI/2) exercises the
+     * upper-quadrant reflection path of the libm-free sin/cos helper. */
+    {
+        ron_biquad_section_t lp_hi;
+
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                                ron_biquad_coeff_lp(&lp_hi, RON_FLOAT_C(300.0), TEST_FILTER_Q,
+                                                    TEST_FILTER_DT));
+        TEST_ASSERT_TRUE(lp_hi.b0 > RON_FLOAT_C(0.0));
+    }
 }
 
 /* Satisfies: RON-FR-122 | Test: RON-TC-FILT-014 */

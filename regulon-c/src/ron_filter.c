@@ -13,12 +13,29 @@
 
 #include "ron/ron_filter.h"
 
-#include <math.h>
-
 #define RON_FILTER_TWO_PI RON_FLOAT_C(6.28318530717958647692)
 #define RON_FILTER_HALF RON_FLOAT_C(0.5)
 #define RON_FILTER_TWO RON_FLOAT_C(2.0)
 #define RON_FILTER_FOUR RON_FLOAT_C(4.0)
+
+/* Double-precision constants for the libm-free sin/cos approximation used by the
+ * biquad coefficient helpers.  Working in double keeps the cast-to-float result
+ * well within float precision; the library therefore needs no <math.h>. */
+#define RON_FILTER_PI 3.14159265358979323846
+#define RON_FILTER_PI_2 1.57079632679489661923
+
+/* Reciprocal factorials 1/n! — the Taylor coefficients of the sin/cos series. */
+#define RON_FILTER_RF2 (1.0 / 2.0)
+#define RON_FILTER_RF3 (1.0 / 6.0)
+#define RON_FILTER_RF4 (1.0 / 24.0)
+#define RON_FILTER_RF5 (1.0 / 120.0)
+#define RON_FILTER_RF6 (1.0 / 720.0)
+#define RON_FILTER_RF7 (1.0 / 5040.0)
+#define RON_FILTER_RF8 (1.0 / 40320.0)
+#define RON_FILTER_RF9 (1.0 / 362880.0)
+#define RON_FILTER_RF10 (1.0 / 3628800.0)
+#define RON_FILTER_RF11 (1.0 / 39916800.0)
+#define RON_FILTER_RF12 (1.0 / 479001600.0)
 
 typedef enum {
     FILTER_KIND_LP    = 0,
@@ -129,7 +146,55 @@ static ron_fault_t filter_validate_coeff_inputs(const ron_biquad_section_t *s,
     return fault;
 }
 
-/* Satisfies: RON-FR-122 | Test: RON-TC-FILT-013, RON-TC-FILT-014 */
+/* Taylor series for sin on the reduced range [0, PI/2] (Horner form, double). */
+/* Satisfies: RON-FR-110 | Test: RON-TC-FILT-005, RON-TC-FILT-013 */
+static double filter_sin_unit(double x)
+{
+    double x2 = x * x;
+    double p  = -RON_FILTER_RF11;
+
+    p = (p * x2) + RON_FILTER_RF9;
+    p = (p * x2) - RON_FILTER_RF7;
+    p = (p * x2) + RON_FILTER_RF5;
+    p = (p * x2) - RON_FILTER_RF3;
+    p = (p * x2) + 1.0;
+    return x * p;
+}
+
+/* Taylor series for cos on the reduced range [0, PI/2] (Horner form, double). */
+/* Satisfies: RON-FR-110 | Test: RON-TC-FILT-005, RON-TC-FILT-013 */
+static double filter_cos_unit(double x)
+{
+    double x2 = x * x;
+    double p  = RON_FILTER_RF12;
+
+    p = (p * x2) - RON_FILTER_RF10;
+    p = (p * x2) + RON_FILTER_RF8;
+    p = (p * x2) - RON_FILTER_RF6;
+    p = (p * x2) + RON_FILTER_RF4;
+    p = (p * x2) - RON_FILTER_RF2;
+    p = (p * x2) + 1.0;
+    return p;
+}
+
+/* Bounded libm-free sine/cosine for x in (0, PI) — the validated biquad omega
+ * range (frequency < Nyquist guarantees omega < PI).  Reflects (PI/2, PI) into
+ * [0, PI/2] via sin(x)=sin(PI-x) and cos(x)=-cos(PI-x). */
+/* Satisfies: RON-FR-110 | Test: RON-TC-FILT-005, RON-TC-FILT-013 */
+static void filter_sincos(double x, double *sin_out, double *cos_out)
+{
+    double reduced  = x;
+    double cos_sign = 1.0;
+
+    if (x > RON_FILTER_PI_2) {
+        reduced  = RON_FILTER_PI - x;
+        cos_sign = -1.0;
+    }
+    *sin_out = filter_sin_unit(reduced);
+    *cos_out = cos_sign * filter_cos_unit(reduced);
+}
+
+/* Satisfies: RON-FR-110, RON-FR-122 | Test: RON-TC-FILT-005, RON-TC-FILT-013 */
 static ron_fault_t filter_coeff_common(ron_biquad_section_t *s, ron_float_t frequency,
                                        ron_float_t Q, ron_float_t dt, filter_coeff_kind_t kind)
 {
@@ -138,8 +203,14 @@ static ron_fault_t filter_coeff_common(ron_biquad_section_t *s, ron_float_t freq
     fault = filter_validate_coeff_inputs(s, frequency, Q, dt);
     if (fault == RON_FAULT_NONE) {
         ron_float_t omega = RON_FILTER_TWO_PI * frequency * dt;
-        ron_float_t c     = (ron_float_t) cos((double) omega);
-        ron_float_t sn    = (ron_float_t) sin((double) omega);
+        double sin_val;
+        double cos_val;
+        ron_float_t c;
+        ron_float_t sn;
+
+        filter_sincos((double) omega, &sin_val, &cos_val);
+        c                 = (ron_float_t) cos_val;
+        sn                = (ron_float_t) sin_val;
         ron_float_t alpha = sn / (RON_FILTER_TWO * Q);
         ron_float_t norm  = RON_FLOAT_C(1.0) / (RON_FLOAT_C(1.0) + alpha);
 

@@ -20,7 +20,7 @@ test/formal/       <- CBMC harnesses (*_proof.c)
 - **Production C headers/sources** use `@doc RON-IS-001`; formal harnesses and test sources may use `@doc RON-TP-001`.
 - **Every function** must have `/* Satisfies: RON-FR-xxx | Test: RON-TC-xxx-NNN */` above it.
 - **Naming**: public `ron_<module>_<verb>`, internal `static <module>_<verb>`, types `ron_<noun>_t`, macros `RON_<SCREAMING>`.
-- **Permitted production headers**: `<stdint.h>`, `<stdbool.h>`, `<float.h>`, `<stddef.h>`. `<math.h>` only in coefficient helpers.
+- **Permitted production headers**: `<stdint.h>`, `<stdbool.h>`, `<float.h>`, `<stddef.h>`. The production library is `<math.h>`-free (the biquad coefficient helpers use an internal bounded sin/cos), so it links against a freestanding/minimal libc with no libm.
 - **Error pattern**: null-check -> init-check -> fault-latch -> input validation -> computation (in that order, every public function).
 - **Coding standard**: MISRA C:2023. Run `cppcheck --addon=misra.py --error-exitcode=1 regulon-c/src/` from the repository root.
 
