@@ -69,5 +69,11 @@
 #include "ron/ron_observer.h"
 #include "ron/ron_statespace.h"
 #endif
+#if RON_HAVE_LQR
+#include "ron/ron_lqr.h"
+#endif
+#if RON_HAVE_LQG
+#include "ron/ron_lqg.h"
+#endif
 
 #endif /* RON_RON_H */

@@ -57,6 +57,12 @@ Revision History
        health monitor, performance metrics (RON-FR-100 – FR-954).
        Updated traceability matrix.
      - TBD
+   * - 1.2.0
+     - 2026-06-08
+     - Added requirements for: Linear Quadratic Regulator (RON-FR-730 –
+       FR-739) and Linear Quadratic Gaussian controller (RON-FR-750 –
+       FR-759). Updated traceability matrix.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -1266,6 +1272,126 @@ Luenberger Observer
 
 ------------------------------------------------------------------------
 
+Linear Quadratic Regulator (LQR)
+==================================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 88
+
+   * - ID
+     - Requirement
+   * - RON-FR-730
+     - The library **shall** provide a discrete-time MIMO Linear Quadratic
+       Regulator whose control law is
+       :math:`u(k) = -K\hat{x}(k) + K_r r(k)`, where :math:`K` is an
+       :math:`m \times n` gain matrix, :math:`r` and :math:`u` are
+       :math:`m`-vectors, and :math:`\hat{x}` is the :math:`n`-dimensional
+       state estimate.
+   * - RON-FR-731
+     - The LQR **shall** accept a state cost matrix :math:`Q_{cost}` (n×n,
+       symmetric positive semi-definite) and an input cost matrix
+       :math:`R_{cost}` (m×m, symmetric positive definite) as configuration,
+       which are used to compute the optimal gain by solving the Discrete
+       Algebraic Riccati Equation (DARE).
+   * - RON-FR-732
+     - The LQR **shall** support a pre-computed gain mode in which :math:`K`
+       and :math:`K_r` are supplied directly by the caller, bypassing the
+       DARE solver entirely.
+   * - RON-FR-733
+     - When operating in DARE mode, the solver **shall** iterate the value
+       recursion
+       :math:`P_{i+1} = Q_{cost} + A^\top P_i A - A^\top P_i B (R_{cost} + B^\top P_i B)^{-1} B^\top P_i A`
+       until convergence within ``dare_tol`` or until ``dare_max_iter``
+       iterations; it **shall** return ``RON_FAULT_CONFIG_INVALID`` if
+       convergence is not reached within the iteration limit.
+   * - RON-FR-734
+     - The LQR **shall** accept state estimates from three sources, selectable
+       at configuration time: an external caller-supplied vector, an embedded
+       Luenberger observer, or an embedded Kalman filter (reusing the
+       ``ron_obs_t`` and ``ron_kf_t`` components).
+   * - RON-FR-735
+     - Integral augmentation for steady-state output regulation **shall** be
+       supported via an augmented error accumulator with configurable gain
+       and per-input clamp limits.
+   * - RON-FR-736
+     - Per-input output saturation, per-input rate limiting, and fault
+       detection (NaN/Inf inputs and outputs, null-pointer, uninitialised)
+       **shall** apply, consistent with the fault and status model defined
+       for the PID module.
+   * - RON-FR-737
+     - All matrix dimensions **shall** be bounded by the compile-time
+       constants ``RON_LQR_MAX_STATES`` (state dimension) and
+       ``RON_LQR_MAX_INPUTS`` (input dimension).
+   * - RON-FR-738
+     - The gain matrix :math:`K` and reference pre-gain :math:`K_r` **shall**
+       be updatable at runtime via a dedicated setter, without requiring
+       re-initialisation of the instance.
+   * - RON-FR-739
+     - The solved DARE solution :math:`P` and the resulting gain :math:`K`
+       (whether computed by DARE or supplied pre-computed) **shall** be
+       readable via a getter for offline inspection and logging.
+
+------------------------------------------------------------------------
+
+Linear Quadratic Gaussian Controller (LQG)
+============================================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 88
+
+   * - ID
+     - Requirement
+   * - RON-FR-750
+     - The library **shall** provide a discrete-time MIMO Linear Quadratic
+       Gaussian controller that combines an optimal LQR state-feedback law
+       with a Kalman filter state estimator in a single caller-owned instance.
+   * - RON-FR-751
+     - The LQG **shall** be parameterised by system matrices :math:`A`
+       (n×n), :math:`B` (n×m), observation matrix :math:`H` (p×n), process
+       noise covariance :math:`Q_{noise}` (n×n), measurement noise covariance
+       :math:`R_{noise}` (p×p), initial estimate :math:`\hat{x}_0` and
+       covariance :math:`P_0`, and cost matrices :math:`Q_{cost}` (n×n),
+       :math:`R_{cost}` (m×m).
+   * - RON-FR-752
+     - The separation principle **shall** hold: the Kalman gain
+       :math:`K_f` and the LQR gain :math:`K` are computed by two
+       independent DARE problems and may be independently validated.
+   * - RON-FR-753
+     - A ``ron_lqg_predict`` step **shall** advance the embedded Kalman
+       filter prediction using the most recently applied control input and is
+       called before measurements are available.
+   * - RON-FR-754
+     - A ``ron_lqg_update`` step **shall** apply a Kalman correction from an
+       :math:`p`-vector measurement and **shall** skip the correction silently
+       when the ``z_valid`` flag is false (measurement dropout), consistent
+       with RON-FR-605.
+   * - RON-FR-755
+     - A ``ron_lqg_step`` function **shall** compute the MIMO control output
+       :math:`u(k) = -K\hat{x}(k) + K_r r(k)` using the current Kalman
+       state estimate, apply per-input saturation and rate limiting, and
+       return the output vector and a status word.
+   * - RON-FR-756
+     - Both the LQR gain (DARE with :math:`Q_{cost}`, :math:`R_{cost}`) and
+       the Kalman gain (dual DARE with :math:`Q_{noise}`, :math:`R_{noise}`)
+       **shall** be solved once at ``ron_lqg_init`` time; neither gain **shall**
+       be recomputed per step.
+   * - RON-FR-757
+     - Per-input output saturation, per-input rate limiting, and fault
+       detection **shall** apply, consistent with the fault and status model
+       defined for the PID module and RON-FR-736.
+   * - RON-FR-758
+     - The full Kalman state estimate :math:`\hat{x}(k)` **shall** be
+       accessible via a getter for debugging and feed-forward purposes.
+   * - RON-FR-759
+     - All sub-component storage — Kalman filter, DARE solutions, gain
+       matrices, integrators — **shall** reside in caller-owned static
+       storage within the ``ron_lqg_t`` instance. No dynamic allocation,
+       recursion, or VLAs are used.
+
+------------------------------------------------------------------------
+
 Auto-Tuning (Relay Feedback)
 ==============================
 
@@ -1458,6 +1584,10 @@ Appendix C: Traceability Matrix (Summary)
      - RON-FR-700 – FR-704
    * - Luenberger observer
      - RON-FR-720 – FR-723
+   * - Linear Quadratic Regulator
+     - RON-FR-730 – FR-739
+   * - Linear Quadratic Gaussian controller
+     - RON-FR-750 – FR-759
    * - Auto-tuning (relay feedback)
      - RON-FR-800 – FR-807
    * - Control loop health monitor

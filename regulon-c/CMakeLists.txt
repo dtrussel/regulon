@@ -22,9 +22,19 @@ include(cmake/ron_options.cmake)
 # Module dependency resolution
 #
 # State-space depends on the Kalman filter (ron_statespace.c calls ron_kf_*),
-# so enabling state-space forces the Kalman module on.  Kalman, state-space,
-# and observer all require the internal fixed-size matrix helper.
+# so enabling state-space forces the Kalman module on.  LQR requires both
+# Kalman and state-space (shares the observer and matrix helper).  LQG
+# requires LQR (and therefore transitively Kalman + state-space).  Kalman,
+# state-space, observer, LQR, and LQG all require the internal matrix helper.
 # ---------------------------------------------------------------------------
+if(RON_ENABLE_LQG AND NOT RON_ENABLE_LQR)
+    message(STATUS "regulon: RON_ENABLE_LQG forces RON_ENABLE_LQR ON")
+    set(RON_ENABLE_LQR ON CACHE BOOL "" FORCE)
+endif()
+if(RON_ENABLE_LQR AND NOT RON_ENABLE_STATESPACE)
+    message(STATUS "regulon: RON_ENABLE_LQR forces RON_ENABLE_STATESPACE ON")
+    set(RON_ENABLE_STATESPACE ON CACHE BOOL "" FORCE)
+endif()
 if(RON_ENABLE_STATESPACE AND NOT RON_ENABLE_KALMAN)
     message(STATUS "regulon: RON_ENABLE_STATESPACE forces RON_ENABLE_KALMAN ON")
     set(RON_ENABLE_KALMAN ON CACHE BOOL "" FORCE)
@@ -33,7 +43,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Generated module-availability header (ron/ron_modules.h)
 # ---------------------------------------------------------------------------
-foreach(_mod FILTER GAIN_SCHED TRAJECTORY CASCADE KALMAN STATESPACE AUTOTUNE HEALTH METRICS)
+foreach(_mod FILTER GAIN_SCHED TRAJECTORY CASCADE KALMAN STATESPACE LQR LQG AUTOTUNE HEALTH METRICS)
     if(RON_ENABLE_${_mod})
         set(RON_HAVE_${_mod} 1)
     else()
@@ -82,7 +92,7 @@ if(RON_ENABLE_METRICS)
     list(APPEND RON_LIB_SOURCES src/ron_metrics.c)
 endif()
 # Matrix / state-estimation modules (share the internal ron_matrix helper).
-if(RON_ENABLE_KALMAN OR RON_ENABLE_STATESPACE)
+if(RON_ENABLE_KALMAN OR RON_ENABLE_STATESPACE OR RON_ENABLE_LQR OR RON_ENABLE_LQG)
     list(APPEND RON_LIB_SOURCES src/ron_matrix.c)
 endif()
 if(RON_ENABLE_KALMAN)
@@ -90,6 +100,12 @@ if(RON_ENABLE_KALMAN)
 endif()
 if(RON_ENABLE_STATESPACE)
     list(APPEND RON_LIB_SOURCES src/ron_statespace.c src/ron_observer.c)
+endif()
+if(RON_ENABLE_LQR)
+    list(APPEND RON_LIB_SOURCES src/ron_lqr.c)
+endif()
+if(RON_ENABLE_LQG)
+    list(APPEND RON_LIB_SOURCES src/ron_lqg.c)
 endif()
 
 # ---------------------------------------------------------------------------

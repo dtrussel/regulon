@@ -57,6 +57,12 @@ Revision History
        auto-tuning, health monitor, performance metrics. Updated module
        decomposition and dependency diagram.
      - TBD
+   * - 1.2.0
+     - 2026-06-08
+     - Added module design for ron_lqr (Linear Quadratic Regulator) and
+       ron_lqg (Linear Quadratic Gaussian controller). Updated dependency
+       diagram. Added design decisions DD-19 and DD-20.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -1749,6 +1755,212 @@ Luenberger Observer Pseudocode
 
 ------------------------------------------------------------------------
 
+Module Design: ron_lqr
+========================
+
+Data Structures
+---------------
+
+.. code-block:: none
+
+   ENUM LqrSource:
+     LQR_SOURCE_EXTERNAL | LQR_SOURCE_LUENBERGER | LQR_SOURCE_KALMAN
+
+   ENUM LqrGainMode:
+     LQR_GAIN_PRECOMPUTED | LQR_GAIN_DARE
+
+   STRUCTURE LqrConfig:
+     n, m               : uint8_t     -- state dim (1..RON_LQR_MAX_STATES),
+                                         input dim (1..RON_LQR_MAX_INPUTS)
+     source             : LqrSource
+     gain_mode          : LqrGainMode
+     x_ext              : ptr         -- external state pointer (EXTERNAL)
+     A[n][n], B[n][m]   : RON_FLOAT  -- system matrices (for DARE / observer)
+     Q_cost[n][n]       : RON_FLOAT  -- state cost matrix (DARE mode)
+     R_cost[m][m]       : RON_FLOAT  -- input cost matrix (DARE mode)
+     dare_max_iter      : uint16_t    -- iteration limit (0 → default 200)
+     dare_tol           : RON_FLOAT  -- convergence tolerance
+     K[m][n]            : RON_FLOAT  -- initial / pre-computed feedback gain
+     Kr[m]              : RON_FLOAT  -- reference pre-gain (one per input)
+     use_integral       : bool
+     Ki_aug[m]          : RON_FLOAT  -- per-input integral gain
+     C_out[m][n]        : RON_FLOAT  -- output selection rows for integral error
+     i_min[m], i_max[m] : RON_FLOAT  -- integral clamp per input
+     u_min[m], u_max[m] : RON_FLOAT  -- output saturation per input
+     du_max[m]          : RON_FLOAT  -- rate limit per input
+     obs_cfg            : ObsConfig   -- LUENBERGER source
+     kf_cfg             : KfConfig    -- KALMAN source
+
+   STRUCTURE LqrState:
+     K_solved[m][n]     : RON_FLOAT  -- gain in use (from config or DARE)
+     P_solved[n][n]     : RON_FLOAT  -- DARE solution (zeros in PRECOMPUTED mode)
+     integral[m]        : RON_FLOAT  -- per-input integral accumulator
+     u_prev[m]          : RON_FLOAT  -- previous output (rate limiting)
+     faults             : FaultCode
+     dare_converged     : bool
+     is_initialised     : bool
+
+   STRUCTURE LqrInstance:
+     cfg                : LqrConfig
+     state              : LqrState
+     observer           : ron_obs_t   -- used when source = LUENBERGER
+     kalman             : ron_kf_t    -- used when source = KALMAN
+
+DARE Solver Pseudocode (called once during ron_lqr_init, DARE mode only)
+-------------------------------------------------------------------------
+
+.. code-block:: none
+
+   OPERATION dare_solve(A[n][n], B[n][m], Q[n][n], R[m][m],
+                        max_iter, tol, [out] K[m][n], [out] P[n][n]) → FaultCode
+     P ← Q
+     FOR i IN 0 .. max_iter-1:
+       M   ← R + B_T * P * B               -- m×m, Cholesky-decomposed
+       IF NOT cholesky_decompose(M):
+         RETURN RON_FAULT_CONFIG_INVALID    -- R_cost + Bᵀ P B not pos-def
+       END
+       K_i ← cholesky_solve(M, B_T * P * A) -- m×n
+       P_new ← Q + A_T * P * A - A_T * P * B * K_i
+       IF matrix_max_abs_diff(P_new, P) < tol:
+         K ← K_i
+         P ← P_new
+         RETURN RON_FAULT_NONE              -- converged
+       END
+       P ← P_new
+     END
+     RETURN RON_FAULT_CONFIG_INVALID        -- did not converge
+
+LQR Control Step Pseudocode
+----------------------------
+
+.. code-block:: none
+
+   OPERATION ron_lqr_step(inst, r[m], dt, [out] u[m], [out] status) → FaultCode
+     -- 1. Null / init / fault-latch guards
+     -- 2. Validate dt > 0 and all r[j] finite
+     -- 3. Obtain x_hat (three-source dispatch, identical to ron_ss_step)
+     IF source = EXTERNAL   THEN x_hat ← *inst.cfg.x_ext
+     IF source = LUENBERGER THEN x_hat ← inst.observer.state.x_hat
+     IF source = KALMAN     THEN x_hat ← inst.kalman.state.x_hat
+
+     -- 4. State-feedback term (matrix-vector multiply)
+     FOR j IN 0..m-1:
+       u_fb[j] ← -SUM_i( K_solved[j][i] * x_hat[i] )
+
+     -- 5. Integral augmentation (if enabled)
+     IF use_integral:
+       FOR j IN 0..m-1:
+         e_reg[j] ← r[j] - SUM_i( C_out[j][i] * x_hat[i] )
+         integral[j] ← clamp(integral[j] + Ki_aug[j]*dt*e_reg[j], i_min[j], i_max[j])
+       u_raw[j] ← u_fb[j] + Kr[j]*r[j] + integral[j]
+     ELSE:
+       u_raw[j] ← u_fb[j] + Kr[j]*r[j]
+
+     -- 6. Per-input saturation + rate limit + NaN guard
+     FOR j IN 0..m-1:
+       u_sat[j]   ← clamp(u_raw[j], u_min[j], u_max[j])
+       u_final[j] ← rate_limit(u_sat[j], u_prev[j], du_max[j], dt)
+       IF NOT RON_ISFINITE(u_final[j]): latch RON_FAULT_OUTPUT_NAN; return safe
+       u_prev[j] ← u_final[j]
+       u[j] ← u_final[j]
+
+     -- 7. Accumulate status bits (saturated, rate-limited)
+     *status ← computed_status_bits
+
+------------------------------------------------------------------------
+
+Module Design: ron_lqg
+========================
+
+Data Structures
+---------------
+
+.. code-block:: none
+
+   ENUM LqgGainMode:
+     LQG_GAIN_PRECOMPUTED | LQG_GAIN_DARE
+
+   STRUCTURE LqgConfig:
+     n, m, p            : uint8_t     -- state, input, measurement dims
+     gain_mode          : LqgGainMode
+     -- System matrices (shared by Kalman predictor and LQR control law)
+     A[n][n], B[n][m]   : RON_FLOAT
+     H[p][n]            : RON_FLOAT
+     -- Kalman noise covariances
+     Q_noise[n][n]      : RON_FLOAT
+     R_noise[p][p]      : RON_FLOAT
+     x0[n], P0[n][n]    : RON_FLOAT   -- initial estimate and covariance
+     use_joseph_form    : bool
+     -- Steady-state override (bypasses DARE for Kalman)
+     use_kf_steady_state  : bool
+     K_f_inf[n][p]      : RON_FLOAT   -- pre-computed Kalman gain
+     -- LQR cost matrices
+     Q_cost[n][n]       : RON_FLOAT
+     R_cost[m][m]       : RON_FLOAT
+     dare_max_iter      : uint16_t
+     dare_tol           : RON_FLOAT
+     -- Pre-computed LQR gain override (PRECOMPUTED mode)
+     K[m][n]            : RON_FLOAT
+     Kr[m]              : RON_FLOAT
+     -- Output limits
+     u_min[m], u_max[m] : RON_FLOAT
+     du_max[m]          : RON_FLOAT
+
+   STRUCTURE LqgInstance:
+     cfg                : LqgConfig
+     kalman             : ron_kf_t    -- embedded Kalman filter
+     K_solved[m][n]     : RON_FLOAT  -- LQR gain in use
+     P_lqr[n][n]        : RON_FLOAT  -- LQR DARE solution
+     u_prev[m]          : RON_FLOAT
+     faults             : FaultCode
+     is_initialised     : bool
+
+Initialisation Pseudocode
+--------------------------
+
+.. code-block:: none
+
+   OPERATION ron_lqg_init(inst, cfg) → FaultCode
+     -- 1. Validate all dimensions and matrix symmetry / positive-definiteness
+     -- 2. Solve LQR DARE(A, B, Q_cost, R_cost) → K_solved, P_lqr
+     --    (or copy cfg.K when gain_mode = PRECOMPUTED)
+     -- 3. Build ron_kf_config_t from (A, B, H, Q_noise, R_noise, x0, P0, ...)
+     --    then call ron_kf_init(&inst.kalman, &kf_cfg)
+     --    The Kalman gain is computed inside ron_kf_init via its own DARE
+     --    when steady_state = true, otherwise the filter runs adaptively.
+     -- 4. Zero u_prev, clear faults, set is_initialised
+
+Combined Step Pseudocode (predict → update → control)
+------------------------------------------------------
+
+.. code-block:: none
+
+   OPERATION ron_lqg_predict(inst, u[m]) → FaultCode
+     RETURN ron_kf_predict(&inst.kalman, u)
+
+   OPERATION ron_lqg_update(inst, z[p], z_valid) → FaultCode
+     RETURN ron_kf_update(&inst.kalman, z, z_valid)
+
+   OPERATION ron_lqg_step(inst, r[m], dt, [out] u[m], [out] status) → FaultCode
+     -- 1. Null / init / fault-latch guards; validate dt, r finite
+     -- 2. x_hat ← inst.kalman.state.x_hat  (separation principle: always Kalman)
+     -- 3. FOR j IN 0..m-1: u_raw[j] ← -SUM_i(K_solved[j][i]*x_hat[i]) + Kr[j]*r[j]
+     -- 4. Per-input saturation + rate limit (identical to ron_lqr_step steps 6–7)
+
+Separation Principle
+--------------------
+
+The Kalman filter minimises the expected estimation error covariance
+:math:`\mathbb{E}[(\hat{x}-x)^\top (\hat{x}-x)]` independently of the
+control cost function.  The LQR gain minimises
+:math:`\sum_k (x_k^\top Q_{cost} x_k + u_k^\top R_{cost} u_k)` for a
+noise-free system.  By the separation theorem (Theorem 11.4 in Stengel
+1994), the LQG optimum is achieved by applying these two independently
+optimal designs together.  The implementation preserves this property by
+solving the two DARE problems independently at init time.
+
+------------------------------------------------------------------------
+
 Module Design: ron_autotune
 ==============================
 
@@ -1887,7 +2099,8 @@ Updated Module Dependency Diagram
    ┌───┴──────────────────────────────────────────────────────────────┐
    │  Public API Layer                                                │
    │  ron_pid_api  ron_cascade  ron_gs  ron_autotune             │
-   │  ron_filter   ron_trajectory  ron_ss  ron_health  ron_metrics│
+   │  ron_filter   ron_trajectory  ron_ss  ron_lqr  ron_lqg      │
+   │  ron_health   ron_metrics                                    │
    └───┬──────────────────────────────────────────────────────────────┘
        │
    ┌───┴──────────────────────────────────────────────────────────────┐
@@ -1906,6 +2119,11 @@ Updated Module Dependency Diagram
    └──────────────────────────────────────────────────────────────────┘
 
 All dependency arrows point downward. No circular dependencies.
+
+``ron_lqr`` depends on ``ron_kalman`` (embedded Kalman source), ``ron_observer``
+(embedded Luenberger source), and the internal ``ron_matrix`` helper.
+``ron_lqg`` depends on ``ron_kalman`` and ``ron_lqr`` (shares the DARE solver).
+Both are in the Public API Layer; neither introduces a cycle.
 
 ------------------------------------------------------------------------
 
@@ -1974,6 +2192,12 @@ Appendix A: Design Decision Log
    * - DD-18
      - Dual-language implementation: C11 and Rust Edition 2021, both first-class.
      - C11 maximises toolchain coverage (every embedded target, every certified compiler) and interoperability (C ABI is the universal FFI boundary). Rust provides structural memory safety via the borrow checker, richer type-level abstractions (const generics for matrix dimensions, typestate for mode transitions), and superior free static analysis and formal verification via Kani. Neither benefit can be fully replicated in the other language without significant effort. Maintaining both tracks provides the project with maximum deployment flexibility and allows safety cases to be constructed under both the established MISRA C certification path and the emerging MISRA Rust / Ferrocene path.
+   * - DD-19
+     - LQR DARE solver uses iterative value recursion, not Schur decomposition.
+     - Schur-based DARE solvers require complex eigenvalue decomposition with :math:`O(n^3)` complex arithmetic per iteration that is impractical on constrained embedded targets without a floating-point unit of sufficient precision. The iterative value recursion :math:`P_{i+1} = Q + A^\top P_i A - A^\top P_i B(R + B^\top P_i B)^{-1}B^\top P_i A` is fully real, :math:`O(n^3)` per iteration, bounded by ``dare_max_iter``, and converges for all stabilisable/detectable system pairs. It is run once at init time, so per-step latency is unaffected.
+   * - DD-20
+     - LQG forces the Kalman filter as the state source; Luenberger source is omitted from LQG.
+     - LQG is defined as the combination of an LQR control law with a Kalman filter estimator. Allowing a Luenberger source in LQG would create an LQR-with-Luenberger, which is already covered by ``ron_lqr`` with ``LQR_SOURCE_LUENBERGER``. Conflating the two would duplicate configuration paths, complicate the separation-principle validation proof, and obscure the optimality guarantee that motivates the LQG design. Users who want a non-optimal estimator should use ``ron_lqr`` directly.
 
 ------------------------------------------------------------------------
 

@@ -45,6 +45,13 @@ Revision History
      - 2025-04-10
      - Initial baseline. Covers all RON-SRS-001 v1.1.0 requirements.
      - TBD
+   * - 1.1.0
+     - 2026-06-08
+     - Added test catalog for LQR (RON-TC-LQR-001 – RON-TC-LQR-010) and LQG
+       (RON-TC-LQG-001 – RON-TC-LQG-010). Added CBMC formal harness entries
+       RON-TC-LQR-010-FV and RON-TC-LQG-010-FV. Updated requirement coverage
+       table and test execution order.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -1290,6 +1297,18 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-SS-004-FV
      - FV
      - RON-FR-703, RON-FR-020
+   * - RON-TC-LQR-001 – LQR-009
+     - UT / IT
+     - RON-FR-730 – FR-739
+   * - RON-TC-LQR-010-FV
+     - FV
+     - RON-FR-736, RON-FR-737, RON-SR-003
+   * - RON-TC-LQG-001 – LQG-009
+     - UT / IT
+     - RON-FR-750 – FR-759
+   * - RON-TC-LQG-010-FV
+     - FV
+     - RON-FR-757, RON-FR-759, RON-SR-003
    * - RON-TC-AT-001 – AT-008
      - UT / IT
      - RON-FR-800 – FR-807
@@ -2806,6 +2825,416 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
 
 ------------------------------------------------------------------------
 
+LQR Controller Tests (RON-TC-LQR-xxx)
+=======================================
+
+RON-TC-LQR-001 — Init and Basic Control Law (Pre-computed Gain)
+----------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-730, RON-FR-732
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input system. Pre-computed ``K = {2.0, 1.0}``, ``Kr = {1.0}``.
+       External state source with known state vector ``x = {0.5, 0.2}``.
+       Reference ``r = {1.0}``.
+   * - **Stimulus**
+     - Call ``ron_lqr_init`` then ``ron_lqr_step``.
+   * - **Pass Criterion**
+     - ``ron_lqr_init`` returns ``RON_FAULT_NONE``. Computed ``u[0]`` equals
+       ``-(K[0]*x[0] + K[1]*x[1]) + Kr[0]*r[0] = -(1.0 + 0.2) + 1.0 = -0.2``
+       within ``1e-5``.
+
+RON-TC-LQR-002 — External State Source
+---------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-730, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input system with ``LQR_SOURCE_EXTERNAL`` and a
+       caller-owned state vector.
+   * - **Stimulus**
+     - Mutate the external state vector between successive ``ron_lqr_step``
+       calls.
+   * - **Pass Criterion**
+     - Each call to ``ron_lqr_step`` reads the current value of the external
+       state pointer and the output changes accordingly.
+
+RON-TC-LQR-003 — DARE Solver Convergence
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-731, RON-FR-733, RON-FR-739
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Double-integrator: ``A = {{1,1},{0,1}}``, ``B = {{0},{1}}``,
+       ``Q_cost = diag(1, 1)``, ``R_cost = {{1}}``. Gain mode = DARE.
+       ``dare_max_iter = 200``, ``dare_tol = 1e-8``.
+   * - **Stimulus**
+     - Call ``ron_lqr_init``. Read back DARE solution via
+       ``ron_lqr_get_dare_solution``.
+   * - **Pass Criterion**
+     - Returns ``RON_FAULT_NONE``. ``state.dare_converged == true``.
+       ``K_solved[0]`` matches the analytically known optimal gain for this
+       system within ``1e-4``. ``P_solved`` is symmetric positive semi-definite.
+
+RON-TC-LQR-004 — Per-Input Output Saturation
+---------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input system with ``u_min = {-1.0}``, ``u_max = {1.0}``.
+       State chosen to produce an unsaturated ``u_raw`` of ``5.0``.
+   * - **Stimulus**
+     - Call ``ron_lqr_step``.
+   * - **Pass Criterion**
+     - Returned ``u[0] == 1.0`` (clamped). Status word has
+       ``RON_STATUS_SATURATED`` set. No fault.
+
+RON-TC-LQR-005 — Runtime Gain Update
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-738
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Initialised instance with initial K.
+   * - **Stimulus**
+     - Call ``ron_lqr_set_gains`` with a different K matrix and Kr vector.
+       Then call ``ron_lqr_step`` and observe the output.
+   * - **Pass Criterion**
+     - ``ron_lqr_set_gains`` returns ``RON_FAULT_NONE``. Subsequent
+       ``ron_lqr_step`` computes output using the updated K (verified by
+       hand calculation). Previous step output is not affected retroactively.
+
+RON-TC-LQR-006 — Fault Detection: Null Pointer and Uninitialised
+-----------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736, RON-SR-001
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - (a) Call ``ron_lqr_init`` with ``lqr == NULL``.
+       (b) Call ``ron_lqr_step`` with ``lqr == NULL``.
+       (c) Call ``ron_lqr_step`` on an instance that has not been initialised.
+       (d) Call ``ron_lqr_step`` with ``u == NULL``.
+   * - **Pass Criterion**
+     - (a) and (b) return ``RON_FAULT_NULL_POINTER``.
+       (c) returns ``RON_FAULT_CONFIG_INVALID``.
+       (d) returns ``RON_FAULT_NULL_POINTER``. No crash in any case.
+
+RON-TC-LQR-007 — Integral Augmentation: Steady-State Tracking
+--------------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-735
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input system with ``use_integral = true``.
+       Configured ``Ki_aug``, ``C_out``, ``i_min``, ``i_max``.
+       Simulate a simple linear plant in a closed loop for 500 steps.
+   * - **Stimulus**
+     - Run the closed loop with a constant non-zero reference.
+   * - **Pass Criterion**
+     - Steady-state error converges toward zero (magnitude below 0.01)
+       within the simulation window. Integral accumulator remains within
+       ``[i_min, i_max]`` throughout.
+
+RON-TC-LQR-008 — Luenberger Observer Source (Integration)
+----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-734
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input system with ``LQR_SOURCE_LUENBERGER``.
+       Valid ``obs_cfg`` configured.
+   * - **Stimulus**
+     - For each of 200 steps: call ``ron_lqr_observer_step`` with a
+       simulated measurement and the previous control output; then call
+       ``ron_lqr_step`` to compute the new control.
+   * - **Pass Criterion**
+     - No fault raised. Control output is finite and within
+       ``[u_min, u_max]`` on every step. Observer state is updated before
+       being consumed by the step function.
+
+RON-TC-LQR-009 — Kalman Filter Source (Integration)
+----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-734
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input system with ``LQR_SOURCE_KALMAN``. Valid ``kf_cfg``.
+   * - **Stimulus**
+     - For each of 200 steps: ``ron_lqr_kalman_predict`` → ``ron_lqr_kalman_update``
+       → ``ron_lqr_step``.
+   * - **Pass Criterion**
+     - No fault raised. Control output is finite and within
+       ``[u_min, u_max]``. Kalman state estimate tracks a known trajectory
+       within a configurable tolerance.
+
+RON-TC-LQR-010-FV — Output Bounded and No Heap (Formal)
+--------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736, RON-FR-737, RON-SR-003
+   * - **Level**
+     - FV / ENV-FV
+   * - **Harness file**
+     - ``regulon-c/test/formal/lqr_saturation_proof.c``
+   * - **Property**
+     - For all finite inputs (r, x_hat, dt > 0) and a valid initialised
+       instance: the output vector satisfies
+       ``u[j] >= u_min[j] && u[j] <= u_max[j]`` for all ``j < m``.
+       No heap allocation (``malloc`` / ``calloc`` / ``free``) is reachable.
+   * - **Pass Criterion**
+     - CBMC reports no property violations within the unwind bound.
+
+------------------------------------------------------------------------
+
+LQG Controller Tests (RON-TC-LQG-xxx)
+=======================================
+
+RON-TC-LQG-001 — Init with Pre-computed K and Kalman
+-----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-750, RON-FR-756
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - 2-state, 1-input, 1-measurement system. Pre-computed K, Kr.
+       Valid noise covariances and initial state.
+   * - **Stimulus**
+     - Call ``ron_lqg_init``.
+   * - **Pass Criterion**
+     - Returns ``RON_FAULT_NONE``. ``lqg.is_initialised == true``.
+       ``lqg.kalman.state.is_initialised == true``. No heap allocation.
+
+RON-TC-LQG-002 — Predict Step Advances Kalman State
+----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-753
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Initialised LQG instance. Known initial state ``x0 = {0, 0}``.
+       Control input ``u = {1.0}``.
+   * - **Stimulus**
+     - Call ``ron_lqg_predict`` once. Read state via ``ron_lqg_get_state``.
+   * - **Pass Criterion**
+     - State estimate ``x_hat`` changes from ``{0, 0}`` consistent with
+       one application of ``x_new = A*x + B*u``. No fault raised.
+
+RON-TC-LQG-003 — Update Corrects State Estimate
+------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-754
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - After one ``ron_lqg_predict`` step. Known measurement ``z = {0.5}``.
+   * - **Stimulus**
+     - Call ``ron_lqg_update`` with ``z_valid = true``.
+   * - **Pass Criterion**
+     - State estimate moves toward the direction of the innovation
+       ``z - H*x_hat``. No fault raised.
+
+RON-TC-LQG-004 — Measurement Dropout is Silent
+-----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-754
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - After one ``ron_lqg_predict`` step. Known state estimate.
+   * - **Stimulus**
+     - Call ``ron_lqg_update`` with ``z_valid = false``.
+   * - **Pass Criterion**
+     - State estimate is unchanged from after predict. No fault raised.
+       Status word has no error flags set.
+
+RON-TC-LQG-005 — Control Step Uses Kalman Estimate
+---------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-755
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Known Kalman state estimate ``x_hat`` obtained via predict+update.
+       Pre-computed K, Kr. Reference ``r = {1.0}``.
+   * - **Stimulus**
+     - Call ``ron_lqg_step``.
+   * - **Pass Criterion**
+     - Returned ``u[0]`` equals ``-(K * x_hat) + Kr * r`` computed by hand
+       within ``1e-5``. State estimate read via ``ron_lqg_get_state`` matches
+       the value used in the computation.
+
+RON-TC-LQG-006 — DARE at Init Time (Both Gains)
+------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-756
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Double-integrator system with noise covariances
+       ``Q_noise = diag(0.01, 0.01)``, ``R_noise = {{1.0}}``,
+       ``Q_cost = diag(1.0, 1.0)``, ``R_cost = {{1.0}}``.
+       Gain mode = DARE.
+   * - **Stimulus**
+     - Call ``ron_lqg_init``.
+   * - **Pass Criterion**
+     - Returns ``RON_FAULT_NONE``. ``K_solved`` matches the known LQR gain
+       within ``1e-4``. Kalman filter is initialised with the converged
+       steady-state gain when ``use_kf_steady_state = true``.
+
+RON-TC-LQG-007 — Separation Principle
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-752
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Preconditions**
+     - The same 2-state system used in RON-TC-LQR-003 and RON-TC-KF-001.
+   * - **Stimulus**
+     - (a) Solve LQR standalone via ``ron_lqr_init`` (DARE mode).
+       (b) Solve Kalman standalone via ``ron_kf_init`` (steady-state mode).
+       (c) Solve LQG via ``ron_lqg_init`` (DARE mode, both gains).
+   * - **Pass Criterion**
+     - ``lqg.K_solved`` matches ``lqr.state.K_solved`` within ``1e-6``.
+       ``lqg.kalman.cfg.K_inf`` matches the Kalman steady-state gain within
+       ``1e-6``. This verifies that the combined LQG solution equals the
+       individually computed components.
+
+RON-TC-LQG-008 — Output Saturation
+------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Initialised LQG. State chosen to produce ``u_raw > u_max``.
+   * - **Stimulus**
+     - Call ``ron_lqg_step``.
+   * - **Pass Criterion**
+     - ``u[0] == u_max[0]``. ``RON_STATUS_SATURATED`` set in status.
+
+RON-TC-LQG-009 — Fault Detection: Null and Uninitialised
+---------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757, RON-SR-001
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - (a) ``ron_lqg_init`` with ``lqg == NULL``.
+       (b) ``ron_lqg_step`` with ``lqg == NULL``.
+       (c) ``ron_lqg_step`` on uninitialised instance.
+       (d) ``ron_lqg_step`` with ``u == NULL``.
+   * - **Pass Criterion**
+     - (a) and (b) return ``RON_FAULT_NULL_POINTER``.
+       (c) returns ``RON_FAULT_CONFIG_INVALID``.
+       (d) returns ``RON_FAULT_NULL_POINTER``. No crash.
+
+RON-TC-LQG-010-FV — No Heap and Output Bounded (Formal)
+--------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757, RON-FR-759, RON-SR-003
+   * - **Level**
+     - FV / ENV-FV
+   * - **Harness file**
+     - ``regulon-c/test/formal/lqg_no_heap_proof.c``
+   * - **Property**
+     - For all finite inputs (r, z, dt > 0) and a valid initialised instance:
+       ``u[j] >= u_min[j] && u[j] <= u_max[j]`` for all ``j < m``.
+       No heap allocation is reachable. After finite inputs, the Kalman state
+       ``x_hat`` remains finite.
+   * - **Pass Criterion**
+     - CBMC reports no property violations within the unwind bound.
+
+------------------------------------------------------------------------
+
 Safety and Fault Tests (RON-TC-SAFE-xxx)
 ==========================================
 
@@ -3770,6 +4199,12 @@ are present, one entry function each, covering every safety-critical module.
    * - ``metrics_no_heap_proof.c``
      - RON-TC-MET-001-FV
      - RON-FR-951
+   * - ``lqr_saturation_proof.c``
+     - RON-TC-LQR-010-FV
+     - RON-FR-736, RON-FR-737
+   * - ``lqg_no_heap_proof.c``
+     - RON-TC-LQG-010-FV
+     - RON-FR-757, RON-FR-759
 
 .. note::
 
@@ -3826,6 +4261,14 @@ must reach 100% before a release is considered verified.
      - 9
      - 9 UT + 1 FV
      - All mapped
+   * - RON-FR-730 – FR-739 (LQR)
+     - 10
+     - 9 UT/IT + 1 FV
+     - All mapped
+   * - RON-FR-750 – FR-759 (LQG)
+     - 10
+     - 9 UT/IT + 1 FV
+     - All mapped
    * - RON-FR-800 – FR-807 (Auto-tune)
      - 8
      - 8 UT/IT + 1 FV
@@ -3859,8 +4302,8 @@ must reach 100% before a release is considered verified.
      - 5 static/review/PT
      - All mapped
    * - **Total**
-     - **157**
-     - **~200**
+     - **177**
+     - **~220**
      - **100% mapped**
 
 ------------------------------------------------------------------------
@@ -3884,11 +4327,12 @@ order is:
 
 4. **Unit tests — PID module** (RON-TC-PID-xxx).
 
-5. **Unit tests — all other modules** (FILT, FF, GS, TRAJ, KF, SS, AT,
-   HLTH, MET): can run in parallel.
+5. **Unit tests — all other modules** (FILT, FF, GS, TRAJ, KF, SS, LQR, LQG,
+   AT, HLTH, MET): can run in parallel.
 
 6. **Integration tests** (RON-TC-CASC-xxx, RON-TC-PID-035,
-   RON-TC-PID-037, RON-TC-AT-001): require unit tests to pass first.
+   RON-TC-PID-037, RON-TC-AT-001, RON-TC-LQR-008, RON-TC-LQR-009,
+   RON-TC-LQG-007): require unit tests to pass first.
 
 7. **Quality / reproducibility** (RON-TC-QUAL-013 – QUAL-018).
 
@@ -3935,7 +4379,28 @@ Open Items
        ``pid_backcalc_proof.c`` in the interim. (Identified by the Phase 11
        CBMC harness inventory audit.)
      - Implementation phase
+   * - OI-TP-07
+     - RON-TC-LQR-003 and RON-TC-LQG-006 rely on a known analytical LQR
+       gain for the double-integrator system; the reference value must be
+       computed and recorded in a test fixture comment before the test is
+       locked. The Matlab/Python derivation is tracked in the implementation
+       phase.
+     - Implementation phase
+   * - OI-TP-08
+     - DARE convergence iteration count for worst-case system matrices
+       (RON-TC-LQR-003, RON-TC-LQG-006) should be measured and used to
+       confirm ``dare_max_iter = 200`` is sufficient for all expected
+       problem sizes within RON_LQR_MAX_STATES. Add a supplementary WCET
+       note to RON-TC-PERF-xxx.
+     - Implementation phase
+   * - OI-TP-09
+     - RON-TC-LQR-010-FV and RON-TC-LQG-010-FV CBMC harness loop-unwind
+       bounds for the DARE solver (up to 200 iterations × n³ operations)
+       may require a higher ``--unwind`` limit than the standard CI value of
+       65; actual bound to be determined during harness authoring and
+       documented here.
+     - Implementation phase
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-TP-001 v1.0.0*
+*End of Document — RON-TP-001 v1.1.0*
