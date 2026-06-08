@@ -11,6 +11,34 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Zephyr Module Support
+----------------------------------
+
+Added
+~~~~~
+- Zephyr RTOS module integration: ``zephyr/module.yml`` plus
+  ``regulon-c/zephyr/Kconfig`` and ``regulon-c/zephyr/CMakeLists.txt``
+  (a ``zephyr_library()`` gated by ``CONFIG_REGULON``, with per-module
+  ``CONFIG_REGULON_*`` symbols mirroring the standalone ``RON_ENABLE_*`` options
+  and reusing ``cmake/ron_modules.h.in`` to generate ``ron/ron_modules.h``).
+
+- ``samples/zephyr/regulon_pid`` sample app with a ``sample.yaml`` twister test
+  (``native_sim`` run + ``qemu_cortex_m3`` build, plus a ``CONFIG_MINIMAL_LIBC``
+  build variant), ``west.yml`` manifest, ``docs/zephyr.md`` usage guide, and a
+  ``.github/workflows/zephyr.yml`` CI workflow. Registered as ``RON-TC-QUAL-023``
+  in the test plan.
+
+Changed
+~~~~~~~
+- The production library is now ``<math.h>``-free: the biquad coefficient
+  helpers in ``ron_filter.c`` use an internal bounded sin/cos approximation
+  (deterministic, no loops/recursion) instead of libc ``sin``/``cos``. The
+  library therefore links against a freestanding / minimal libc with no libm —
+  required for Zephyr's minimal libc. The ARM freestanding ``math.h`` shim under
+  ``regulon-c/cmake/freestanding/`` is now vestigial.
+
+------------------------------------------------------------------------
+
 Unreleased — C11 Phase 11 Full-Library Integration And Release Hardening
 -----------------------------------------------------------------------
 

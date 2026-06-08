@@ -1117,7 +1117,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-DC-005
      - Cross-compilation build support
      - PT
-     - RON-TC-QUAL-022
+     - RON-TC-QUAL-022, RON-TC-QUAL-023
 
 ------------------------------------------------------------------------
 
@@ -1311,7 +1311,7 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-PERF-001 – PERF-008
      - PT / FV
      - RON-PR-001 – PR-022, RON-FR-953
-   * - RON-TC-QUAL-001 – QUAL-022
+   * - RON-TC-QUAL-001 – QUAL-023
      - UT (static) / Review / PT
      - RON-SR-030 – SR-033, RON-QR-001 – QR-031, RON-DC-001 – DC-005
    * - RON-TC-INT-001 – INT-005
@@ -3195,6 +3195,27 @@ RON-TC-QUAL-022 — Cross-Compilation Build Succeeds
    * - **Pass Criterion**
      - All four builds succeed with zero errors and zero warnings.
        Build artefacts can be linked into a minimal bare-metal harness.
+
+RON-TC-QUAL-023 — Zephyr Module Build
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-DC-005
+   * - **Level**
+     - PT / ENV-TARGET
+   * - **Method**
+     - Build the Regulon Zephyr sample with twister:
+       ``west twister -T samples/zephyr -p native_sim -p qemu_cortex_m3``.
+       The library is consumed as a Zephyr module (``zephyr/module.yml`` +
+       ``regulon-c/zephyr/{Kconfig,CMakeLists.txt}``) via ``CONFIG_REGULON=y``.
+       A ``CONFIG_MINIMAL_LIBC=y`` variant builds without libm.
+   * - **Pass Criterion**
+     - All sample builds succeed; the ``native_sim`` run prints
+       ``Regulon PID sample: PASS`` (the PID converges to within 2 % of the unit
+       setpoint); the minimal-libc build links with no missing math symbols.
 
 ------------------------------------------------------------------------
 
