@@ -1,0 +1,27 @@
+# Regulon PID Zephyr sample — twister metadata (RON-TC-QUAL-023)
+# SPDX-License-Identifier: MIT
+sample:
+  name: Regulon PID Controller
+  description: Drive a first-order plant to setpoint using a Regulon PID
+common:
+  tags: regulon controls
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Regulon PID sample: PASS"
+tests:
+  # Full-library build + run; native_sim executes the harness.
+  sample.regulon.pid:
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3
+    integration_platforms:
+      - native_sim
+  # Minimal-libc build proves the library needs no libm (RON-DC-005).
+  sample.regulon.pid.minimal_libc:
+    extra_configs:
+      - CONFIG_MINIMAL_LIBC=y
+    build_only: true
+    platform_allow:
+      - qemu_cortex_m3

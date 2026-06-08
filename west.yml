@@ -1,0 +1,22 @@
+# West manifest — bootstraps a Zephyr workspace so this repo can be built and
+# tested standalone (and in CI). Applications normally consume Regulon by adding
+# it to THEIR own manifest as a module (see docs/zephyr.md); this file is for
+# Regulon's own CI and for quick standalone trials.
+# SPDX-License-Identifier: MIT
+manifest:
+  self:
+    path: regulon
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: main
+      import:
+        # Limit the imported HAL/CMSIS set to what native_sim and
+        # qemu_cortex_m3 need, keeping the CI checkout small.
+        name-allowlist:
+          - cmsis

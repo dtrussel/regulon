@@ -1,0 +1,74 @@
+# Regulon control-systems library — Zephyr Kconfig
+# SPDX-License-Identifier: MIT
+#
+# CONFIG_REGULON enables the library; the per-module symbols mirror the
+# standalone build's RON_ENABLE_* options. The PID core and its integrated
+# feed-forward path are the mandatory baseline and have no symbol.
+
+config REGULON
+	bool "Regulon control-systems library"
+	help
+	  Enable the Regulon C11 control-systems library (PID, filters,
+	  trajectory generators, cascade, Kalman/state-space, auto-tuning,
+	  health, and metrics). The library performs no dynamic allocation and
+	  links against the minimal libc (it is <math.h>-free).
+
+if REGULON
+
+config REGULON_USE_DOUBLE
+	bool "Use 64-bit double precision"
+	help
+	  Use double instead of float for ron_float_t. Defaults to 32-bit float,
+	  which is preferred on MCUs with a single-precision FPU.
+
+config REGULON_ENABLE_ASSERT
+	bool "Enable runtime RON_ASSERT checks"
+	help
+	  Compile the internal RON_ASSERT checks (they trap via __builtin_trap on
+	  violation). Off by default; production code never depends on them.
+
+config REGULON_FILTER
+	bool "Signal-conditioning filters"
+	default y
+	help
+	  First-order low-pass, moving-average FIR, biquad IIR, and rate limiter.
+
+config REGULON_GAIN_SCHED
+	bool "Gain scheduling"
+	default y
+
+config REGULON_TRAJECTORY
+	bool "Trajectory generators"
+	default y
+	help
+	  Trapezoidal and S-curve jerk-limited motion profiles.
+
+config REGULON_CASCADE
+	bool "Cascade controller"
+	default y
+
+config REGULON_KALMAN
+	bool "Discrete linear Kalman filter"
+	default y
+
+config REGULON_STATESPACE
+	bool "State-space controller and Luenberger observer"
+	default y
+	select REGULON_KALMAN
+	help
+	  The state-space controller embeds a Kalman filter, so enabling it
+	  selects REGULON_KALMAN.
+
+config REGULON_AUTOTUNE
+	bool "Relay-feedback auto-tuner"
+	default y
+
+config REGULON_HEALTH
+	bool "Control-loop health monitor"
+	default y
+
+config REGULON_METRICS
+	bool "Runtime performance metrics"
+	default y
+
+endif # REGULON

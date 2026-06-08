@@ -1,0 +1,8 @@
+# Regulon — Zephyr module manifest
+# Makes the C11 control-systems library (regulon-c/) consumable as a Zephyr
+# module via Kconfig (CONFIG_REGULON*) and west.
+# SPDX-License-Identifier: MIT
+name: regulon
+build:
+  cmake: regulon-c/zephyr
+  kconfig: regulon-c/zephyr/Kconfig

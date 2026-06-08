@@ -1,0 +1,57 @@
+name: Zephyr Module CI
+
+# RON-TP-001 | RON-TC-QUAL-023
+# Builds (and runs, on native_sim) the Regulon Zephyr sample via twister to
+# verify the library integrates as a Zephyr module, including a minimal-libc
+# build that proves the library needs no libm.
+# SPDX-License-Identifier: MIT
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "regulon-c/**"
+      - "zephyr/**"
+      - "samples/zephyr/**"
+      - "west.yml"
+      - ".github/workflows/zephyr.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "regulon-c/**"
+      - "zephyr/**"
+      - "samples/zephyr/**"
+      - "west.yml"
+      - ".github/workflows/zephyr.yml"
+
+jobs:
+  twister:
+    name: Twister (native_sim + qemu_cortex_m3)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout regulon
+        uses: actions/checkout@v4
+        with:
+          path: regulon
+
+      - name: Set up Zephyr workspace and SDK
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: regulon
+          toolchains: arm-zephyr-eabi
+
+      - name: Run twister on the Regulon sample
+        working-directory: regulon
+        run: |
+          west twister \
+            -T samples/zephyr \
+            -p native_sim -p qemu_cortex_m3 \
+            --inline-logs -v
+
+      - name: Upload twister results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zephyr-twister-results
+          path: regulon/twister-out/twister.xml
