@@ -17,6 +17,10 @@ manifest:
       revision: main
       import:
         # Limit the imported HAL/CMSIS set to what native_sim and
-        # qemu_cortex_m3 need, keeping the CI checkout small.
+        # qemu_cortex_m3 (TI LM3S6965) need, keeping the CI checkout small.
+        # Both CMSIS variants are listed because the default CMSIS-Core choice
+        # has migrated to CMSIS 6 (cmsis_6 provides cmsis_core.h).
         name-allowlist:
           - cmsis
+          - cmsis_6
+          - hal_ti

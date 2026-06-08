@@ -3208,15 +3208,15 @@ RON-TC-QUAL-023 — Zephyr Module Build
      - PT / ENV-TARGET
    * - **Method**
      - Build the Regulon Zephyr sample with twister:
-       ``west twister -T samples/zephyr -p native_sim``.
+       ``west twister -T samples/zephyr -p native_sim -p qemu_cortex_m3``.
        The library is consumed as a Zephyr module (``zephyr/module.yml`` +
        ``regulon-c/zephyr/{Kconfig,CMakeLists.txt}``) via ``CONFIG_REGULON=y``.
-       A ``CONFIG_MINIMAL_LIBC=y`` variant builds without libm. ARM Cortex-M
-       cross-compilation is covered by RON-TC-QUAL-022.
+       A ``CONFIG_MINIMAL_LIBC=y`` variant builds on the Cortex-M3 target
+       without libm.
    * - **Pass Criterion**
-     - All sample builds succeed; the ``native_sim`` run prints
-       ``Regulon PID sample: PASS`` (the PID converges to within 2 % of the unit
-       setpoint); the minimal-libc build links with no missing math symbols.
+     - All sample builds succeed; the ``native_sim`` and ``qemu_cortex_m3`` runs
+       print ``Regulon PID sample: PASS`` (the PID converges to within 2 % of the
+       unit setpoint); the minimal-libc build links with no missing math symbols.
 
 ------------------------------------------------------------------------
 

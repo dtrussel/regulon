@@ -11,16 +11,18 @@ common:
     regex:
       - "Regulon PID sample: PASS"
 tests:
-  # Full-library build + run on the simulator.
+  # Full-library build + run on the simulator and on a Cortex-M3 QEMU target.
   sample.regulon.pid:
     platform_allow:
       - native_sim
+      - qemu_cortex_m3
     integration_platforms:
       - native_sim
-  # Minimal-libc build proves the library needs no libm (RON-DC-005).
+  # Minimal-libc build on the embedded target proves the library needs no libm
+  # (RON-DC-005).
   sample.regulon.pid.minimal_libc:
     extra_configs:
       - CONFIG_MINIMAL_LIBC=y
     build_only: true
     platform_allow:
-      - native_sim
+      - qemu_cortex_m3

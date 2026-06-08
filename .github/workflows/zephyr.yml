@@ -26,7 +26,7 @@ on:
 
 jobs:
   twister:
-    name: Twister (native_sim)
+    name: Twister (native_sim + qemu_cortex_m3)
     runs-on: ubuntu-24.04
 
     steps:
@@ -46,7 +46,7 @@ jobs:
         run: |
           west twister \
             -T samples/zephyr \
-            -p native_sim \
+            -p native_sim -p qemu_cortex_m3 \
             --inline-logs -v
 
       - name: Upload twister results

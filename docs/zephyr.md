@@ -87,6 +87,6 @@ west build -b native_sim samples/zephyr/regulon_pid -- -DZEPHYR_EXTRA_MODULES=$P
 west build -t run
 ```
 
-It is also exercised in CI via twister on `native_sim` (build + run), including a
-`CONFIG_MINIMAL_LIBC=y` build that proves the no-libm property. Cross-compilation
-to ARM Cortex-M is covered separately by the standalone library CI.
+It is also exercised in CI via twister on `native_sim` and `qemu_cortex_m3`
+(build + run), including a `CONFIG_MINIMAL_LIBC=y` build on the Cortex-M3 target
+that proves the no-libm property.
