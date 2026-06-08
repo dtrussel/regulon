@@ -341,7 +341,7 @@ ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float
         ron_float_t i_term;
         pid_feedforward_update_t ff_update;
         ron_float_t u_raw;
-        ron_float_t u_final;
+        ron_float_t u_final = RON_FLOAT_C(0.0); /* init silences -Os maybe-uninitialized */
 
         pid_prepare_inputs(cfg, state, r, y, dt, &r_n, &y_n, &r_f, &step_status);
 
