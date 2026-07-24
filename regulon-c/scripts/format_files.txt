@@ -25,6 +25,8 @@ regulon-c/include/ron/ron_filter.h
 regulon-c/include/ron/ron_gain_sched.h
 regulon-c/include/ron/ron_health.h
 regulon-c/include/ron/ron_kalman.h
+regulon-c/include/ron/ron_lqg.h
+regulon-c/include/ron/ron_lqr.h
 regulon-c/include/ron/ron_metrics.h
 regulon-c/include/ron/ron_observer.h
 regulon-c/include/ron/ron_pid.h
