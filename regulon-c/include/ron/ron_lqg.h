@@ -86,34 +86,35 @@ typedef enum {
 
 /* Satisfies: RON-FR-750..RON-FR-759 | Test: RON-TC-LQG-001..RON-TC-LQG-010 */
 typedef struct {
-    uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES).       */
-    uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS).       */
-    uint8_t            p;          /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS).  */
+    uint8_t n;                     /**< State dim  (1..RON_LQR_MAX_STATES).       */
+    uint8_t m;                     /**< Input dim  (1..RON_LQR_MAX_INPUTS).       */
+    uint8_t p;                     /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS).  */
     ron_lqg_gain_mode_t gain_mode; /**< Pre-computed or DARE.                     */
 
     /* System matrices — shared by Kalman predictor and LQR law (RON-FR-751). */
-    ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];               /**< State transition.   */
-    ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];                /**< Input matrix.       */
-    ron_float_t H[RON_KF_MAX_MEASUREMENTS][RON_LQR_MAX_STATES];           /**< Observation matrix. */
+    ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];      /**< State transition.   */
+    ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];      /**< Input matrix.       */
+    ron_float_t H[RON_KF_MAX_MEASUREMENTS][RON_LQR_MAX_STATES]; /**< Observation matrix. */
 
     /* Kalman noise covariances (RON-FR-751). */
-    ron_float_t Q_noise[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];              /**< Process noise cov.  */
-    ron_float_t R_noise[RON_KF_MAX_MEASUREMENTS][RON_KF_MAX_MEASUREMENTS];    /**< Meas noise cov.     */
-    ron_float_t x0[RON_LQR_MAX_STATES];                                        /**< Initial estimate.   */
-    ron_float_t P0[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];                  /**< Initial covariance. */
-    bool        use_joseph_form;     /**< Joseph-form covariance update.         */
-    bool        use_kf_steady_state; /**< Use pre-computed K_f_inf (no adapt).   */
+    ron_float_t Q_noise[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< Process noise cov.  */
+    ron_float_t R_noise[RON_KF_MAX_MEASUREMENTS]
+                       [RON_KF_MAX_MEASUREMENTS];           /**< Meas noise cov.     */
+    ron_float_t x0[RON_LQR_MAX_STATES];                     /**< Initial estimate.   */
+    ron_float_t P0[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< Initial covariance. */
+    bool use_joseph_form;     /**< Joseph-form covariance update.         */
+    bool use_kf_steady_state; /**< Use pre-computed K_f_inf (no adapt).   */
     ron_float_t K_f_inf[RON_LQR_MAX_STATES][RON_KF_MAX_MEASUREMENTS]; /**< SS KF gain.  */
 
     /* LQR cost matrices (RON-FR-751). */
     ron_float_t Q_cost[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< State cost (PSD). */
-    ron_float_t R_cost[RON_LQR_MAX_INPUTS][RON_LQR_MAX_INPUTS];  /**< Input cost (PD).  */
-    uint16_t    dare_max_iter; /**< DARE iteration limit (0 → default 200).    */
-    ron_float_t dare_tol;      /**< DARE convergence tolerance.               */
+    ron_float_t R_cost[RON_LQR_MAX_INPUTS][RON_LQR_MAX_INPUTS]; /**< Input cost (PD).  */
+    uint16_t dare_max_iter; /**< DARE iteration limit (0 → default 200).    */
+    ron_float_t dare_tol;   /**< DARE convergence tolerance.               */
 
     /* Pre-computed LQR gain override (PRECOMPUTED mode). */
     ron_float_t K[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< Pre-comp feedback gain. */
-    ron_float_t Kr[RON_LQR_MAX_INPUTS];                      /**< Reference pre-gain.     */
+    ron_float_t Kr[RON_LQR_MAX_INPUTS];                    /**< Reference pre-gain.     */
 
     /* Per-input output constraints (RON-FR-757). */
     ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input sat lower bound.  */
@@ -128,12 +129,12 @@ typedef struct {
 /* Satisfies: RON-FR-759 | Test: RON-TC-LQG-001, RON-TC-LQG-010 */
 typedef struct {
     ron_lqg_config_t cfg;
-    ron_kf_t         kalman;   /**< Embedded Kalman filter (optimal estimator). */
-    ron_float_t      K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< LQR gain in use.  */
-    ron_float_t      P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];   /**< LQR DARE solution.*/
-    ron_float_t      u_prev[RON_LQR_MAX_INPUTS]; /**< Previous output (rate limiting).        */
-    ron_fault_t      faults;                      /**< Latched fault register.                 */
-    bool             is_initialised;              /**< Set by ron_lqg_init.                    */
+    ron_kf_t kalman; /**< Embedded Kalman filter (optimal estimator). */
+    ron_float_t K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< LQR gain in use.  */
+    ron_float_t P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];    /**< LQR DARE solution.*/
+    ron_float_t u_prev[RON_LQR_MAX_INPUTS]; /**< Previous output (rate limiting).        */
+    ron_fault_t faults;                     /**< Latched fault register.                 */
+    bool is_initialised;                    /**< Set by ron_lqg_init.                    */
 } ron_lqg_t;
 
 /* =========================================================================
@@ -148,27 +149,21 @@ ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
 
 /* Advance the embedded Kalman filter prediction step (RON-FR-753). */
 /* Satisfies: RON-FR-753 | Test: RON-TC-LQG-002 */
-ron_fault_t ron_lqg_predict(ron_lqg_t *lqg,
-                             const ron_float_t u[RON_LQR_MAX_INPUTS]);
+ron_fault_t ron_lqg_predict(ron_lqg_t *lqg, const ron_float_t u[RON_LQR_MAX_INPUTS]);
 
 /* Apply Kalman measurement correction; silently skips if z_valid == false (RON-FR-754). */
 /* Satisfies: RON-FR-754 | Test: RON-TC-LQG-003, RON-TC-LQG-004 */
-ron_fault_t ron_lqg_update(ron_lqg_t *lqg,
-                            const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                            bool z_valid);
+ron_fault_t ron_lqg_update(ron_lqg_t *lqg, const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
+                           bool z_valid);
 
 /* Compute MIMO control output u = -K x_hat + Kr r using Kalman estimate. */
 /* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
-ron_fault_t ron_lqg_step(ron_lqg_t *lqg,
-                          const ron_float_t r[RON_LQR_MAX_INPUTS],
-                          ron_float_t dt,
-                          ron_float_t u[RON_LQR_MAX_INPUTS],
-                          ron_status_t *status);
+ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
+                         ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status);
 
 /* Read the current Kalman state estimate (RON-FR-758). */
 /* Satisfies: RON-FR-758 | Test: RON-TC-LQG-005, RON-TC-LQG-007 */
-ron_fault_t ron_lqg_get_state(const ron_lqg_t *lqg,
-                               ron_float_t x_hat[RON_LQR_MAX_STATES]);
+ron_fault_t ron_lqg_get_state(const ron_lqg_t *lqg, ron_float_t x_hat[RON_LQR_MAX_STATES]);
 
 #ifdef __cplusplus
 }
