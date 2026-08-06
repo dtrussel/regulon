@@ -57,6 +57,13 @@ Revision History
        ron_metrics.h). Updated directory layout, CMakeLists.txt, compile-time
        constants, and traceability table.
      - TBD
+   * - 1.2.0
+     - 2026-06-08
+     - Added: ron_lqr.h (LQR controller), ron_lqg.h (LQG controller).
+       Added RON_LQR_MAX_STATES and RON_LQR_MAX_INPUTS compile-time
+       constants. Added RON_ENABLE_LQR and RON_ENABLE_LQG CMake options.
+       Updated traceability table.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -1619,6 +1626,15 @@ is defined). They bound the static allocation of all fixed-size arrays in the li
    #define RON_SS_MAX_INPUTS         4U
    #endif
 
+   /* LQR / LQG controller */
+   #ifndef RON_LQR_MAX_STATES
+   #define RON_LQR_MAX_STATES        8U   /* max LQR/LQG state dimension n       */
+   #endif
+
+   #ifndef RON_LQR_MAX_INPUTS
+   #define RON_LQR_MAX_INPUTS        4U   /* max LQR/LQG control input dim m     */
+   #endif
+
    /* Auto-tuning */
    #ifndef RON_AT_MIN_CYCLES
    #define RON_AT_MIN_CYCLES         3U   /* minimum relay oscillation cycles    */
@@ -2117,6 +2133,242 @@ in ``status`` (``RON-FR-703``).  ``K`` and ``Kr`` may be replaced at run time vi
 are advanced by ``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` /
 ``ron_ss_kalman_update`` before the consuming ``ron_ss_step`` call.
 
+``ron_lqr.h`` — Discrete-Time MIMO LQR Controller
+--------------------------------------------------
+
+Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
+``ron_observer.h`` (pulled in transitively).
+
+.. code-block:: c
+
+   #ifndef RON_LQR_H
+   #define RON_LQR_H
+
+   #include "ron/ron_kalman.h"
+   #include "ron/ron_observer.h"
+
+   #ifdef __cplusplus
+   extern "C" {
+   #endif
+
+   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-002 */
+   typedef enum {
+       RON_LQR_SOURCE_EXTERNAL   = 0,
+       RON_LQR_SOURCE_LUENBERGER = 1,
+       RON_LQR_SOURCE_KALMAN     = 2
+   } ron_lqr_source_t;
+
+   /* Satisfies: RON-FR-732 | Test: RON-TC-LQR-001 */
+   typedef enum {
+       RON_LQR_GAIN_PRECOMPUTED = 0,
+       RON_LQR_GAIN_DARE        = 1
+   } ron_lqr_gain_mode_t;
+
+   /* Satisfies: RON-FR-730..FR-737 | Test: RON-TC-LQR-001..RON-TC-LQR-009 */
+   typedef struct {
+       uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES). */
+       uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS). */
+       ron_lqr_source_t   source;     /**< State estimate source.              */
+       ron_lqr_gain_mode_t gain_mode; /**< Pre-computed or DARE.               */
+       const ron_float_t *x_ext;      /**< External state (EXTERNAL source).   */
+
+       ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< System A.  */
+       ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];  /**< System B.  */
+
+       ron_float_t Q_cost[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< State cost. */
+       ron_float_t R_cost[RON_LQR_MAX_INPUTS][RON_LQR_MAX_INPUTS];  /**< Input cost. */
+       uint16_t    dare_max_iter; /**< DARE iteration limit (0 → 200).         */
+       ron_float_t dare_tol;      /**< DARE convergence tolerance.             */
+
+       ron_float_t K[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< Initial K.  */
+       ron_float_t Kr[RON_LQR_MAX_INPUTS];                      /**< Ref gains.  */
+
+       bool        use_integral;
+       ron_float_t Ki_aug[RON_LQR_MAX_INPUTS];
+       ron_float_t C_out[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES];
+       ron_float_t i_min[RON_LQR_MAX_INPUTS];
+       ron_float_t i_max[RON_LQR_MAX_INPUTS];
+
+       ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input lower sat limit. */
+       ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input upper sat limit. */
+       ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit.      */
+
+       ron_obs_config_t obs_cfg; /**< Embedded observer (LUENBERGER source).  */
+       ron_kf_config_t  kf_cfg;  /**< Embedded Kalman  (KALMAN source).        */
+   } ron_lqr_config_t;
+
+   /* Satisfies: RON-FR-737..FR-739 | Test: RON-TC-LQR-001, RON-TC-LQR-010 */
+   typedef struct {
+       ron_float_t K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES];
+       ron_float_t P_solved[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];
+       ron_float_t integral[RON_LQR_MAX_INPUTS];
+       ron_float_t u_prev[RON_LQR_MAX_INPUTS];
+       ron_fault_t faults;
+       bool        dare_converged;
+       bool        is_initialised;
+   } ron_lqr_state_t;
+
+   /* Satisfies: RON-FR-730, RON-FR-734 | Test: RON-TC-LQR-001 */
+   typedef struct {
+       ron_lqr_config_t cfg;
+       ron_lqr_state_t  state;
+       ron_obs_t        observer;
+       ron_kf_t         kalman;
+   } ron_lqr_t;
+
+   /* Satisfies: RON-FR-730, RON-FR-733 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
+   ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg);
+
+   /* Satisfies: RON-FR-736 | Test: RON-TC-LQR-006 */
+   ron_fault_t ron_lqr_reset(ron_lqr_t *lqr);
+
+   /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001..007 */
+   ron_fault_t ron_lqr_step(ron_lqr_t *lqr,
+                             const ron_float_t r[RON_LQR_MAX_INPUTS],
+                             ron_float_t dt,
+                             ron_float_t u[RON_LQR_MAX_INPUTS],
+                             ron_status_t *status);
+
+   /* Satisfies: RON-FR-738 | Test: RON-TC-LQR-005 */
+   ron_fault_t ron_lqr_set_gains(ron_lqr_t *lqr,
+                                  const ron_float_t K[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES],
+                                  const ron_float_t Kr[RON_LQR_MAX_INPUTS]);
+
+   /* Satisfies: RON-FR-739 | Test: RON-TC-LQR-003 */
+   ron_fault_t ron_lqr_get_dare_solution(const ron_lqr_t *lqr,
+                                          ron_float_t P[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]);
+
+   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008 */
+   ron_fault_t ron_lqr_observer_step(ron_lqr_t *lqr,
+                                      const ron_float_t y[RON_SS_MAX_OUTPUTS],
+                                      const ron_float_t u[RON_SS_MAX_INPUTS]);
+
+   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
+   ron_fault_t ron_lqr_kalman_predict(ron_lqr_t *lqr,
+                                       const ron_float_t u[RON_KF_MAX_INPUTS]);
+
+   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
+   ron_fault_t ron_lqr_kalman_update(ron_lqr_t *lqr,
+                                      const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
+                                      bool z_valid);
+
+   #ifdef __cplusplus
+   }
+   #endif
+
+   #endif /* RON_LQR_H */
+
+``ron_lqr_init`` validates configuration, then (in DARE mode) calls the DARE
+solver to compute ``K_solved`` and ``P_solved`` from ``Q_cost`` and ``R_cost``.
+In PRECOMPUTED mode the supplied ``K`` is copied directly.  The embedded
+observer or Kalman filter is also initialised if the corresponding source is
+selected.  The observer and Kalman step helpers mirror the pattern of
+``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` / ``ron_ss_kalman_update``
+and must be called by the application before ``ron_lqr_step`` each cycle.
+
+``ron_lqg.h`` — Discrete-Time MIMO LQG Controller
+--------------------------------------------------
+
+Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
+``ron_lqr.h`` indirectly for the shared DARE solver).
+
+.. code-block:: c
+
+   #ifndef RON_LQG_H
+   #define RON_LQG_H
+
+   #include "ron/ron_lqr.h"
+
+   #ifdef __cplusplus
+   extern "C" {
+   #endif
+
+   /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
+   typedef enum {
+       RON_LQG_GAIN_PRECOMPUTED = 0,
+       RON_LQG_GAIN_DARE        = 1
+   } ron_lqg_gain_mode_t;
+
+   /* Satisfies: RON-FR-750..FR-759 | Test: RON-TC-LQG-001..RON-TC-LQG-010 */
+   typedef struct {
+       uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES). */
+       uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS). */
+       uint8_t            p;          /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS). */
+       ron_lqg_gain_mode_t gain_mode; /**< Pre-computed or DARE.               */
+
+       ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];              /**< System.    */
+       ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];               /**< Input.     */
+       ron_float_t H[RON_KF_MAX_MEASUREMENTS][RON_LQR_MAX_STATES];          /**< Obs.       */
+       ron_float_t Q_noise[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];         /**< Proc noise.*/
+       ron_float_t R_noise[RON_KF_MAX_MEASUREMENTS][RON_KF_MAX_MEASUREMENTS];/**< Meas noise.*/
+       ron_float_t x0[RON_LQR_MAX_STATES];                                   /**< Init state.*/
+       ron_float_t P0[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];              /**< Init cov.  */
+       bool        use_joseph_form;   /**< Joseph form KF update.              */
+       bool        use_kf_steady_state; /**< Use pre-computed K_f_inf.        */
+       ron_float_t K_f_inf[RON_LQR_MAX_STATES][RON_KF_MAX_MEASUREMENTS];    /**< SS KF gain.*/
+
+       ron_float_t Q_cost[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];  /**< LQR state cost. */
+       ron_float_t R_cost[RON_LQR_MAX_INPUTS][RON_LQR_MAX_INPUTS];   /**< LQR input cost. */
+       uint16_t    dare_max_iter;
+       ron_float_t dare_tol;
+       ron_float_t K[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< Pre-comp LQR gain. */
+       ron_float_t Kr[RON_LQR_MAX_INPUTS];                      /**< Ref pre-gain.      */
+
+       ron_float_t u_min[RON_LQR_MAX_INPUTS];
+       ron_float_t u_max[RON_LQR_MAX_INPUTS];
+       ron_float_t du_max[RON_LQR_MAX_INPUTS];
+   } ron_lqg_config_t;
+
+   /* Satisfies: RON-FR-759 | Test: RON-TC-LQG-001, RON-TC-LQG-010 */
+   typedef struct {
+       ron_lqg_config_t cfg;
+       ron_kf_t         kalman;
+       ron_float_t      K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES];
+       ron_float_t      P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];
+       ron_float_t      u_prev[RON_LQR_MAX_INPUTS];
+       ron_fault_t      faults;
+       bool             is_initialised;
+   } ron_lqg_t;
+
+   /* Satisfies: RON-FR-750, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
+   ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
+
+   /* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+   ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
+
+   /* Satisfies: RON-FR-753 | Test: RON-TC-LQG-002 */
+   ron_fault_t ron_lqg_predict(ron_lqg_t *lqg,
+                                const ron_float_t u[RON_LQR_MAX_INPUTS]);
+
+   /* Satisfies: RON-FR-754 | Test: RON-TC-LQG-003, RON-TC-LQG-004 */
+   ron_fault_t ron_lqg_update(ron_lqg_t *lqg,
+                               const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
+                               bool z_valid);
+
+   /* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
+   ron_fault_t ron_lqg_step(ron_lqg_t *lqg,
+                             const ron_float_t r[RON_LQR_MAX_INPUTS],
+                             ron_float_t dt,
+                             ron_float_t u[RON_LQR_MAX_INPUTS],
+                             ron_status_t *status);
+
+   /* Satisfies: RON-FR-758 | Test: RON-TC-LQG-005 */
+   ron_fault_t ron_lqg_get_state(const ron_lqg_t *lqg,
+                                  ron_float_t x_hat[RON_LQR_MAX_STATES]);
+
+   #ifdef __cplusplus
+   }
+   #endif
+
+   #endif /* RON_LQG_H */
+
+``ron_lqg_init`` solves the LQR DARE (or copies the pre-computed K) and
+initialises the embedded ``ron_kf_t`` from the system matrices and noise
+covariances.  The typical per-step call sequence is:
+``ron_lqg_predict`` → ``ron_lqg_update`` → ``ron_lqg_step``.  The predict and
+update steps are separate to accommodate sample-rate mismatches between
+control and sensing.
+
 ``ron_autotune.h`` — Relay Feedback Auto-Tuning
 -------------------------------------------------
 
@@ -2383,6 +2635,8 @@ embedded IDEs and CI environments.
    option(RON_ENABLE_CASCADE    "Build cascade controller"                   ON)
    option(RON_ENABLE_KALMAN     "Build discrete Kalman filter"               ON)
    option(RON_ENABLE_STATESPACE "Build state-space controller + observer"    ON)
+   option(RON_ENABLE_LQR        "Build LQR optimal state-feedback controller (forces KALMAN+STATESPACE)" OFF)
+   option(RON_ENABLE_LQG        "Build LQG controller (forces KALMAN+LQR)"  OFF)
    option(RON_ENABLE_AUTOTUNE   "Build relay-feedback auto-tuner"            ON)
    option(RON_ENABLE_HEALTH     "Build control-loop health monitor"          ON)
    option(RON_ENABLE_METRICS    "Build runtime performance metrics"          ON)
@@ -2869,6 +3123,10 @@ denote track-specific deliverables.
      - RON-FR-600 – FR-607
    * - State-space + observer API (both)
      - RON-FR-700 – FR-723
+   * - LQR controller API (C)
+     - RON-FR-730 – FR-739
+   * - LQG controller API (C)
+     - RON-FR-750 – FR-759
    * - Auto-tuning API (both)
      - RON-FR-800 – FR-807
    * - Health monitor API (both)

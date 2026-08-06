@@ -88,6 +88,47 @@ Implement modules in dependency order:
 
 This order keeps each slice testable in isolation and avoids coupling later modules to incomplete support libraries.
 
+## Next Phase: LQR and LQG Specification Layer (Active)
+
+**Status:** Spec complete — awaiting implementation.
+
+Specification updates committed:
+
+- `docs/specs/SRS_ControlLib.rst` v1.2.0: RON-FR-730 – FR-739 (LQR),
+  RON-FR-750 – FR-759 (LQG).
+- `docs/specs/SADS_ControlLib.rst` v1.2.0: module design for `ron_lqr`
+  and `ron_lqg`, DARE pseudocode, separation-principle design, updated
+  dependency diagram, DD-19/DD-20.
+- `docs/specs/IS_ControlLib.rst` v1.2.0: `ron_lqr.h` and `ron_lqg.h`
+  API specs, `RON_LQR_MAX_STATES`/`RON_LQR_MAX_INPUTS` constants,
+  `RON_ENABLE_LQR`/`RON_ENABLE_LQG` CMake options.
+- `docs/specs/TP_ControlLib.rst` v1.1.0: RON-TC-LQR-001–010 and
+  RON-TC-LQG-001–010 test catalog, formal harness entries, coverage table.
+- Public headers: `regulon-c/include/ron/ron_lqr.h`,
+  `regulon-c/include/ron/ron_lqg.h`.
+- Build system: `ron_options.cmake`, `ron_modules.h.in`, `CMakeLists.txt`.
+
+**Implementation phase scope (next iteration):**
+
+1. `src/ron_lqr.c` — LQR: DARE solver (`dare_solve` internal), DARE-mode
+   init, PRECOMPUTED-mode init, `ron_lqr_step` (three-source dispatch,
+   integral augmentation, per-input sat/rate-limit), helper stubs for
+   observer and Kalman delegation.
+2. `src/ron_lqg.c` — LQG: dual DARE at init (LQR K via `dare_solve`,
+   KF built from `ron_kf_init`), predict/update delegation to embedded
+   `ron_kf_t`, `ron_lqg_step` control law.
+3. `test/unit/test_ron_lqr.c` — RON-TC-LQR-001 through RON-TC-LQR-009.
+4. `test/unit/test_ron_lqg.c` — RON-TC-LQG-001 through RON-TC-LQG-009.
+5. `test/formal/lqr_saturation_proof.c` — RON-TC-LQR-010-FV.
+6. `test/formal/lqg_no_heap_proof.c` — RON-TC-LQG-010-FV.
+7. Enable `RON_ENABLE_LQR` and `RON_ENABLE_LQG` to ON by default once
+   implementation is complete and tests pass.
+8. Update `test/CMakeLists.txt` with `ron_add_test` entries for LQR/LQG.
+9. Update `CHANGELOG.rst`, `docs/plans/c11-roadmap.md`.
+
+**Dependencies:** `ron_matrix` (internal, already present), `ron_kalman`,
+`ron_observer`, `ron_statespace` (all already implemented).
+
 ## Phase 0: PID Closure And Baseline Freeze
 
 Status: Complete. PID closure evidence is recorded in `docs/plans/c/c11-rollout.md`; residual local ARM/CBMC gaps are tool-availability gaps covered by CI wiring.

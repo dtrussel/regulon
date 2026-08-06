@@ -233,6 +233,16 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 #define RON_SS_MAX_INPUTS 4U
 #endif
 
+/** Maximum LQR / LQG state dimension (RON-FR-737). */
+#ifndef RON_LQR_MAX_STATES
+#define RON_LQR_MAX_STATES 8U
+#endif
+
+/** Maximum LQR / LQG control input dimension (RON-FR-737). */
+#ifndef RON_LQR_MAX_INPUTS
+#define RON_LQR_MAX_INPUTS 4U
+#endif
+
 /**
  * @brief Uniform working stride for the shared fixed-size matrix helper.
  *
@@ -276,6 +286,10 @@ RON_STATIC_ASSERT(RON_MAT_MAX_DIM >= RON_KF_MAX_STATES,
                   "RON_MAT_MAX_DIM must cover RON_KF_MAX_STATES");
 RON_STATIC_ASSERT(RON_MAT_MAX_DIM >= RON_SS_MAX_STATES,
                   "RON_MAT_MAX_DIM must cover RON_SS_MAX_STATES");
+RON_STATIC_ASSERT(RON_LQR_MAX_STATES >= 1U, "RON_LQR_MAX_STATES must be at least 1");
+RON_STATIC_ASSERT(RON_LQR_MAX_INPUTS >= 1U, "RON_LQR_MAX_INPUTS must be at least 1");
+RON_STATIC_ASSERT(RON_MAT_MAX_DIM >= RON_LQR_MAX_STATES,
+                  "RON_MAT_MAX_DIM must cover RON_LQR_MAX_STATES");
 RON_STATIC_ASSERT(RON_AT_MIN_CYCLES >= 1U, "RON_AT_MIN_CYCLES must be at least 1");
 RON_STATIC_ASSERT(RON_HEALTH_OSC_WINDOW >= 4U, "RON_HEALTH_OSC_WINDOW must be at least 4");
 

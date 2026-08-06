@@ -11,6 +11,61 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Spec Phase: LQR and LQG Controller Support
+---------------------------------------------------------
+
+Specification-layer additions for the Linear Quadratic Regulator (LQR) and
+Linear Quadratic Gaussian (LQG) controller modules.  No C implementation
+files are added in this phase; those follow in the next implementation phase.
+
+Added
+~~~~~
+- ``docs/specs/SRS_ControlLib.rst`` v1.2.0: new requirements
+  ``RON-FR-730`` – ``RON-FR-739`` (LQR) and ``RON-FR-750`` – ``RON-FR-759``
+  (LQG).  Updated traceability matrix in Appendix C.
+
+- ``docs/specs/SADS_ControlLib.rst`` v1.2.0: new module design sections
+  for ``ron_lqr`` (DARE solver pseudocode, control-law pseudocode, data
+  structures) and ``ron_lqg`` (separation-principle design, init/predict/
+  update/step pseudocode).  Updated module dependency diagram.  Added
+  design decisions DD-19 (iterative DARE over Schur decomposition) and
+  DD-20 (LQG forces Kalman-only estimator).
+
+- ``docs/specs/IS_ControlLib.rst`` v1.2.0: compile-time constants
+  ``RON_LQR_MAX_STATES`` and ``RON_LQR_MAX_INPUTS``; complete C API
+  specifications for ``ron_lqr.h`` and ``ron_lqg.h``; CMake options
+  ``RON_ENABLE_LQR`` and ``RON_ENABLE_LQG`` (default OFF until
+  implementation phase); traceability rows for FR-730–739 and FR-750–759.
+
+- ``docs/specs/TP_ControlLib.rst`` v1.1.0: test catalog
+  ``RON-TC-LQR-001`` – ``RON-TC-LQR-010`` and ``RON-TC-LQG-001`` –
+  ``RON-TC-LQG-010`` (including formal harness entries
+  ``RON-TC-LQR-010-FV`` / ``RON-TC-LQG-010-FV``).  Updated requirement
+  coverage table and test execution order.  Added open items OI-TP-07–09.
+
+- ``regulon-c/include/ron/ron_lqr.h``: public C header (types, enums,
+  ``ron_lqr_config_t``, ``ron_lqr_state_t``, ``ron_lqr_t``, full API with
+  traceability annotations).
+
+- ``regulon-c/include/ron/ron_lqg.h``: public C header (types, enums,
+  ``ron_lqg_config_t``, ``ron_lqg_t``, full API with traceability
+  annotations).
+
+- ``regulon-c/include/ron/ron.h``: ``RON_HAVE_LQR`` / ``RON_HAVE_LQG``
+  conditional includes.
+
+- ``regulon-c/cmake/ron_options.cmake``: ``RON_ENABLE_LQR`` and
+  ``RON_ENABLE_LQG`` options (default OFF).
+
+- ``regulon-c/cmake/ron_modules.h.in``: ``RON_HAVE_LQR`` and
+  ``RON_HAVE_LQG`` template entries.
+
+- ``regulon-c/CMakeLists.txt``: LQR/LQG dependency-resolution rules
+  (LQG→LQR→STATESPACE→KALMAN), module-variable loop, and conditional
+  ``src/ron_lqr.c`` / ``src/ron_lqg.c`` source-list entries.
+
+------------------------------------------------------------------------
+
 Unreleased — C11 Phase 11 Full-Library Integration And Release Hardening
 -----------------------------------------------------------------------
 
