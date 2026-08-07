@@ -11,6 +11,24 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Contributor and Security Hygiene Docs
+-------------------------------------------------------
+
+Added
+~~~~~
+- ``CONTRIBUTING.md``: summarises the spec-first workflow already
+  described in ``AGENTS.md``/``regulon-c/AGENTS.md`` for external
+  contributors, plus a pre-PR checklist.
+- ``SECURITY.md``: vulnerability-reporting process via GitHub private
+  security advisories (no personal contact info published).
+- ``.github/ISSUE_TEMPLATE/bug_report.md``,
+  ``.github/ISSUE_TEMPLATE/feature_request.md``,
+  ``.github/ISSUE_TEMPLATE/config.yml`` (disables blank issues, links to
+  the security-advisory flow instead of public issues for vulnerabilities).
+- ``.github/pull_request_template.md``.
+
+------------------------------------------------------------------------
+
 Unreleased — Doxygen API Reference
 --------------------------------------
 
