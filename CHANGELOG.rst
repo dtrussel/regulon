@@ -11,6 +11,39 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Host Timing Benchmark (RON-PR-001, RON-PR-003)
+----------------------------------------------------------------
+
+Added
+~~~~~
+- ``regulon-c/bench/bench_step.c`` and ``regulon-c/bench/CMakeLists.txt``:
+  a new host-only, ``RON_BUILD_BENCHMARKS``-gated timing benchmark
+  reporting average/worst-observed per-call wall-clock time for the
+  PID, Kalman, state-space, LQR, and LQG step functions against the
+  RON-PR-003 design target (>= 10 kHz sample rate, i.e. a 100
+  microsecond/step budget). This is informational evidence, not a
+  certified WCET analysis — RON-PR-001/RON-PR-003 explicitly defer the
+  certified budget to target-specific static or measurement-based
+  timing analysis during integration — but it turns the previously
+  doc-only performance claims into an actual, repeatable measurement
+  and catches gross regressions (e.g. an accidental unbounded loop).
+- ``.github/workflows/ci_c.yml``: new ``benchmark`` job builds and runs
+  it on every push/PR (fails only on a >100 ms/step gross regression,
+  so ordinary CI-runner jitter around the 10 kHz target doesn't break
+  the build).
+- ``regulon-c/cmake/ron_options.cmake``: new ``RON_BUILD_BENCHMARKS``
+  option (default ``OFF``, host-only, mirrors ``RON_BUILD_EXAMPLES``).
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- GCC and Clang default-flag builds: both build and run cleanly.
+- Representative host measurements (informational, not a target
+  budget): PID ~120 ns/step, state-space ~150 ns/step, LQR ~280
+  ns/step, LQG ~3.0 us/step, Kalman ~6.3 us/step — all comfortably
+  within the 100 us/step design-target budget on this host.
+
+------------------------------------------------------------------------
+
 Unreleased — CI: RISC-V Cross-Compile Smoke Build
 ----------------------------------------------------
 

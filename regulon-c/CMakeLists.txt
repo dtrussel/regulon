@@ -165,6 +165,13 @@ if(RON_BUILD_EXAMPLES AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 # ---------------------------------------------------------------------------
+# Benchmarks (host only — never cross-compiled; informational, not a gate)
+# ---------------------------------------------------------------------------
+if(RON_BUILD_BENCHMARKS AND NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(bench)
+endif()
+
+# ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 install(TARGETS regulon ARCHIVE DESTINATION lib)

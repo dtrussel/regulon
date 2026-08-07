@@ -486,3 +486,29 @@ jobs:
                 -DRON_BUILD_TESTS=OFF -DRON_BUILD_EXAMPLES=ON \
                 -DCMAKE_C_COMPILER=clang
           cmake --build regulon-c/build_ex_clang --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 14: Host timing benchmark (RON_BUILD_BENCHMARKS, RON-PR-001/RON-PR-003)
+  #
+  # Informational, not a certified WCET analysis (RON-PR-001/RON-PR-003 defer
+  # the certified budget to target-specific integration): only fails on a
+  # gross regression (>100 ms/step), so ordinary CI-runner jitter around the
+  # 10 kHz design-target budget does not break the build.
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: Timing Benchmark (informational)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc
+
+      - name: Build and run benchmark
+        run: |
+          cmake -B regulon-c/build_bench -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DRON_BUILD_BENCHMARKS=ON \
+                -DCMAKE_C_COMPILER=gcc
+          cmake --build regulon-c/build_bench --parallel
+          ./regulon-c/build_bench/bench/bench_step

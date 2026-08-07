@@ -10,6 +10,7 @@
 option(RON_USE_DOUBLE     "Use 64-bit double precision (default: 32-bit float)"  OFF)
 option(RON_BUILD_TESTS    "Build unit and integration tests"                      ON)
 option(RON_BUILD_EXAMPLES "Build host example programs (host only)"               OFF)
+option(RON_BUILD_BENCHMARKS "Build host timing benchmarks (host only)"             OFF)
 option(RON_ENABLE_ASSERT  "Enable runtime RON_ASSERT checks (uses __builtin_trap)" OFF)
 
 # ---------------------------------------------------------------------------
