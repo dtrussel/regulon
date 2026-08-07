@@ -1,0 +1,16 @@
+# =============================================================================
+# regulonConfig.cmake.in — CMake package config template for the Regulon
+# C11 static library, expanded by configure_package_config_file().
+#
+# Consumers use this via:
+#   find_package(regulon REQUIRED)
+#   target_link_libraries(my_target PRIVATE regulon::regulon)
+#
+# RON-IS-001 §8.1
+# SPDX-License-Identifier: MIT
+# =============================================================================
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/regulonTargets.cmake")
+
+check_required_components(regulon)

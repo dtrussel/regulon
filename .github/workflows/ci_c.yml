@@ -512,3 +512,45 @@ jobs:
                 -DCMAKE_C_COMPILER=gcc
           cmake --build regulon-c/build_bench --parallel
           ./regulon-c/build_bench/bench/bench_step
+
+  # ---------------------------------------------------------------------------
+  # Job 15: Package-install smoke test (find_package(regulon) / pkg-config)
+  #
+  # Builds and installs the library to a throwaway prefix, then configures a
+  # standalone consumer project (regulon-c/scripts/package_smoke) against
+  # that installed package via CMAKE_PREFIX_PATH, proving the exported
+  # regulonConfig.cmake / regulonTargets.cmake / regulon.pc actually resolve
+  # for an out-of-tree consumer.
+  # ---------------------------------------------------------------------------
+  package-install-smoke:
+    name: Package Install Smoke Test
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc pkg-config
+
+      - name: Build and install regulon to a throwaway prefix
+        run: |
+          cmake -B regulon-c/build_pkg -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DCMAKE_C_COMPILER=gcc \
+                -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/regulon-install
+          cmake --build regulon-c/build_pkg --parallel
+          cmake --install regulon-c/build_pkg
+
+      - name: Configure and build the consumer fixture via find_package(regulon)
+        run: |
+          cmake -B regulon-c/scripts/package_smoke/build -S regulon-c/scripts/package_smoke \
+                -DCMAKE_PREFIX_PATH=${{ runner.temp }}/regulon-install \
+                -DCMAKE_C_COMPILER=gcc
+          cmake --build regulon-c/scripts/package_smoke/build
+          ./regulon-c/scripts/package_smoke/build/package_smoke
+
+      - name: Compile the consumer fixture via pkg-config
+        run: |
+          export PKG_CONFIG_PATH=${{ runner.temp }}/regulon-install/lib/pkgconfig
+          gcc regulon-c/scripts/package_smoke/main.c $(pkg-config --cflags --libs regulon) \
+              -o /tmp/package_smoke_pc
+          /tmp/package_smoke_pc

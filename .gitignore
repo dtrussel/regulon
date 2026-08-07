@@ -1,6 +1,7 @@
 # Build output directories
 regulon-c/build/
 regulon-c/build_*/
+regulon-c/scripts/package_smoke/build/
 regulon-rs/target/
 
 # CMake generated

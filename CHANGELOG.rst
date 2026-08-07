@@ -11,6 +11,66 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — CMake Package Export and pkg-config
+------------------------------------------------------
+
+Previously ``install(TARGETS regulon ARCHIVE DESTINATION lib)`` copied the
+static library and headers but produced no ``find_package``-consumable
+package; downstream consumers had no supported way to link the library
+outside the in-tree ``add_subdirectory`` build.
+
+Added
+~~~~~
+- ``regulon-c/cmake/regulonConfig.cmake.in``,
+  ``regulon-c/cmake/regulon.pc.in``: templates for the generated CMake
+  package config and pkg-config file.
+- Installed CMake package (``lib/cmake/regulon/``):
+  ``regulonConfig.cmake``, ``regulonConfigVersion.cmake``
+  (``SameMajorVersion`` compatibility), and ``regulonTargets.cmake``
+  exporting the ``regulon::regulon`` imported target. Consumers use
+  ``find_package(regulon REQUIRED)`` +
+  ``target_link_libraries(t PRIVATE regulon::regulon)``.
+- Installed pkg-config file (``lib/pkgconfig/regulon.pc``) for non-CMake
+  consumers (``pkg-config --cflags --libs regulon``).
+- ``regulon-c/scripts/package_smoke/``: a standalone consumer-project
+  fixture (own ``CMakeLists.txt`` + ``main.c``) that links against an
+  installed package via ``find_package``, used by the new
+  ``package-install-smoke`` CI job and available for local package
+  testing.
+- ``.github/workflows/ci_c.yml``: new ``package-install-smoke`` job
+  builds and installs the library to a throwaway prefix, then configures/
+  builds/runs the consumer fixture against it via both
+  ``CMAKE_PREFIX_PATH`` and ``pkg-config``.
+
+Changed
+~~~~~~~
+- ``regulon-c/CMakeLists.txt``: added a ``regulon::regulon`` ALIAS target
+  (so in-tree ``add_subdirectory`` consumers and installed
+  ``find_package`` consumers use the same target name); moved
+  ``include(GNUInstallDirs)`` to the top of the file (it must run before
+  ``CMAKE_INSTALL_INCLUDEDIR`` is referenced by
+  ``target_include_directories()`` — it was previously only included
+  further down in the Install section, which silently produced an empty
+  ``$<INSTALL_INTERFACE:...>`` and no ``INTERFACE_INCLUDE_DIRECTORIES``
+  on the exported target); switched the install destinations to the
+  standard ``GNUInstallDirs`` variables instead of hardcoded ``lib``/
+  ``include``.
+- ``.gitignore``: added ``regulon-c/scripts/package_smoke/build/``.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- Local install to a throwaway prefix + a standalone consumer project
+  configured with ``-DCMAKE_PREFIX_PATH=<prefix>``: ``find_package(regulon)``
+  resolves, ``regulon::regulon`` links, and the consumer program runs and
+  calls ``ron_pid_init`` successfully.
+- The same consumer source compiled directly with
+  ``$(pkg-config --cflags --libs regulon)`` (``PKG_CONFIG_PATH`` pointed at
+  the installed prefix): builds and runs successfully.
+- Full in-tree host build/test suite (19/19) unaffected by the
+  ``CMakeLists.txt`` reordering.
+
+------------------------------------------------------------------------
+
 Unreleased — Host Timing Benchmark (RON-PR-001, RON-PR-003)
 ----------------------------------------------------------------
 
