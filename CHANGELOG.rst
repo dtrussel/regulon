@@ -11,8 +11,318 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
-Unreleased — Spec Phase: LQR and LQG Controller Support
----------------------------------------------------------
+`0.1.0`_ - 2026-08-07
+======================
+
+First tagged release. Covers the complete C11 implementation (``regulon-c/``,
+``project(regulon VERSION 0.1.0 ...)``) — every roadmap phase from the PID
+baseline through Phase 12 (LQR/LQG optimal control) is implemented, tested,
+and traceable — plus the release-engineering work below that makes the
+repository installable and usable outside its own build tree. The Rust
+implementation (``regulon-rs/``) remains early-stage (PID and filters only)
+and is not part of this release's completeness claim; see
+``docs/plans/rust/rust-first-rollout.md`` for its separate status.
+
+Highlights of this release, in the detailed entries below:
+
+- **C11 library complete**: all 14 modules (PID, filters, feed-forward,
+  gain scheduling, trajectory generators, cascade control, Kalman filter,
+  state-space controller + Luenberger observer, LQR, LQG, relay
+  auto-tuner, health monitor, runtime metrics, aggregate header) are
+  implemented with 100% statement/branch coverage, CBMC formal proofs
+  where the test plan calls for them, and full MISRA C:2023 traceability.
+- **Installable**: a ``find_package(regulon)``-consumable CMake package
+  and a ``pkg-config`` file, in addition to the existing in-tree
+  ``add_subdirectory`` build.
+- **Portable**: ARM Cortex-M and RISC-V (``rv32imc``) cross-compile smoke
+  builds, both exercised in CI.
+- **Documented**: a top-level ``README.md``, a generated Doxygen API
+  reference, ``CONTRIBUTING.md``/``SECURITY.md``, and issue/PR templates
+  — none of which existed before this release.
+- **Measured**: a host timing benchmark against the ``RON-PR-003`` 10 kHz
+  design-target budget, and a refreshed MISRA deviations record covering
+  the full active source set instead of just the original PID slice.
+
+.. _0.1.0: https://github.com/dtrussel/regulon/releases/tag/v0.1.0
+
+------------------------------------------------------------------------
+
+0.1.0 — Contributor and Security Hygiene Docs
+---------------------------------------------
+
+Added
+~~~~~
+- ``CONTRIBUTING.md``: summarises the spec-first workflow already
+  described in ``AGENTS.md``/``regulon-c/AGENTS.md`` for external
+  contributors, plus a pre-PR checklist.
+- ``SECURITY.md``: vulnerability-reporting process via GitHub private
+  security advisories (no personal contact info published).
+- ``.github/ISSUE_TEMPLATE/bug_report.md``,
+  ``.github/ISSUE_TEMPLATE/feature_request.md``,
+  ``.github/ISSUE_TEMPLATE/config.yml`` (disables blank issues, links to
+  the security-advisory flow instead of public issues for vulnerabilities).
+- ``.github/pull_request_template.md``.
+
+------------------------------------------------------------------------
+
+0.1.0 — Doxygen API Reference
+-----------------------------
+
+Added
+~~~~~
+- ``regulon-c/Doxyfile``: Doxygen configuration scoped to
+  ``include/ron/*.h`` (``EXTRACT_ALL``, Graphviz include/dependency
+  graphs, treeview navigation).
+- ``regulon-c/scripts/doxygen_filter.sh``: an ``INPUT_FILTER`` that
+  rewrites only the bare ``/*`` opening line of the existing
+  ``@file``/``@brief`` and struct/enum documentation blocks to ``/**``
+  so Doxygen recognises them as documentation, without requiring every
+  header to be rewritten and without touching the single-line
+  ``/* Satisfies: ... | Test: ... */`` traceability annotations above
+  each function (which stay excluded from the rendered prose, as
+  intended — they're citations, not documentation).
+- ``.github/workflows/docs_c.yml``: manually-triggered (``workflow_dispatch``)
+  workflow that builds the HTML reference, uploads it as a build
+  artifact, and deploys it to GitHub Pages. Kept off the automatic push/PR
+  triggers deliberately, so an unconfigured Pages setup can never break
+  the required ``ci_c.yml`` checks; first-time Pages enablement (Settings
+  -> Pages -> source "GitHub Actions") is a one-time manual step.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- ``doxygen Doxyfile`` (Doxygen 1.9.8, Graphviz 2.42): exits 0, generates
+  454 HTML files, zero errors. The 17 remaining warnings are all
+  "Found documentation for unknown module ...", one per header, from
+  Doxygen interpreting this codebase's own ``@module`` file-header tag
+  as its built-in module-grouping command; harmless (confirmed the
+  generated pages render the intended file-level and enum-value prose
+  correctly) and left as-is rather than risk a more invasive alias fix.
+
+------------------------------------------------------------------------
+
+0.1.0 — CMake Package Export and pkg-config
+-------------------------------------------
+
+Previously ``install(TARGETS regulon ARCHIVE DESTINATION lib)`` copied the
+static library and headers but produced no ``find_package``-consumable
+package; downstream consumers had no supported way to link the library
+outside the in-tree ``add_subdirectory`` build.
+
+Added
+~~~~~
+- ``regulon-c/cmake/regulonConfig.cmake.in``,
+  ``regulon-c/cmake/regulon.pc.in``: templates for the generated CMake
+  package config and pkg-config file.
+- Installed CMake package (``lib/cmake/regulon/``):
+  ``regulonConfig.cmake``, ``regulonConfigVersion.cmake``
+  (``SameMajorVersion`` compatibility), and ``regulonTargets.cmake``
+  exporting the ``regulon::regulon`` imported target. Consumers use
+  ``find_package(regulon REQUIRED)`` +
+  ``target_link_libraries(t PRIVATE regulon::regulon)``.
+- Installed pkg-config file (``lib/pkgconfig/regulon.pc``) for non-CMake
+  consumers (``pkg-config --cflags --libs regulon``).
+- ``regulon-c/scripts/package_smoke/``: a standalone consumer-project
+  fixture (own ``CMakeLists.txt`` + ``main.c``) that links against an
+  installed package via ``find_package``, used by the new
+  ``package-install-smoke`` CI job and available for local package
+  testing.
+- ``.github/workflows/ci_c.yml``: new ``package-install-smoke`` job
+  builds and installs the library to a throwaway prefix, then configures/
+  builds/runs the consumer fixture against it via both
+  ``CMAKE_PREFIX_PATH`` and ``pkg-config``.
+
+Changed
+~~~~~~~
+- ``regulon-c/CMakeLists.txt``: added a ``regulon::regulon`` ALIAS target
+  (so in-tree ``add_subdirectory`` consumers and installed
+  ``find_package`` consumers use the same target name); moved
+  ``include(GNUInstallDirs)`` to the top of the file (it must run before
+  ``CMAKE_INSTALL_INCLUDEDIR`` is referenced by
+  ``target_include_directories()`` — it was previously only included
+  further down in the Install section, which silently produced an empty
+  ``$<INSTALL_INTERFACE:...>`` and no ``INTERFACE_INCLUDE_DIRECTORIES``
+  on the exported target); switched the install destinations to the
+  standard ``GNUInstallDirs`` variables instead of hardcoded ``lib``/
+  ``include``.
+- ``.gitignore``: added ``regulon-c/scripts/package_smoke/build/``.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- Local install to a throwaway prefix + a standalone consumer project
+  configured with ``-DCMAKE_PREFIX_PATH=<prefix>``: ``find_package(regulon)``
+  resolves, ``regulon::regulon`` links, and the consumer program runs and
+  calls ``ron_pid_init`` successfully.
+- The same consumer source compiled directly with
+  ``$(pkg-config --cflags --libs regulon)`` (``PKG_CONFIG_PATH`` pointed at
+  the installed prefix): builds and runs successfully.
+- Full in-tree host build/test suite (19/19) unaffected by the
+  ``CMakeLists.txt`` reordering.
+
+------------------------------------------------------------------------
+
+0.1.0 — Host Timing Benchmark (RON-PR-001, RON-PR-003)
+------------------------------------------------------
+
+Added
+~~~~~
+- ``regulon-c/bench/bench_step.c`` and ``regulon-c/bench/CMakeLists.txt``:
+  a new host-only, ``RON_BUILD_BENCHMARKS``-gated timing benchmark
+  reporting average/worst-observed per-call wall-clock time for the
+  PID, Kalman, state-space, LQR, and LQG step functions against the
+  RON-PR-003 design target (>= 10 kHz sample rate, i.e. a 100
+  microsecond/step budget). This is informational evidence, not a
+  certified WCET analysis — RON-PR-001/RON-PR-003 explicitly defer the
+  certified budget to target-specific static or measurement-based
+  timing analysis during integration — but it turns the previously
+  doc-only performance claims into an actual, repeatable measurement
+  and catches gross regressions (e.g. an accidental unbounded loop).
+- ``.github/workflows/ci_c.yml``: new ``benchmark`` job builds and runs
+  it on every push/PR (fails only on a >100 ms/step gross regression,
+  so ordinary CI-runner jitter around the 10 kHz target doesn't break
+  the build).
+- ``regulon-c/cmake/ron_options.cmake``: new ``RON_BUILD_BENCHMARKS``
+  option (default ``OFF``, host-only, mirrors ``RON_BUILD_EXAMPLES``).
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- GCC and Clang default-flag builds: both build and run cleanly.
+- Representative host measurements (informational, not a target
+  budget): PID ~120 ns/step, state-space ~150 ns/step, LQR ~280
+  ns/step, LQG ~3.0 us/step, Kalman ~6.3 us/step — all comfortably
+  within the 100 us/step design-target budget on this host.
+
+------------------------------------------------------------------------
+
+0.1.0 — CI: RISC-V Cross-Compile Smoke Build
+--------------------------------------------
+
+Added
+~~~~~
+- ``.github/workflows/ci_c.yml``: new ``cross-riscv`` job cross-compiling
+  the full library for ``rv32imc``/``ilp32`` with the
+  ``gcc-riscv64-unknown-elf`` multilib toolchain (the Ubuntu/Debian
+  package installs a ``riscv64-unknown-elf-gcc`` binary that targets
+  rv32 or rv64 depending on ``-march``/``-mabi``, not a separate
+  ``riscv32-unknown-elf-gcc``).
+
+Changed
+~~~~~~~
+- ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``: corrected the
+  compiler/binutils binary names to the ``riscv64-unknown-elf-*`` triple
+  actually installed by the apt package, and added the same
+  Newlib/picolibc-detection-with-declaration-only-fallback pattern already
+  used by ``arm-none-eabi.cmake`` (``RON_RISCV_GCC_LIBC_INCLUDE`` /
+  ``RON_RISCV_GCC_ALLOW_HEADER_SHIM``). Previously this toolchain file was
+  present in the repository but never exercised by CI or verified to
+  actually work.
+- ``regulon-c/cmake/freestanding/riscv32-unknown-elf/include/math.h``: new
+  declaration-only fallback header (mirrors the existing ARMv7 one), used
+  only when no real libc headers are configured.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- ``riscv64-unknown-elf-gcc`` 13.2.0 with real ``picolibc`` headers
+  (``/usr/lib/picolibc/riscv64-unknown-elf/include``): the full library,
+  including ``ron_lqr.c``/``ron_lqg.c``, cross-compiles cleanly for
+  ``-march=rv32imc -mabi=ilp32``.
+- Declaration-only header-shim fallback path (``RON_RISCV_GCC_ALLOW_HEADER_SHIM``,
+  no libc installed): also builds cleanly, matching the ARM toolchain's
+  existing fallback behaviour.
+
+------------------------------------------------------------------------
+
+0.1.0 — C11 Phase 12: LQR and LQG Implementation
+------------------------------------------------
+
+Implements the LQR and LQG modules specified in the prior phase, closing
+the last open module in the C11 roadmap.
+
+Added
+~~~~~
+- ``regulon-c/src/ron_lqr.c``: LQR implementation — the shared discrete
+  algebraic Riccati equation (DARE) solver (``ron_lqr_dare_solve``,
+  iterative value recursion per SADS DD-19), pre-computed and DARE gain
+  modes, three-source state-estimate dispatch (external / Luenberger /
+  Kalman), optional per-input integral augmentation, and per-input
+  saturation and rate limiting.
+
+- ``regulon-c/src/ron_lqg.c``: LQG implementation — dual-DARE
+  initialisation (LQR gain via the shared ``ron_lqr_dare_solve``; Kalman
+  gain via ``ron_kf_init`` from the noise covariances, independently per
+  the separation principle), predict/update delegation to the embedded
+  ``ron_kf_t``, and the combined control step with the same per-input
+  output-limiting semantics as LQR.
+
+- ``regulon-c/src/ron_lqr_internal.h``: private header sharing
+  ``ron_lqr_dare_solve`` between ``ron_lqr.c`` and ``ron_lqg.c``.
+
+- ``regulon-c/test/unit/test_ron_lqr.c``: Unity suite ``RON-TC-LQR-001``
+  – ``RON-TC-LQR-009`` plus defensive/validation coverage, all at 100%
+  statement and branch coverage on ``ron_lqr.c``.
+
+- ``regulon-c/test/unit/test_ron_lqg.c``: Unity suite ``RON-TC-LQG-001``
+  – ``RON-TC-LQG-009`` plus defensive/validation coverage, all at 100%
+  statement and branch coverage on ``ron_lqg.c``.
+
+- ``regulon-c/test/formal/lqr_saturation_proof.c``: CBMC harness
+  (``RON-TC-LQR-010-FV``) proving output saturation bounds and no heap
+  allocation for a bounded finite ``ron_lqr_step``. CBMC verification:
+  SUCCESSFUL.
+
+- ``regulon-c/test/formal/lqg_no_heap_proof.c``: CBMC harness
+  (``RON-TC-LQG-010-FV``) proving output saturation bounds, no heap
+  allocation, and a finite Kalman state estimate for a bounded finite
+  predict/update/step cycle. CBMC verification: SUCCESSFUL.
+
+Changed
+~~~~~~~
+- ``regulon-c/cmake/ron_options.cmake``: ``RON_ENABLE_LQR`` and
+  ``RON_ENABLE_LQG`` now default ``ON``, matching every other implemented
+  module.
+
+- ``regulon-c/test/CMakeLists.txt``: registers ``test_ron_lqr`` and
+  ``test_ron_lqg`` (guarded by their respective ``RON_ENABLE_*`` options).
+
+- ``regulon-c/scripts/lib_sources.txt`` / ``scripts/format_files.txt``:
+  add ``ron_lqr.c``, ``ron_lqg.c``, and ``ron_lqr_internal.h`` to the CI
+  format / cppcheck / MISRA / complexity / coverage / CBMC source
+  manifests.
+
+Design notes
+~~~~~~~~~~~~
+- ``ron_lqg``'s configuration validation deliberately checks only ``A``
+  and ``B`` up front (consumed directly by the shared DARE solver); the
+  Kalman-only fields (``H``, ``Q_noise``, ``R_noise``, ``x0``, ``P0``,
+  ``K_f_inf``) are validated by the embedded ``ron_kf_init`` call itself,
+  mirroring the delegation pattern already used by
+  ``ron_statespace``/``ron_observer`` for their embedded estimators
+  instead of duplicating the checks.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- ``ctest`` (GCC): 19/19 suites pass, including the new ``test_ron_lqr``
+  and ``test_ron_lqg``.
+- Double-precision (``RON_USE_DOUBLE=ON``), standalone Clang, and GCC
+  ``-fsanitize=address,undefined -fno-sanitize-recover=all``: all 19
+  suites pass on each configuration.
+- ``clang-format --dry-run --Werror`` over the format manifest: clean.
+- ``cppcheck --addon=misra.py`` over the active library source set: no
+  findings in ``ron_lqr.c`` / ``ron_lqg.c`` (pre-existing findings in
+  ``ron_autotune.c``/``.h`` are unrelated to this phase).
+- ``lizard -C 10``: no function exceeds CCN 10.
+- GCC ``--coverage`` (gcov -b): 100% line and 100% branch coverage (both
+  directions taken) on both ``ron_lqr.c`` and ``ron_lqg.c``.
+- CBMC (``--unwind 65 --unwinding-assertions --bounds-check
+  --pointer-check``): both new harnesses report VERIFICATION SUCCESSFUL.
+- ARM Cortex-M cross-compile (``arm-none-eabi-gcc`` with real Newlib
+  headers): full library including ``ron_lqr.c``/``ron_lqg.c`` builds
+  cleanly.
+- ``bash regulon-c/scripts/check_manifest.sh``: manifests in sync.
+
+------------------------------------------------------------------------
+
+0.1.0 — Spec Phase: LQR and LQG Controller Support
+--------------------------------------------------
 
 Specification-layer additions for the Linear Quadratic Regulator (LQR) and
 Linear Quadratic Gaussian (LQG) controller modules.  No C implementation
@@ -66,8 +376,8 @@ Added
 
 ------------------------------------------------------------------------
 
-Unreleased — C11 Phase 11 Full-Library Integration And Release Hardening
------------------------------------------------------------------------
+0.1.0 — C11 Phase 11 Full-Library Integration And Release Hardening
+-------------------------------------------------------------------
 
 This entry completes the C11 implementation: all eleven roadmap phases
 (PID, filters, feed-forward, gain scheduling, trajectory, cascade, Kalman,
@@ -125,8 +435,8 @@ Fixed
 
 ------------------------------------------------------------------------
 
-Unreleased — Rust-First PID Kickoff
------------------------------------
+0.1.0 — Rust-First PID Kickoff
+------------------------------
 
 Added
 ~~~~~
@@ -161,8 +471,8 @@ Added
 
 ------------------------------------------------------------------------
 
-Unreleased C11 PID Vertical Slice
-------------------------------------
+0.1.0 C11 PID Vertical Slice
+----------------------------
 
 Added
 ~~~~~
@@ -483,8 +793,8 @@ Changed
 
 ------------------------------------------------------------------------
 
-Unreleased — Sprint 1 (C11 Platform + Type Headers)
-----------------------------------------------------
+0.1.0 — Sprint 1 (C11 Platform + Type Headers)
+----------------------------------------------
 
 Added
 ~~~~~

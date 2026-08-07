@@ -5,6 +5,8 @@ regulon-c/src/ron_filter.c
 regulon-c/src/ron_gain_sched.c
 regulon-c/src/ron_health.c
 regulon-c/src/ron_kalman.c
+regulon-c/src/ron_lqg.c
+regulon-c/src/ron_lqr.c
 regulon-c/src/ron_matrix.c
 regulon-c/src/ron_metrics.c
 regulon-c/src/ron_observer.c
@@ -13,6 +15,7 @@ regulon-c/src/ron_pid_config.c
 regulon-c/src/ron_pid_core.c
 regulon-c/src/ron_pid_fault.c
 regulon-c/src/ron_matrix_internal.h
+regulon-c/src/ron_lqr_internal.h
 regulon-c/src/ron_pid_internal.h
 regulon-c/src/ron_statespace.c
 regulon-c/src/ron_trajectory_scurve.c

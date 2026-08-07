@@ -10,6 +10,7 @@
 option(RON_USE_DOUBLE     "Use 64-bit double precision (default: 32-bit float)"  OFF)
 option(RON_BUILD_TESTS    "Build unit and integration tests"                      ON)
 option(RON_BUILD_EXAMPLES "Build host example programs (host only)"               OFF)
+option(RON_BUILD_BENCHMARKS "Build host timing benchmarks (host only)"             OFF)
 option(RON_ENABLE_ASSERT  "Enable runtime RON_ASSERT checks (uses __builtin_trap)" OFF)
 
 # ---------------------------------------------------------------------------
@@ -28,8 +29,8 @@ option(RON_ENABLE_TRAJECTORY "Build trajectory generators (ron_trajectory)"     
 option(RON_ENABLE_CASCADE    "Build cascade controller (ron_cascade)"              ON)
 option(RON_ENABLE_KALMAN     "Build discrete Kalman filter (ron_kalman)"           ON)
 option(RON_ENABLE_STATESPACE "Build state-space controller + observer (forces KALMAN)" ON)
-option(RON_ENABLE_LQR        "Build LQR optimal state-feedback controller (forces KALMAN+STATESPACE)" OFF)
-option(RON_ENABLE_LQG        "Build LQG controller (forces KALMAN+LQR)"             OFF)
+option(RON_ENABLE_LQR        "Build LQR optimal state-feedback controller (forces KALMAN+STATESPACE)" ON)
+option(RON_ENABLE_LQG        "Build LQG controller (forces KALMAN+LQR)"             ON)
 option(RON_ENABLE_AUTOTUNE   "Build relay-feedback auto-tuner (ron_autotune)"      ON)
 option(RON_ENABLE_HEALTH     "Build control-loop health monitor (ron_health)"      ON)
 option(RON_ENABLE_METRICS    "Build runtime performance metrics (ron_metrics)"     ON)

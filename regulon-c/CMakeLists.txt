@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(regulon
-    VERSION     1.0.0
+    VERSION     0.1.0
     DESCRIPTION "Regulon Control Systems Library — C11 Implementation"
     LANGUAGES   C
 )
@@ -12,6 +12,10 @@ project(regulon
 set(CMAKE_C_STANDARD          11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS        OFF)
+
+# GNUInstallDirs must be included before it is referenced by
+# target_include_directories() below, not just in the Install section.
+include(GNUInstallDirs)
 
 # ---------------------------------------------------------------------------
 # Build options (precision, tests, examples, per-module selection)
@@ -116,9 +120,11 @@ add_library(regulon STATIC ${RON_LIB_SOURCES})
 target_include_directories(regulon
     PUBLIC  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<BUILD_INTERFACE:${RON_GENERATED_INCLUDE_DIR}>
-            $<INSTALL_INTERFACE:include>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+add_library(regulon::regulon ALIAS regulon)
 
 # Strict warning flags — every warning is an error (RON-IS-001 §3.4)
 target_compile_options(regulon PRIVATE
@@ -165,8 +171,56 @@ if(RON_BUILD_EXAMPLES AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 # ---------------------------------------------------------------------------
-# Install
+# Benchmarks (host only — never cross-compiled; informational, not a gate)
 # ---------------------------------------------------------------------------
-install(TARGETS regulon ARCHIVE DESTINATION lib)
-install(DIRECTORY include/ron DESTINATION include)
-install(FILES ${RON_GENERATED_INCLUDE_DIR}/ron/ron_modules.h DESTINATION include/ron)
+if(RON_BUILD_BENCHMARKS AND NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(bench)
+endif()
+
+# ---------------------------------------------------------------------------
+# Install: static library, headers, and a relocatable CMake package
+# (regulonConfig.cmake / regulonConfigVersion.cmake / regulonTargets.cmake)
+# so downstream consumers can `find_package(regulon)` and link
+# `regulon::regulon`, plus a pkg-config .pc file for non-CMake consumers.
+# ---------------------------------------------------------------------------
+include(CMakePackageConfigHelpers)
+
+install(TARGETS regulon
+    EXPORT      regulonTargets
+    ARCHIVE     DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+install(DIRECTORY include/ron DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES ${RON_GENERATED_INCLUDE_DIR}/ron/ron_modules.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ron
+)
+
+install(EXPORT regulonTargets
+    FILE        regulonTargets.cmake
+    NAMESPACE   regulon::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/regulon
+)
+
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/regulonConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/regulonConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/regulon
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/regulonConfigVersion.cmake
+    VERSION       ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/regulonConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/regulonConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/regulon
+)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/regulon.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/regulon.pc
+    @ONLY
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/regulon.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+)

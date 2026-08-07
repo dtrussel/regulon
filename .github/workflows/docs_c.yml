@@ -1,0 +1,62 @@
+name: Docs - C11 API Reference
+
+# Manually triggered so a missing/unconfigured GitHub Pages setup never
+# breaks the required push/PR checks in ci_c.yml. Run from the Actions tab
+# (or `gh workflow run docs_c.yml`) whenever the public headers change and
+# you want to refresh the published API reference.
+#
+# First-time setup: enable Pages for this repository with source "GitHub
+# Actions" (Settings -> Pages) before the deploy job can publish.
+#
+# RON-IS-001 §8.1
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Doxygen HTML
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        run: sudo apt-get update -q && sudo apt-get install -y doxygen graphviz
+
+      - name: Build API reference
+        run: |
+          cd regulon-c
+          doxygen Doxyfile
+
+      - name: Upload HTML as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-api-reference
+          path: regulon-c/doxygen_output/html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: regulon-c/doxygen_output/html
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

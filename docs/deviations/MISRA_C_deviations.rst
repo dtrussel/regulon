@@ -7,11 +7,11 @@ MISRA C:2023 Deviation Records
 
 **Document ID:** RON-DEV-C-001
 
-**Version:** 0.3.0 (PID verification closure)
+**Version:** 0.4.0 (full-library audit — Phases 0-12)
 
 **Status:** Draft
 
-**Date:** 2026-04-11
+**Date:** 2026-08-07
 
 Introduction
 ------------
@@ -45,15 +45,21 @@ Deviation Table
      - Compensating Measures
    * - DEV-001
      - Rule 15.5 (Single point of exit)
-     - ``regulon-c/src/ron_pid_api.c``, ``regulon-c/src/ron_pid_core.c``,
-       ``regulon-c/src/ron_pid_fault.c``
-     - Guard-clause exits are retained in the active PID slice to enforce the
-       required defensive call order (null-check → init-check → fault latch →
-       validation → computation) and to avoid deeper nesting in the safety
-       paths.
-     - Unity safety tests ``RON-TC-SAFE-001``, ``SAFE-006``, ``SAFE-007``,
-       ``SAFE-008``, ``SAFE-009``, ``SAFE-010``, and ``SAFE-011`` exercise
-       the guarded exits. Complexity is constrained by ``lizard -C 10``.
+     - Every active production source in ``regulon-c/src/`` (all PID, filter,
+       feed-forward, gain-scheduling, trajectory, cascade, Kalman, state-space,
+       observer, LQR, LQG, auto-tune, health, and metrics sources — verified
+       by ``cppcheck --addon=misra.py`` against the full
+       ``scripts/lib_sources.txt`` manifest).
+     - Guard-clause exits are used throughout the library to enforce the
+       mandated defensive call order (null-check → init-check → fault latch →
+       validation → computation, ``AGENTS.md``/``regulon-c/AGENTS.md``) and to
+       avoid deeper nesting in safety-relevant paths. This is a deliberate,
+       library-wide coding convention, not a per-module exception.
+     - Unity safety tests (``RON-TC-SAFE-*`` and the defensive/null/
+       uninitialised-path cases in every module's own unit suite) exercise the
+       guarded exits. Complexity is constrained by ``lizard -C 10`` for every
+       function, so guard-clause nesting cannot substitute for real branch
+       reduction.
    * - DEV-002
      - Rule 20.10 (``#`` / ``##`` operators in function-like macros)
      - ``regulon-c/include/ron/ron_platform.h`` — ``RON_FLOAT_C``,
@@ -62,22 +68,46 @@ Deviation Table
        construction and a C99/C11-compatible static-assert fallback in the
        platform layer.
      - Usage is limited to the platform header, reviewed manually, and covered
-       by the PID type and precision tests.
+       by the PID type and precision tests. Re-verified against the full
+       source manifest: no other header or source introduces ``#``/``##``.
    * - DEV-003
      - Rule 8.7 (Objects/functions with external linkage should be declared in
        one file only)
-     - ``regulon-c/src/ron_pid_api.c``
-     - ``cppcheck`` reports the public PID API as a Rule 8.7 issue when the
-       library sources are analysed without their consumer translation units.
-       These functions are intentionally public and declared in
-       ``regulon-c/include/ron/ron_pid.h``.
-     - The exported API is link-verified by the Unity test executables and
-       reviewed against ``RON-IS-001``.
+     - Public API functions across the active module set; concretely surfaced
+       by the current toolchain on ``regulon-c/src/ron_filter.c`` and
+       ``regulon-c/src/ron_matrix.c`` (the exact file set ``cppcheck`` flags
+       is version-/addon-dependent, since it is a whole-program-unaware,
+       single-translation-unit analysis).
+     - ``cppcheck`` reports every module's public API as a Rule 8.7 issue when
+       the library sources are analysed without their consumer translation
+       units (the Unity test executables and, for ``ron_matrix``, every module
+       that shares the internal fixed-size matrix helper). These functions and
+       the internal-but-cross-TU ``ron_matrix``/``ron_lqr_dare_solve`` helpers
+       are intentionally declared once in a header (public or private) and
+       used from other translation units by design.
+     - The exported and cross-TU-internal APIs are link-verified by the Unity
+       test executables and reviewed against ``RON-IS-001``.
+   * - DEV-004
+     - Rule 15.7 (Missing ``else`` after the final ``else if``)
+     - ``regulon-c/src/ron_feedforward.c``, ``regulon-c/src/ron_pid_api.c``,
+       ``regulon-c/src/ron_pid_config.c``, ``regulon-c/src/ron_pid_core.c``,
+       ``regulon-c/src/ron_trajectory_scurve.c``,
+       ``regulon-c/src/ron_trajectory_trap.c``.
+     - Enumerated-mode ``if``/``else if`` chains (e.g. anti-windup mode,
+       feed-forward mode, trajectory phase) are exhaustively validated by the
+       config-validation layer before the chain is reached, so a trailing
+       ``else`` would be dead defensive code the coverage gate could never
+       exercise; this was already an active CI suppression
+       (``--suppress=misra-c2012-15.7``) that this revision formally records.
+     - Enum values are validated by each module's own config-validation
+       function (rejecting any value outside the enumerated range with
+       ``RON_FAULT_CONFIG_INVALID``) before the ``if``/``else if`` chain runs,
+       and every branch is covered by that module's own Unity suite.
 
 Pending Review
 --------------
 
-*None at the current PID verification-closure baseline.*
+*None at the current full-library audit baseline (Phases 0-12 complete).*
 
 Advisory Guidelines — Non-Conformances
 -----------------------------------------
@@ -103,9 +133,12 @@ Advisory Guidelines — Non-Conformances
      - Rule 2.5 (Advisory): Unused macro declarations
      - ``include/ron/ron_platform.h`` — ``RON_NORETURN``, ``RON_INLINE``,
        ``RON_VERSION_*``
-     - These macros are part of the public platform contract and are retained
-       for future C modules even though the active PID-only slice does not yet
-       consume every one of them.
+     - These macros are part of the public platform contract for API
+       consumers (fault-handler declarations, performance-critical inline
+       hints, and library version reporting). Re-verified against the full
+       Phase 0-12 active source set: no library source consumes them
+       internally, which is expected — they exist for callers, not for the
+       library's own translation units.
 
 Revision History
 -----------------
@@ -130,4 +163,18 @@ Revision History
      - 2026-04-12
      - Added approved PID verification-closure deviations for Rules 15.5,
        20.10, and 8.7; recorded the active-slice Rule 2.5 observation.
+     - TBD
+   * - 0.4.0
+     - 2026-08-07
+     - Full-library audit after Phase 12 (LQR/LQG) closed the C11 roadmap.
+       Re-ran ``cppcheck --addon=misra.py`` over the complete active source
+       manifest (``scripts/lib_sources.txt``): widened DEV-001 (Rule 15.5)
+       from the four original PID files to the whole active source set,
+       since the guard-clause convention is library-wide by design;
+       reconciled DEV-003 (Rule 8.7) with the file set the current
+       toolchain actually flags; added DEV-004 (Rule 15.7, missing final
+       ``else``) to formally record a deviation that was already an active
+       CI suppression but had never been documented; updated OBS-002's
+       wording now that the "active slice" is the full library, not
+       PID-only.
      - TBD

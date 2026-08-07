@@ -324,7 +324,35 @@ jobs:
         run: cmake --build regulon-c/build_armv7_clang --parallel
 
   # ---------------------------------------------------------------------------
-  # Job 9: CBMC Formal Verification (RON-TP-001)
+  # Job 9: RISC-V cross-compile smoke build (RON-TC-QUAL-022)
+  # ---------------------------------------------------------------------------
+  cross-riscv:
+    name: Cross Compile (RISC-V rv32imc)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf
+
+      - name: Configure RISC-V build
+        run: |
+          cmake -G Ninja -B regulon-c/build_riscv -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF \
+                -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake \
+                -DRON_RISCV_GCC_LIBC_INCLUDE=/usr/lib/picolibc/riscv64-unknown-elf/include \
+                -DRON_RISCV_GCC_ALLOW_HEADER_SHIM=OFF \
+                -DCMAKE_C_FLAGS="-march=rv32imc -mabi=ilp32"
+
+      - name: Build RISC-V library
+        run: cmake --build regulon-c/build_riscv --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 10: CBMC Formal Verification (RON-TP-001)
   # ---------------------------------------------------------------------------
   formal-verification:
     name: CBMC Formal Proofs
@@ -370,7 +398,7 @@ jobs:
           path: cbmc-results/
 
   # ---------------------------------------------------------------------------
-  # Job 10: Source-manifest drift check (RON-IS-001 §8.1)
+  # Job 11: Source-manifest drift check (RON-IS-001 §8.1)
   #
   # The format / cppcheck / lizard / coverage / CBMC jobs read their file lists
   # from scripts/lib_sources.txt and scripts/format_files.txt.  This job fails
@@ -387,7 +415,7 @@ jobs:
         run: bash regulon-c/scripts/check_manifest.sh
 
   # ---------------------------------------------------------------------------
-  # Job 11: Minimal-subset smoke build (per-module selection)
+  # Job 12: Minimal-subset smoke build (per-module selection)
   #
   # Builds the mandatory PID baseline only (every RON_ENABLE_* OFF) to prove the
   # module compile-guards and the RON_HAVE_<MODULE> aggregate-header gating are
@@ -422,7 +450,7 @@ jobs:
         run: cmake --build regulon-c/build_subset --parallel
 
   # ---------------------------------------------------------------------------
-  # Job 12: Host example programs (RON_BUILD_EXAMPLES)
+  # Job 13: Host example programs (RON_BUILD_EXAMPLES)
   #
   # Examples are host-only documentation programs that link the full library via
   # ron/ron.h.  Building them on GCC and Clang under -Werror catches public-API
@@ -446,6 +474,11 @@ jobs:
           cmake --build regulon-c/build_ex_gcc --parallel
           ./regulon-c/build_ex_gcc/examples/pid_quickstart
           ./regulon-c/build_ex_gcc/examples/cascade_control_loop
+          ./regulon-c/build_ex_gcc/examples/kalman_estimation
+          ./regulon-c/build_ex_gcc/examples/statespace_observer
+          ./regulon-c/build_ex_gcc/examples/autotune_relay
+          ./regulon-c/build_ex_gcc/examples/trajectory_motion
+          ./regulon-c/build_ex_gcc/examples/lqr_lqg_control
 
       - name: Build examples (Clang)
         run: |
@@ -453,3 +486,71 @@ jobs:
                 -DRON_BUILD_TESTS=OFF -DRON_BUILD_EXAMPLES=ON \
                 -DCMAKE_C_COMPILER=clang
           cmake --build regulon-c/build_ex_clang --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 14: Host timing benchmark (RON_BUILD_BENCHMARKS, RON-PR-001/RON-PR-003)
+  #
+  # Informational, not a certified WCET analysis (RON-PR-001/RON-PR-003 defer
+  # the certified budget to target-specific integration): only fails on a
+  # gross regression (>100 ms/step), so ordinary CI-runner jitter around the
+  # 10 kHz design-target budget does not break the build.
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: Timing Benchmark (informational)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc
+
+      - name: Build and run benchmark
+        run: |
+          cmake -B regulon-c/build_bench -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DRON_BUILD_BENCHMARKS=ON \
+                -DCMAKE_C_COMPILER=gcc
+          cmake --build regulon-c/build_bench --parallel
+          ./regulon-c/build_bench/bench/bench_step
+
+  # ---------------------------------------------------------------------------
+  # Job 15: Package-install smoke test (find_package(regulon) / pkg-config)
+  #
+  # Builds and installs the library to a throwaway prefix, then configures a
+  # standalone consumer project (regulon-c/scripts/package_smoke) against
+  # that installed package via CMAKE_PREFIX_PATH, proving the exported
+  # regulonConfig.cmake / regulonTargets.cmake / regulon.pc actually resolve
+  # for an out-of-tree consumer.
+  # ---------------------------------------------------------------------------
+  package-install-smoke:
+    name: Package Install Smoke Test
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc pkg-config
+
+      - name: Build and install regulon to a throwaway prefix
+        run: |
+          cmake -B regulon-c/build_pkg -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DCMAKE_C_COMPILER=gcc \
+                -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/regulon-install
+          cmake --build regulon-c/build_pkg --parallel
+          cmake --install regulon-c/build_pkg
+
+      - name: Configure and build the consumer fixture via find_package(regulon)
+        run: |
+          cmake -B regulon-c/scripts/package_smoke/build -S regulon-c/scripts/package_smoke \
+                -DCMAKE_PREFIX_PATH=${{ runner.temp }}/regulon-install \
+                -DCMAKE_C_COMPILER=gcc
+          cmake --build regulon-c/scripts/package_smoke/build
+          ./regulon-c/scripts/package_smoke/build/package_smoke
+
+      - name: Compile the consumer fixture via pkg-config
+        run: |
+          export PKG_CONFIG_PATH=${{ runner.temp }}/regulon-install/lib/pkgconfig
+          gcc regulon-c/scripts/package_smoke/main.c $(pkg-config --cflags --libs regulon) \
+              -o /tmp/package_smoke_pc
+          /tmp/package_smoke_pc
