@@ -175,8 +175,8 @@ static inline ron_float_t ron_fabs(ron_float_t x)
  * Version information
  * ========================================================================= */
 
-#define RON_VERSION_MAJOR 1U
-#define RON_VERSION_MINOR 0U
+#define RON_VERSION_MAJOR 0U
+#define RON_VERSION_MINOR 1U
 #define RON_VERSION_PATCH 0U
 
 /* =========================================================================

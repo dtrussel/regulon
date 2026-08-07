@@ -11,8 +11,44 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
-Unreleased — Contributor and Security Hygiene Docs
--------------------------------------------------------
+`0.1.0`_ - 2026-08-07
+======================
+
+First tagged release. Covers the complete C11 implementation (``regulon-c/``,
+``project(regulon VERSION 0.1.0 ...)``) — every roadmap phase from the PID
+baseline through Phase 12 (LQR/LQG optimal control) is implemented, tested,
+and traceable — plus the release-engineering work below that makes the
+repository installable and usable outside its own build tree. The Rust
+implementation (``regulon-rs/``) remains early-stage (PID and filters only)
+and is not part of this release's completeness claim; see
+``docs/plans/rust/rust-first-rollout.md`` for its separate status.
+
+Highlights of this release, in the detailed entries below:
+
+- **C11 library complete**: all 14 modules (PID, filters, feed-forward,
+  gain scheduling, trajectory generators, cascade control, Kalman filter,
+  state-space controller + Luenberger observer, LQR, LQG, relay
+  auto-tuner, health monitor, runtime metrics, aggregate header) are
+  implemented with 100% statement/branch coverage, CBMC formal proofs
+  where the test plan calls for them, and full MISRA C:2023 traceability.
+- **Installable**: a ``find_package(regulon)``-consumable CMake package
+  and a ``pkg-config`` file, in addition to the existing in-tree
+  ``add_subdirectory`` build.
+- **Portable**: ARM Cortex-M and RISC-V (``rv32imc``) cross-compile smoke
+  builds, both exercised in CI.
+- **Documented**: a top-level ``README.md``, a generated Doxygen API
+  reference, ``CONTRIBUTING.md``/``SECURITY.md``, and issue/PR templates
+  — none of which existed before this release.
+- **Measured**: a host timing benchmark against the ``RON-PR-003`` 10 kHz
+  design-target budget, and a refreshed MISRA deviations record covering
+  the full active source set instead of just the original PID slice.
+
+.. _0.1.0: https://github.com/dtrussel/regulon/releases/tag/v0.1.0
+
+------------------------------------------------------------------------
+
+0.1.0 — Contributor and Security Hygiene Docs
+---------------------------------------------
 
 Added
 ~~~~~
@@ -29,8 +65,8 @@ Added
 
 ------------------------------------------------------------------------
 
-Unreleased — Doxygen API Reference
---------------------------------------
+0.1.0 — Doxygen API Reference
+-----------------------------
 
 Added
 ~~~~~
@@ -64,8 +100,8 @@ Verification evidence
 
 ------------------------------------------------------------------------
 
-Unreleased — CMake Package Export and pkg-config
-------------------------------------------------------
+0.1.0 — CMake Package Export and pkg-config
+-------------------------------------------
 
 Previously ``install(TARGETS regulon ARCHIVE DESTINATION lib)`` copied the
 static library and headers but produced no ``find_package``-consumable
@@ -124,8 +160,8 @@ Verification evidence
 
 ------------------------------------------------------------------------
 
-Unreleased — Host Timing Benchmark (RON-PR-001, RON-PR-003)
-----------------------------------------------------------------
+0.1.0 — Host Timing Benchmark (RON-PR-001, RON-PR-003)
+------------------------------------------------------
 
 Added
 ~~~~~
@@ -157,8 +193,8 @@ Verification evidence
 
 ------------------------------------------------------------------------
 
-Unreleased — CI: RISC-V Cross-Compile Smoke Build
-----------------------------------------------------
+0.1.0 — CI: RISC-V Cross-Compile Smoke Build
+--------------------------------------------
 
 Added
 ~~~~~
@@ -195,8 +231,8 @@ Verification evidence
 
 ------------------------------------------------------------------------
 
-Unreleased — C11 Phase 12: LQR and LQG Implementation
---------------------------------------------------------
+0.1.0 — C11 Phase 12: LQR and LQG Implementation
+------------------------------------------------
 
 Implements the LQR and LQG modules specified in the prior phase, closing
 the last open module in the C11 roadmap.
@@ -285,8 +321,8 @@ Verification evidence
 
 ------------------------------------------------------------------------
 
-Unreleased — Spec Phase: LQR and LQG Controller Support
----------------------------------------------------------
+0.1.0 — Spec Phase: LQR and LQG Controller Support
+--------------------------------------------------
 
 Specification-layer additions for the Linear Quadratic Regulator (LQR) and
 Linear Quadratic Gaussian (LQG) controller modules.  No C implementation
@@ -340,8 +376,8 @@ Added
 
 ------------------------------------------------------------------------
 
-Unreleased — C11 Phase 11 Full-Library Integration And Release Hardening
------------------------------------------------------------------------
+0.1.0 — C11 Phase 11 Full-Library Integration And Release Hardening
+-------------------------------------------------------------------
 
 This entry completes the C11 implementation: all eleven roadmap phases
 (PID, filters, feed-forward, gain scheduling, trajectory, cascade, Kalman,
@@ -399,8 +435,8 @@ Fixed
 
 ------------------------------------------------------------------------
 
-Unreleased — Rust-First PID Kickoff
------------------------------------
+0.1.0 — Rust-First PID Kickoff
+------------------------------
 
 Added
 ~~~~~
@@ -435,8 +471,8 @@ Added
 
 ------------------------------------------------------------------------
 
-Unreleased C11 PID Vertical Slice
-------------------------------------
+0.1.0 C11 PID Vertical Slice
+----------------------------
 
 Added
 ~~~~~
@@ -757,8 +793,8 @@ Changed
 
 ------------------------------------------------------------------------
 
-Unreleased — Sprint 1 (C11 Platform + Type Headers)
-----------------------------------------------------
+0.1.0 — Sprint 1 (C11 Platform + Type Headers)
+----------------------------------------------
 
 Added
 ~~~~~
