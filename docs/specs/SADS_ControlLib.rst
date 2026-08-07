@@ -2169,8 +2169,7 @@ Appendix A: Design Decision Log
      - O(log n) lookup is deterministic and WCET-analysable for a bounded table. Linear scan would also be acceptable for small tables (< 8 points) but binary search generalises cleanly.
    * - DD-11
      - Cascade anti-windup propagation operates on the outer integrator directly.
-     - The standard cascade AW approach feeds the inner saturation error back through the outer loop's tracking time constant, which is the same back-calculation mechanism already validated for single PID. This avoids a separate AW mechanism and reuses tested code paths.
-     - Prevents outer integrator from winding against inner loop saturation without introducing new state or parameters.
+     - The standard cascade AW approach feeds the inner saturation error back through the outer loop's tracking time constant, which is the same back-calculation mechanism already validated for single PID. This avoids a separate AW mechanism and reuses tested code paths. Prevents outer integrator from winding against inner loop saturation without introducing new state or parameters.
    * - DD-12
      - Kalman filter uses Cholesky decomposition for the innovation covariance inversion (m > 1).
      - Explicit matrix inversion is numerically unstable for ill-conditioned covariance matrices. Cholesky is O(m³/3) and requires the matrix to be positive-definite, which is guaranteed by the R matrix validity check. No general-purpose linear solver is required.

@@ -1,0 +1,86 @@
+/* ==========================================================================
+ * Regulon documentation — presentation tweaks on top of the Furo theme.
+ *
+ * Two things need help here. The API reference is dense C declarations, and
+ * benefits from signatures that stand out from their descriptions. The
+ * specifications are long documents full of wide requirement tables, which
+ * need to stay readable without forcing the page to scroll sideways.
+ *
+ * SPDX-License-Identifier: MIT
+ * ========================================================================== */
+
+/* --------------------------------------------------------------------------
+ * API reference: make each declaration a distinct, scannable block.
+ * -------------------------------------------------------------------------- */
+dl.c.function > dt,
+dl.c.struct > dt,
+dl.c.enum > dt,
+dl.c.type > dt,
+dl.c.macro > dt,
+dl.c.var > dt {
+    background: var(--color-background-secondary);
+    border-left: 3px solid var(--color-brand-primary);
+    border-radius: 0 4px 4px 0;
+    padding: 0.5rem 0.75rem;
+    margin-top: 1.5rem;
+    overflow-x: auto;
+}
+
+/* Parameter lists read better as a table-like block than as running prose. */
+dl.c.function dd .field-list > dt {
+    font-weight: 600;
+}
+
+/* Nested members (struct fields, enum values) are secondary to the parent
+   declaration, so tone their headers down rather than repeating the accent. */
+dl.c dl.c > dt {
+    background: transparent;
+    border-left: 2px solid var(--color-background-border);
+    margin-top: 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+ * Traceability metadata ("Satisfies" / "Tests" sections emitted by Doxygen).
+ * -------------------------------------------------------------------------- */
+.rubric,
+dl.c dd > p > strong:first-child {
+    color: var(--color-brand-content);
+}
+
+/* --------------------------------------------------------------------------
+ * Specifications: wide requirement tables must scroll themselves, never the
+ * page, and long ID cells should not be broken mid-identifier.
+ * -------------------------------------------------------------------------- */
+table.docutils {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+table.docutils td,
+table.docutils th {
+    vertical-align: top;
+}
+
+table.docutils td:first-child > p {
+    white-space: nowrap;
+}
+
+/* Requirement rows are anchor targets; give them a visible landing highlight
+   so a deep link from the API reference shows which row was meant. */
+table.docutils tr:target > td {
+    background: var(--color-highlight-on-target);
+}
+
+/* --------------------------------------------------------------------------
+ * Landing page cards.
+ * -------------------------------------------------------------------------- */
+.sd-card {
+    border-radius: 6px;
+    transition: border-color 120ms ease-in-out;
+}
+
+.sd-card:hover {
+    border-color: var(--color-brand-primary);
+}

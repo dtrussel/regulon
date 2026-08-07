@@ -4,8 +4,8 @@ Thanks for considering a contribution. Regulon is developed spec-first: the
 `.rst` documents under `docs/specs/` are the ground truth, and every change
 to the C11 or Rust implementations traces back to a requirement ID and
 forward to a test ID. This document is a quick orientation; the
-authoritative rules live in [`AGENTS.md`](AGENTS.md) (repository-wide) and
-[`regulon-c/AGENTS.md`](regulon-c/AGENTS.md) / `regulon-rs/AGENTS.md`
+authoritative rules live in [`AGENTS.md`](https://github.com/dtrussel/regulon/blob/main/AGENTS.md) (repository-wide) and
+[`regulon-c/AGENTS.md`](https://github.com/dtrussel/regulon/blob/main/regulon-c/AGENTS.md) / `regulon-rs/AGENTS.md`
 (implementation-specific) — read those before opening a pull request.
 
 ## Before you write code
@@ -51,10 +51,10 @@ drift check — on every push and pull request.
 ## Reporting bugs / requesting features
 
 Use the issue templates under `.github/ISSUE_TEMPLATE/`. For anything that
-might be a security issue, see [`SECURITY.md`](SECURITY.md) instead of
+might be a security issue, see [`SECURITY.md`](https://github.com/dtrussel/regulon/blob/main/SECURITY.md) instead of
 opening a public issue.
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under
-the project's [MIT License](LICENSE).
+the project's [MIT License](https://github.com/dtrussel/regulon/blob/main/LICENSE).

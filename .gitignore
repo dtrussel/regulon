@@ -29,3 +29,8 @@ coverage_filtered.info
 # Test result files
 test_results*.xml
 junit.xml
+
+# Documentation build output
+docs/_build/
+__pycache__/
+*.pyc
