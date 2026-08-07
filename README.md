@@ -140,20 +140,39 @@ matrix: GCC + ASan/UBSan, GCC double-precision, Clang, `clang-format`,
 branch coverage (LLVM `llvm-cov`), CBMC formal proofs (bounded-memory /
 output-saturation properties), ARM and RISC-V cross-compile smoke builds, a
 source-manifest drift check, a minimal-subset build, the example programs,
-a timing benchmark, and a package-install smoke test.
+a timing benchmark, a package-install smoke test, and a documentation
+build with warnings promoted to errors.
 
-An API reference generated from the public headers can be built locally
-with `doxygen regulon-c/Doxyfile`, or published to GitHub Pages via the
-manually-triggered [`docs_c.yml`](.github/workflows/docs_c.yml) workflow.
+## Documentation
+
+The documentation site is built with Sphinx and Breathe, and covers the API
+reference, the specifications, and the usage guides together. Requirement and
+test IDs on each API entry link back into the specs.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r docs/requirements.txt
+.venv/bin/sphinx-build -b html docs docs/_build/html
+# open docs/_build/html/index.html
+```
+
+Doxygen runs automatically as Breathe's XML backend, so `sphinx-build` is the
+whole build — but it does need `doxygen` and `graphviz` on `PATH`. Set
+`REGULON_SKIP_DOXYGEN=1` to reuse existing XML when iterating on prose.
+
+Every push builds the site with warnings promoted to errors; publishing to
+GitHub Pages is the manually-triggered
+[`docs_c.yml`](.github/workflows/docs_c.yml) workflow.
 
 ## Repository layout
 
 ```
+docs/                <- Sphinx documentation site (conf.py, guides/, api/)
 docs/specs/          <- SRS/SADS/IS/TP — requirements, architecture, API, and test specs (ground truth)
 docs/plans/          <- Per-phase implementation plans and closure evidence
 docs/deviations/     <- MISRA C:2023 deviation records
 regulon-c/           <- C11 implementation
-regulon-rs/           <- Rust Edition 2021 implementation (in progress)
+regulon-rs/          <- Rust Edition 2021 implementation (in progress)
 ```
 
 See [`AGENTS.md`](AGENTS.md) and [`regulon-c/AGENTS.md`](regulon-c/AGENTS.md)
