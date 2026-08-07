@@ -577,3 +577,81 @@ same traceability and quality evidence bar.
   lizard complexity (CCN <= 10), the CBMC proofs, and the ARM cross-compile smoke
   builds remain CI responsibilities. The new `manifest-check`, `build-subset`,
   and `build-examples` CI jobs run on stock Ubuntu runners with no extra tooling.
+
+## Phase 12 LQR and LQG Optimal Control Closure Evidence
+
+Full plan and design notes: `docs/plans/c/c11-phase-12-lqr-lqg.md`.
+
+- `ron_lqr.h`/`ron_lqr.c` and `ron_lqg.h`/`ron_lqg.c` are now active in the
+  default C11 build (`RON_ENABLE_LQR`/`RON_ENABLE_LQG` default `ON`). The
+  discrete algebraic Riccati equation (DARE) solver (`ron_lqr_dare_solve`,
+  iterative value recursion per SADS DD-19) is implemented once in
+  `ron_lqr.c` and shared with `ron_lqg.c` via the private
+  `ron_lqr_internal.h`, so the LQG dual-DARE init reuses the exact same
+  Riccati iteration for its LQR half rather than a second implementation.
+
+- `test_ron_lqr.c` covers `RON-TC-LQR-001` through `RON-TC-LQR-009`
+  (pre-computed control law, external-source mutation, DARE convergence
+  against the known double-integrator optimum, per-input saturation,
+  runtime gain update, defensive/null/uninitialised paths, integral
+  augmentation steady-state tracking, and Luenberger/Kalman source
+  integration), plus a dedicated validation suite exercising every
+  remaining config-validation and defensive branch (dimension bounds,
+  DARE non-convergence via iteration-budget exhaustion, both rate-limit
+  directions and the not-limited branch, embedded-estimator init failure
+  with matching dimensions but an internally invalid sub-config, and
+  `ron_lqr_reset` across all three state-estimate sources).
+
+- `test_ron_lqg.c` covers `RON-TC-LQG-001` through `RON-TC-LQG-009`
+  (pre-computed + Kalman init, predict advancing the state, update
+  correcting the estimate, measurement-dropout silence, the control step
+  reading the Kalman estimate, dual-DARE init, the separation-principle
+  cross-check against a standalone LQR solved on the identical system,
+  output saturation, and defensive/null/uninitialised paths), plus a
+  validation suite covering dimension bounds, DARE gain-resolution
+  failure, delegated embedded-Kalman-init failure, and all three
+  rate-limit branches.
+
+- `regulon-c/test/formal/lqr_saturation_proof.c` adds the
+  `RON-TC-LQR-010-FV` CBMC harness (output-bounded, no heap) and
+  `regulon-c/test/formal/lqg_no_heap_proof.c` adds `RON-TC-LQG-010-FV`
+  (output-bounded, no heap, Kalman state stays finite); both use
+  pre-computed gains so the property is proved on the runtime step path
+  without unwinding the bounded-iteration DARE solver. Both report
+  **VERIFICATION SUCCESSFUL** with 0 properties failed.
+
+- `regulon-c/scripts/lib_sources.txt` and `scripts/format_files.txt` now
+  list `ron_lqr.c`, `ron_lqg.c`, and `ron_lqr_internal.h`; the library
+  source list and `test/CMakeLists.txt` register both new sources/suites.
+
+- Local evidence after enabling the Phase 12 slice (this verification host
+  had `cppcheck`, `lizard`, `cbmc`, and `arm-none-eabi-gcc` all installed —
+  no tool-availability gaps for this phase):
+  - `cmake -B regulon-c/build -S regulon-c -DRON_BUILD_TESTS=ON` and
+    `cmake --build regulon-c/build`: pass with no warnings under the strict
+    flag set.
+  - `ctest --test-dir regulon-c/build`: 19/19 suites pass, including the
+    new `test_ron_lqr` and `test_ron_lqg`.
+  - Default and double-precision (`RON_USE_DOUBLE=ON`) GCC builds,
+    standalone Clang build, and GCC
+    `-fsanitize=address,undefined -fno-sanitize-recover=all` build: all
+    19 suites pass on each configuration.
+  - `clang-format --dry-run --Werror` over the format manifest: clean.
+  - `cppcheck --addon=misra.py --check-level=exhaustive` over the active
+    library source set: zero findings in `ron_lqr.c`/`ron_lqg.c`.
+  - `lizard -C 10` over the active library source set: no function exceeds
+    CCN 10 (`ron_lqr.c` max CCN 9, `ron_lqg.c` max CCN 7).
+  - `gcov -b` on `ron_lqr.c` and `ron_lqg.c`: 100% line and 100% branch
+    coverage, both directions taken on every branch.
+  - CBMC on both new harnesses: VERIFICATION SUCCESSFUL, 0 failed
+    properties, within the CI `--unwind 65` bound.
+  - ARM Cortex-M cross-compile with real Newlib headers: full library
+    including `ron_lqr.c`/`ron_lqg.c` builds cleanly.
+  - Minimal-subset build (all `RON_ENABLE_*` OFF) and
+    `RON_BUILD_EXAMPLES=ON` build: both pass.
+  - `bash regulon-c/scripts/check_manifest.sh`: manifests in sync.
+
+### Residual Tool Gaps (Phase 12)
+
+None. This closes the C11 roadmap — every module across Phases 0-12 is
+now implemented, tested, and traceable.

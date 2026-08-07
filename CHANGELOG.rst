@@ -11,6 +11,96 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — C11 Phase 12: LQR and LQG Implementation
+--------------------------------------------------------
+
+Implements the LQR and LQG modules specified in the prior phase, closing
+the last open module in the C11 roadmap.
+
+Added
+~~~~~
+- ``regulon-c/src/ron_lqr.c``: LQR implementation — the shared discrete
+  algebraic Riccati equation (DARE) solver (``ron_lqr_dare_solve``,
+  iterative value recursion per SADS DD-19), pre-computed and DARE gain
+  modes, three-source state-estimate dispatch (external / Luenberger /
+  Kalman), optional per-input integral augmentation, and per-input
+  saturation and rate limiting.
+
+- ``regulon-c/src/ron_lqg.c``: LQG implementation — dual-DARE
+  initialisation (LQR gain via the shared ``ron_lqr_dare_solve``; Kalman
+  gain via ``ron_kf_init`` from the noise covariances, independently per
+  the separation principle), predict/update delegation to the embedded
+  ``ron_kf_t``, and the combined control step with the same per-input
+  output-limiting semantics as LQR.
+
+- ``regulon-c/src/ron_lqr_internal.h``: private header sharing
+  ``ron_lqr_dare_solve`` between ``ron_lqr.c`` and ``ron_lqg.c``.
+
+- ``regulon-c/test/unit/test_ron_lqr.c``: Unity suite ``RON-TC-LQR-001``
+  – ``RON-TC-LQR-009`` plus defensive/validation coverage, all at 100%
+  statement and branch coverage on ``ron_lqr.c``.
+
+- ``regulon-c/test/unit/test_ron_lqg.c``: Unity suite ``RON-TC-LQG-001``
+  – ``RON-TC-LQG-009`` plus defensive/validation coverage, all at 100%
+  statement and branch coverage on ``ron_lqg.c``.
+
+- ``regulon-c/test/formal/lqr_saturation_proof.c``: CBMC harness
+  (``RON-TC-LQR-010-FV``) proving output saturation bounds and no heap
+  allocation for a bounded finite ``ron_lqr_step``. CBMC verification:
+  SUCCESSFUL.
+
+- ``regulon-c/test/formal/lqg_no_heap_proof.c``: CBMC harness
+  (``RON-TC-LQG-010-FV``) proving output saturation bounds, no heap
+  allocation, and a finite Kalman state estimate for a bounded finite
+  predict/update/step cycle. CBMC verification: SUCCESSFUL.
+
+Changed
+~~~~~~~
+- ``regulon-c/cmake/ron_options.cmake``: ``RON_ENABLE_LQR`` and
+  ``RON_ENABLE_LQG`` now default ``ON``, matching every other implemented
+  module.
+
+- ``regulon-c/test/CMakeLists.txt``: registers ``test_ron_lqr`` and
+  ``test_ron_lqg`` (guarded by their respective ``RON_ENABLE_*`` options).
+
+- ``regulon-c/scripts/lib_sources.txt`` / ``scripts/format_files.txt``:
+  add ``ron_lqr.c``, ``ron_lqg.c``, and ``ron_lqr_internal.h`` to the CI
+  format / cppcheck / MISRA / complexity / coverage / CBMC source
+  manifests.
+
+Design notes
+~~~~~~~~~~~~
+- ``ron_lqg``'s configuration validation deliberately checks only ``A``
+  and ``B`` up front (consumed directly by the shared DARE solver); the
+  Kalman-only fields (``H``, ``Q_noise``, ``R_noise``, ``x0``, ``P0``,
+  ``K_f_inf``) are validated by the embedded ``ron_kf_init`` call itself,
+  mirroring the delegation pattern already used by
+  ``ron_statespace``/``ron_observer`` for their embedded estimators
+  instead of duplicating the checks.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- ``ctest`` (GCC): 19/19 suites pass, including the new ``test_ron_lqr``
+  and ``test_ron_lqg``.
+- Double-precision (``RON_USE_DOUBLE=ON``), standalone Clang, and GCC
+  ``-fsanitize=address,undefined -fno-sanitize-recover=all``: all 19
+  suites pass on each configuration.
+- ``clang-format --dry-run --Werror`` over the format manifest: clean.
+- ``cppcheck --addon=misra.py`` over the active library source set: no
+  findings in ``ron_lqr.c`` / ``ron_lqg.c`` (pre-existing findings in
+  ``ron_autotune.c``/``.h`` are unrelated to this phase).
+- ``lizard -C 10``: no function exceeds CCN 10.
+- GCC ``--coverage`` (gcov -b): 100% line and 100% branch coverage (both
+  directions taken) on both ``ron_lqr.c`` and ``ron_lqg.c``.
+- CBMC (``--unwind 65 --unwinding-assertions --bounds-check
+  --pointer-check``): both new harnesses report VERIFICATION SUCCESSFUL.
+- ARM Cortex-M cross-compile (``arm-none-eabi-gcc`` with real Newlib
+  headers): full library including ``ron_lqr.c``/``ron_lqg.c`` builds
+  cleanly.
+- ``bash regulon-c/scripts/check_manifest.sh``: manifests in sync.
+
+------------------------------------------------------------------------
+
 Unreleased — Spec Phase: LQR and LQG Controller Support
 ---------------------------------------------------------
 

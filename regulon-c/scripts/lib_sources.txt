@@ -5,6 +5,8 @@ regulon-c/src/ron_filter.c
 regulon-c/src/ron_gain_sched.c
 regulon-c/src/ron_health.c
 regulon-c/src/ron_kalman.c
+regulon-c/src/ron_lqg.c
+regulon-c/src/ron_lqr.c
 regulon-c/src/ron_matrix.c
 regulon-c/src/ron_metrics.c
 regulon-c/src/ron_observer.c
