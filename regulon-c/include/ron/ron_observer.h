@@ -90,16 +90,80 @@ typedef struct {
  * API
  * ========================================================================= */
 
+/**
+ * @brief Initialise a Luenberger state observer.
+ *
+ * The observer gain @c L is supplied by the caller, having been designed
+ * offline by pole placement. Unlike the Kalman filter it carries no
+ * covariance, which makes it markedly cheaper when the noise statistics are
+ * not known or not worth modelling.
+ *
+ * @param[out] obs  Observer instance to initialise. Must not be NULL.
+ * @param[in]  cfg  Configuration. Dimensions @c n, @c m and @c p must be
+ *                  within their ::RON_SS_MAX_STATES, ::RON_SS_MAX_OUTPUTS and
+ *                  ::RON_SS_MAX_INPUTS bounds and every active matrix entry
+ *                  must be finite. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Observer ready to step.
+ * @retval RON_FAULT_NULL_POINTER   @p obs or @p cfg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID A dimension was out of range or a matrix
+ *                                  entry was not finite.
+ */
 /* Satisfies: RON-FR-721, RON-FR-723 | Test: RON-TC-SS-007, RON-TC-SS-009 */
 ron_fault_t ron_obs_init(ron_obs_t *obs, const ron_obs_config_t *cfg);
 
+/**
+ * @brief Return the observer to its post-initialisation state.
+ *
+ * Restores the estimate to the configured @c x0 and clears any latched fault.
+ *
+ * @param[in,out] obs  Initialised observer instance. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Observer reset.
+ * @retval RON_FAULT_NULL_POINTER   @p obs was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The observer was never initialised.
+ */
 /* Satisfies: RON-FR-720 | Test: RON-TC-SS-006 */
 ron_fault_t ron_obs_reset(ron_obs_t *obs);
 
+/**
+ * @brief Advance the state estimate by one sample.
+ *
+ * Applies @c x = A*x + B*u + L*(y - C*x).
+ *
+ * @p u must be the input **actually applied to the plant** on the previous
+ * step, not the one about to be applied. Feeding the upcoming input instead
+ * biases the estimate by one sample.
+ *
+ * @param[in,out] obs  Initialised observer instance. Must not be NULL.
+ * @param[in]     y    Measured output vector, @c m entries, all finite. Must
+ *                     not be NULL.
+ * @param[in]     u    Previously applied input vector, @c p entries, all
+ *                     finite. May be NULL when @c p == 0.
+ *
+ * @retval RON_FAULT_NONE           Estimate advanced.
+ * @retval RON_FAULT_NULL_POINTER   @p obs or @p y was NULL, or @p u was NULL
+ *                                  while @c p > 0.
+ * @retval RON_FAULT_CONFIG_INVALID The observer was never initialised.
+ * @retval RON_FAULT_INPUT_NAN      An entry of @p y or @p u was not finite.
+ * @retval RON_FAULT_OUTPUT_NAN     The updated estimate was not finite; the
+ *                                  fault latches.
+ */
 /* Satisfies: RON-FR-720 | Test: RON-TC-SS-006, RON-TC-SS-007 */
 ron_fault_t ron_obs_step(ron_obs_t *obs, const ron_float_t y[RON_SS_MAX_OUTPUTS],
                          const ron_float_t u[RON_SS_MAX_INPUTS]);
 
+/**
+ * @brief Copy out the current state estimate.
+ *
+ * @param[in]  obs    Initialised observer instance. Must not be NULL.
+ * @param[out] x_hat  Receives the estimate; the leading @c n entries are
+ *                    written. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Estimate copied.
+ * @retval RON_FAULT_NULL_POINTER   @p obs or @p x_hat was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The observer was never initialised.
+ */
 /* Satisfies: RON-FR-722 | Test: RON-TC-SS-008 */
 ron_fault_t ron_obs_get_state(const ron_obs_t *obs, ron_float_t x_hat[RON_SS_MAX_STATES]);
 

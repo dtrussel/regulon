@@ -120,29 +120,158 @@ typedef struct {
  * API
  * ========================================================================= */
 
+/**
+ * @brief Initialise a state-feedback controller.
+ *
+ * Implements @c u = -K*x_hat + Kr*r. The state estimate comes from one of
+ * three sources selected by @c cfg.source: a caller-owned vector, an
+ * embedded Luenberger observer, or an embedded Kalman filter. For the two
+ * embedded sources the corresponding nested configuration is validated and
+ * initialised here as well.
+ *
+ * @param[out] ss   Controller instance to initialise. Must not be NULL.
+ * @param[in]  cfg  Configuration. The state dimension @c n must be within
+ *                  ::RON_SS_MAX_STATES, gains and limits must be finite, and
+ *                  the selected estimate source must be configured
+ *                  consistently. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Controller ready to step.
+ * @retval RON_FAULT_NULL_POINTER   @p ss or @p cfg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID A dimension, gain, limit or estimator
+ *                                  configuration was invalid.
+ */
 /* Satisfies: RON-FR-700, RON-FR-701 | Test: RON-TC-SS-001, RON-TC-SS-002, RON-TC-SS-009 */
 ron_fault_t ron_ss_init(ron_ss_t *ss, const ron_ss_config_t *cfg);
 
+/**
+ * @brief Return the controller to its post-initialisation state.
+ *
+ * Clears the integral accumulator, output history and any latched fault, and
+ * resets the embedded estimator if one is in use.
+ *
+ * @param[in,out] ss  Initialised controller instance. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Controller reset.
+ * @retval RON_FAULT_NULL_POINTER   @p ss was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ */
 /* Satisfies: RON-FR-702 | Test: RON-TC-SS-003 */
 ron_fault_t ron_ss_reset(ron_ss_t *ss);
 
+/**
+ * @brief Compute one control output from the current state estimate.
+ *
+ * Fetches the state estimate from the configured source, forms
+ * @c u = -K*x_hat + Kr*r, then applies saturation and rate limiting.
+ *
+ * The estimate is not advanced by ron_ss_step(); whichever estimator the
+ * instance was configured with must be driven separately each cycle.
+ *
+ * @param[in,out] ss      Initialised controller instance. Must not be NULL.
+ * @param[in]     r       Reference input. Must be finite.
+ * @param[in]     dt      Sample period in seconds. Must be positive and
+ *                        finite; it scales the rate limit.
+ * @param[out]    u       Receives the control output. Must not be NULL.
+ * @param[out]    status  Receives the status word. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Output computed normally.
+ * @retval RON_FAULT_NULL_POINTER   @p ss, @p u or @p status was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
+ *                                  @p dt was not positive.
+ * @retval RON_FAULT_INPUT_NAN      @p r, @p dt or the state estimate was not
+ *                                  finite; the fault latches.
+ * @retval RON_FAULT_OUTPUT_NAN     The computed output was not finite; the
+ *                                  fault latches.
+ */
 /* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004 */
 ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t *u,
                         ron_status_t *status);
 
+/**
+ * @brief Replace the feedback and reference gains at runtime.
+ *
+ * Changes only the gains; the estimator, integral state and output history
+ * are left alone, so control continues without a discontinuity beyond the one
+ * the new gains imply.
+ *
+ * @param[in,out] ss  Initialised controller instance. Must not be NULL.
+ * @param[in]     K   New state-feedback gain row, @c n entries, all finite.
+ *                    Must not be NULL.
+ * @param[in]     Kr  New reference gain. Must be finite.
+ *
+ * @retval RON_FAULT_NONE           Gains replaced.
+ * @retval RON_FAULT_NULL_POINTER   @p ss or @p K was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or a
+ *                                  supplied gain was not finite.
+ */
 /* Satisfies: RON-FR-704 | Test: RON-TC-SS-005 */
 ron_fault_t ron_ss_set_gains(ron_ss_t *ss, const ron_float_t K[RON_SS_MAX_STATES], ron_float_t Kr);
 
 /* Advance the embedded Luenberger observer (LUENBERGER source). */
+/**
+ * @brief Advance the embedded Luenberger observer by one sample.
+ *
+ * Only meaningful when the instance was configured with
+ * ::RON_SS_SOURCE_LUENBERGER. Call it once per cycle before ron_ss_step().
+ *
+ * @param[in,out] ss  Initialised controller instance. Must not be NULL.
+ * @param[in]     y   Measured output vector, all entries finite. Must not be
+ *                    NULL.
+ * @param[in]     u   Previously applied input vector, all entries finite. May
+ *                    be NULL when the observer's input dimension is zero.
+ *
+ * @retval RON_FAULT_NONE           Observer advanced.
+ * @retval RON_FAULT_NULL_POINTER   @p ss or @p y was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
+ *                                  its estimate source is not the embedded
+ *                                  observer.
+ * @retval other                    Any fault reported by the observer.
+ */
 /* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
 ron_fault_t ron_ss_observer_step(ron_ss_t *ss, const ron_float_t y[RON_SS_MAX_OUTPUTS],
                                  const ron_float_t u[RON_SS_MAX_INPUTS]);
 
 /* Advance the embedded Kalman filter prediction (KALMAN source). */
+/**
+ * @brief Run the embedded Kalman filter's time update.
+ *
+ * Only meaningful when the instance was configured with
+ * ::RON_SS_SOURCE_KALMAN.
+ *
+ * @param[in,out] ss  Initialised controller instance. Must not be NULL.
+ * @param[in]     u   Control input vector, all entries finite. May be NULL
+ *                    when the filter's input dimension is zero.
+ *
+ * @retval RON_FAULT_NONE           Estimate propagated.
+ * @retval RON_FAULT_NULL_POINTER   @p ss was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
+ *                                  its estimate source is not the embedded
+ *                                  Kalman filter.
+ * @retval other                    Any fault reported by the filter.
+ */
 /* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
 ron_fault_t ron_ss_kalman_predict(ron_ss_t *ss, const ron_float_t u[RON_KF_MAX_INPUTS]);
 
 /* Correct the embedded Kalman filter with a measurement (KALMAN source). */
+/**
+ * @brief Run the embedded Kalman filter's measurement update.
+ *
+ * Only meaningful when the instance was configured with
+ * ::RON_SS_SOURCE_KALMAN. Pass @p z_valid as @c false to skip the correction
+ * for a sample with no usable measurement.
+ *
+ * @param[in,out] ss       Initialised controller instance. Must not be NULL.
+ * @param[in]     z        Measurement vector, all entries finite. Ignored
+ *                         when @p z_valid is @c false.
+ * @param[in]     z_valid  Whether @p z holds a usable measurement.
+ *
+ * @retval RON_FAULT_NONE           Estimate corrected, or correction skipped.
+ * @retval RON_FAULT_NULL_POINTER   @p ss was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
+ *                                  its estimate source is not the embedded
+ *                                  Kalman filter.
+ * @retval other                    Any fault reported by the filter.
+ */
 /* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
 ron_fault_t ron_ss_kalman_update(ron_ss_t *ss, const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
                                  bool z_valid);

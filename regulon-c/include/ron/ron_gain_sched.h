@@ -30,9 +30,54 @@ typedef struct {
     bool reset_integral_on_switch;
 } ron_gs_table_t;
 
+/**
+ * @brief Validate a gain-scheduling breakpoint table.
+ *
+ * The table is caller-owned and is not copied, so it must remain valid for as
+ * long as it is used with ron_gs_update(). This call only checks it.
+ *
+ * @param[in] tbl  Table to validate. @c n_points must be in
+ *                 [1, ::RON_GS_MAX_BREAKPOINTS], the @c sigma breakpoints
+ *                 must be finite and strictly increasing, and every entry of
+ *                 @c configs must be a valid PID configuration. Must not be
+ *                 NULL.
+ *
+ * @retval RON_FAULT_NONE           Table is valid.
+ * @retval RON_FAULT_NULL_POINTER   @p tbl was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID @c n_points was out of range, the
+ *                                  breakpoints were not strictly increasing
+ *                                  or not finite, or a member configuration
+ *                                  was rejected.
+ */
 /* Satisfies: RON-FR-300, RON-FR-301, RON-FR-306 | Test: RON-TC-GS-001, RON-TC-GS-002, RON-TC-GS-008 */
 ron_fault_t ron_gs_init(const ron_gs_table_t *tbl);
 
+/**
+ * @brief Apply the gains for a scheduling variable to a PID instance.
+ *
+ * Locates @p sigma in the breakpoint table by binary search - O(log n) and
+ * therefore WCET-analysable - and updates the controller's gains.
+ *
+ * With ::RON_GS_LINEAR_INTERP the gains are interpolated between the
+ * bracketing breakpoints, giving a continuous change. With
+ * ::RON_GS_HARD_SWITCH the nearest breakpoint's configuration is applied
+ * whole, and if @c reset_integral_on_switch is set, crossing into a new
+ * segment clears the integrator. Values outside the table's range clamp to
+ * the first or last breakpoint rather than extrapolating.
+ *
+ * Call this at whatever rate the operating point moves; it does not have to
+ * run every control cycle.
+ *
+ * @param[in]     tbl    Validated breakpoint table. Must not be NULL.
+ * @param[in,out] pid    Initialised PID instance to update. Must not be NULL.
+ * @param[in]     sigma  Current scheduling variable. Must be finite.
+ *
+ * @retval RON_FAULT_NONE           Gains applied.
+ * @retval RON_FAULT_NULL_POINTER   @p tbl or @p pid was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The instance was never initialised,
+ *                                  @p sigma was not finite, or the table was
+ *                                  invalid.
+ */
 /* Satisfies: RON-FR-302, RON-FR-303, RON-FR-304, RON-FR-305 | Test: RON-TC-GS-003 - RON-TC-GS-007 */
 ron_fault_t ron_gs_update(const ron_gs_table_t *tbl, ron_pid_instance_t *pid, ron_float_t sigma);
 
