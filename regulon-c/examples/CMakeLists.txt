@@ -25,3 +25,8 @@ endmacro()
 
 ron_add_example(pid_quickstart      pid_quickstart.c)
 ron_add_example(cascade_control_loop cascade_control_loop.c)
+ron_add_example(kalman_estimation   kalman_estimation.c)
+ron_add_example(statespace_observer statespace_observer.c)
+ron_add_example(autotune_relay      autotune_relay.c)
+ron_add_example(trajectory_motion   trajectory_motion.c)
+ron_add_example(lqr_lqg_control     lqr_lqg_control.c)

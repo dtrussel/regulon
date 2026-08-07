@@ -446,6 +446,11 @@ jobs:
           cmake --build regulon-c/build_ex_gcc --parallel
           ./regulon-c/build_ex_gcc/examples/pid_quickstart
           ./regulon-c/build_ex_gcc/examples/cascade_control_loop
+          ./regulon-c/build_ex_gcc/examples/kalman_estimation
+          ./regulon-c/build_ex_gcc/examples/statespace_observer
+          ./regulon-c/build_ex_gcc/examples/autotune_relay
+          ./regulon-c/build_ex_gcc/examples/trajectory_motion
+          ./regulon-c/build_ex_gcc/examples/lqr_lqg_control
 
       - name: Build examples (Clang)
         run: |
