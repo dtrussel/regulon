@@ -11,6 +11,41 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — Doxygen API Reference
+--------------------------------------
+
+Added
+~~~~~
+- ``regulon-c/Doxyfile``: Doxygen configuration scoped to
+  ``include/ron/*.h`` (``EXTRACT_ALL``, Graphviz include/dependency
+  graphs, treeview navigation).
+- ``regulon-c/scripts/doxygen_filter.sh``: an ``INPUT_FILTER`` that
+  rewrites only the bare ``/*`` opening line of the existing
+  ``@file``/``@brief`` and struct/enum documentation blocks to ``/**``
+  so Doxygen recognises them as documentation, without requiring every
+  header to be rewritten and without touching the single-line
+  ``/* Satisfies: ... | Test: ... */`` traceability annotations above
+  each function (which stay excluded from the rendered prose, as
+  intended — they're citations, not documentation).
+- ``.github/workflows/docs_c.yml``: manually-triggered (``workflow_dispatch``)
+  workflow that builds the HTML reference, uploads it as a build
+  artifact, and deploys it to GitHub Pages. Kept off the automatic push/PR
+  triggers deliberately, so an unconfigured Pages setup can never break
+  the required ``ci_c.yml`` checks; first-time Pages enablement (Settings
+  -> Pages -> source "GitHub Actions") is a one-time manual step.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- ``doxygen Doxyfile`` (Doxygen 1.9.8, Graphviz 2.42): exits 0, generates
+  454 HTML files, zero errors. The 17 remaining warnings are all
+  "Found documentation for unknown module ...", one per header, from
+  Doxygen interpreting this codebase's own ``@module`` file-header tag
+  as its built-in module-grouping command; harmless (confirmed the
+  generated pages render the intended file-level and enum-value prose
+  correctly) and left as-is rather than risk a more invasive alias fix.
+
+------------------------------------------------------------------------
+
 Unreleased — CMake Package Export and pkg-config
 ------------------------------------------------------
 

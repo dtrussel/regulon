@@ -2,6 +2,7 @@
 regulon-c/build/
 regulon-c/build_*/
 regulon-c/scripts/package_smoke/build/
+regulon-c/doxygen_output/
 regulon-rs/target/
 
 # CMake generated
