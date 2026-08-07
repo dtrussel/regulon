@@ -324,7 +324,35 @@ jobs:
         run: cmake --build regulon-c/build_armv7_clang --parallel
 
   # ---------------------------------------------------------------------------
-  # Job 9: CBMC Formal Verification (RON-TP-001)
+  # Job 9: RISC-V cross-compile smoke build (RON-TC-QUAL-022)
+  # ---------------------------------------------------------------------------
+  cross-riscv:
+    name: Cross Compile (RISC-V rv32imc)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf
+
+      - name: Configure RISC-V build
+        run: |
+          cmake -G Ninja -B regulon-c/build_riscv -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF \
+                -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake \
+                -DRON_RISCV_GCC_LIBC_INCLUDE=/usr/lib/picolibc/riscv64-unknown-elf/include \
+                -DRON_RISCV_GCC_ALLOW_HEADER_SHIM=OFF \
+                -DCMAKE_C_FLAGS="-march=rv32imc -mabi=ilp32"
+
+      - name: Build RISC-V library
+        run: cmake --build regulon-c/build_riscv --parallel
+
+  # ---------------------------------------------------------------------------
+  # Job 10: CBMC Formal Verification (RON-TP-001)
   # ---------------------------------------------------------------------------
   formal-verification:
     name: CBMC Formal Proofs
@@ -370,7 +398,7 @@ jobs:
           path: cbmc-results/
 
   # ---------------------------------------------------------------------------
-  # Job 10: Source-manifest drift check (RON-IS-001 §8.1)
+  # Job 11: Source-manifest drift check (RON-IS-001 §8.1)
   #
   # The format / cppcheck / lizard / coverage / CBMC jobs read their file lists
   # from scripts/lib_sources.txt and scripts/format_files.txt.  This job fails
@@ -387,7 +415,7 @@ jobs:
         run: bash regulon-c/scripts/check_manifest.sh
 
   # ---------------------------------------------------------------------------
-  # Job 11: Minimal-subset smoke build (per-module selection)
+  # Job 12: Minimal-subset smoke build (per-module selection)
   #
   # Builds the mandatory PID baseline only (every RON_ENABLE_* OFF) to prove the
   # module compile-guards and the RON_HAVE_<MODULE> aggregate-header gating are
@@ -422,7 +450,7 @@ jobs:
         run: cmake --build regulon-c/build_subset --parallel
 
   # ---------------------------------------------------------------------------
-  # Job 12: Host example programs (RON_BUILD_EXAMPLES)
+  # Job 13: Host example programs (RON_BUILD_EXAMPLES)
   #
   # Examples are host-only documentation programs that link the full library via
   # ron/ron.h.  Building them on GCC and Clang under -Werror catches public-API

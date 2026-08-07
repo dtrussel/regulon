@@ -11,6 +11,44 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 
 ------------------------------------------------------------------------
 
+Unreleased — CI: RISC-V Cross-Compile Smoke Build
+----------------------------------------------------
+
+Added
+~~~~~
+- ``.github/workflows/ci_c.yml``: new ``cross-riscv`` job cross-compiling
+  the full library for ``rv32imc``/``ilp32`` with the
+  ``gcc-riscv64-unknown-elf`` multilib toolchain (the Ubuntu/Debian
+  package installs a ``riscv64-unknown-elf-gcc`` binary that targets
+  rv32 or rv64 depending on ``-march``/``-mabi``, not a separate
+  ``riscv32-unknown-elf-gcc``).
+
+Changed
+~~~~~~~
+- ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``: corrected the
+  compiler/binutils binary names to the ``riscv64-unknown-elf-*`` triple
+  actually installed by the apt package, and added the same
+  Newlib/picolibc-detection-with-declaration-only-fallback pattern already
+  used by ``arm-none-eabi.cmake`` (``RON_RISCV_GCC_LIBC_INCLUDE`` /
+  ``RON_RISCV_GCC_ALLOW_HEADER_SHIM``). Previously this toolchain file was
+  present in the repository but never exercised by CI or verified to
+  actually work.
+- ``regulon-c/cmake/freestanding/riscv32-unknown-elf/include/math.h``: new
+  declaration-only fallback header (mirrors the existing ARMv7 one), used
+  only when no real libc headers are configured.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- ``riscv64-unknown-elf-gcc`` 13.2.0 with real ``picolibc`` headers
+  (``/usr/lib/picolibc/riscv64-unknown-elf/include``): the full library,
+  including ``ron_lqr.c``/``ron_lqg.c``, cross-compiles cleanly for
+  ``-march=rv32imc -mabi=ilp32``.
+- Declaration-only header-shim fallback path (``RON_RISCV_GCC_ALLOW_HEADER_SHIM``,
+  no libc installed): also builds cleanly, matching the ARM toolchain's
+  existing fallback behaviour.
+
+------------------------------------------------------------------------
+
 Unreleased — C11 Phase 12: LQR and LQG Implementation
 --------------------------------------------------------
 
