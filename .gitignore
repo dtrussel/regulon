@@ -30,8 +30,9 @@ coverage_filtered.info
 test_results*.xml
 junit.xml
 
-# Zephyr sample build output
+# Zephyr application build output (samples and the on-target test suite)
 zephyr/samples/*/build*/
+zephyr/tests/*/build*/
 
 # Documentation build output
 docs/_build/
