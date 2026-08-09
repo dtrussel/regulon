@@ -1667,8 +1667,7 @@ RON-TC-FILT-005 — First-Order LP Filter Step Response
      - Unit step: 200 steps, input = 0 for first 10 then 1.0 thereafter.
    * - **Expected Output**
      - Output at step 20 ≈ :math:`1 - 0.9^{10} \approx 0.651`. Tolerance
-       ±0.001.
-     - Output at step 210 within 1% of 1.0.
+       ±0.001. Output at step 210 within 1% of 1.0.
    * - **Pass Criterion**
      - Analytical comparison at two checkpoints.
 
@@ -3301,13 +3300,13 @@ RON-TC-SAFE-007 — All Four Fault Conditions Trigger FAULT Flag
    * - **Level**
      - UT / ENV-HOST
    * - **Sub-cases**
-     - (a) Input NaN: ``r = NAN``. Expect ``RON_FAULT_INPUT_NAN``.
-       (b) Input +Inf: ``y = INFINITY``. Expect ``RON_FAULT_INPUT_NAN``.
-       (c) Integral overflow: set :math:`K_i=1000`, very large error for
-       1000 steps, ``I_overflow_thresh = 100``. Expect
-       ``RON_FAULT_INTEGRAL_OVERFLOW``.
-       (d) Invalid config: ``u_min = u_max``. Expect
-       ``RON_FAULT_CONFIG_INVALID``.
+     - | (a) Input NaN: ``r = NAN``. Expect ``RON_FAULT_INPUT_NAN``.
+       | (b) Input +Inf: ``y = INFINITY``. Expect ``RON_FAULT_INPUT_NAN``.
+       | (c) Integral overflow: set :math:`K_i=1000`, very large error for
+         1000 steps, ``I_overflow_thresh = 100``. Expect
+         ``RON_FAULT_INTEGRAL_OVERFLOW``.
+       | (d) Invalid config: ``u_min = u_max``. Expect
+         ``RON_FAULT_CONFIG_INVALID``.
    * - **Pass Criterion**
      - In all sub-cases: ``RON_STATUS_FAULT`` bit set in status word.
        Safe-state output applied. Fault persists after next ``ron_pid_step``

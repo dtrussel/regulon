@@ -2555,7 +2555,7 @@ The C implementation **shall** use **CMake** (version ≥ 3.21) located under
 embedded IDEs and CI environments.
 
 ``regulon-c/CMakeLists.txt``
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
 
@@ -2615,7 +2615,7 @@ embedded IDEs and CI environments.
    install(DIRECTORY include/ron DESTINATION include)
 
 ``regulon-c/cmake/ron_options.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
 
@@ -2652,7 +2652,7 @@ Each enabled module defines ``RON_HAVE_<MODULE>=1`` in the generated
 uses to include only the available headers.
 
 Example Toolchain File: ``regulon-c/cmake/toolchains/arm-none-eabi.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
 
@@ -2696,7 +2696,7 @@ Chocolatey Newlib include locations; otherwise the verification script allows a
 declaration-only fallback for static-library object smoke builds.
 
 Example Toolchain File: ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cmake
 

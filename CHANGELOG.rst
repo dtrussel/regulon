@@ -36,8 +36,10 @@ Highlights of this release, in the detailed entries below:
   ``add_subdirectory`` build.
 - **Portable**: ARM Cortex-M and RISC-V (``rv32imc``) cross-compile smoke
   builds, both exercised in CI.
-- **Documented**: a top-level ``README.md``, a generated Doxygen API
-  reference, ``CONTRIBUTING.md``/``SECURITY.md``, and issue/PR templates
+- **Documented**: a top-level ``README.md``, a Sphinx + Breathe
+  documentation site carrying the API reference, the specifications and
+  the usage guides together with the two cross-linked,
+  ``CONTRIBUTING.md``/``SECURITY.md``, and issue/PR templates
   — none of which existed before this release.
 - **Measured**: a host timing benchmark against the ``RON-PR-003`` 10 kHz
   design-target budget, and a refreshed MISRA deviations record covering
@@ -65,38 +67,89 @@ Added
 
 ------------------------------------------------------------------------
 
-0.1.0 — Doxygen API Reference
------------------------------
+0.1.0 — Documentation Site (Sphinx + Breathe)
+---------------------------------------------
 
 Added
 ~~~~~
-- ``regulon-c/Doxyfile``: Doxygen configuration scoped to
-  ``include/ron/*.h`` (``EXTRACT_ALL``, Graphviz include/dependency
-  graphs, treeview navigation).
-- ``regulon-c/scripts/doxygen_filter.sh``: an ``INPUT_FILTER`` that
-  rewrites only the bare ``/*`` opening line of the existing
-  ``@file``/``@brief`` and struct/enum documentation blocks to ``/**``
-  so Doxygen recognises them as documentation, without requiring every
-  header to be rewritten and without touching the single-line
-  ``/* Satisfies: ... | Test: ... */`` traceability annotations above
-  each function (which stay excluded from the rendered prose, as
-  intended — they're citations, not documentation).
-- ``.github/workflows/docs_c.yml``: manually-triggered (``workflow_dispatch``)
-  workflow that builds the HTML reference, uploads it as a build
-  artifact, and deploys it to GitHub Pages. Kept off the automatic push/PR
-  triggers deliberately, so an unconfigured Pages setup can never break
-  the required ``ci_c.yml`` checks; first-time Pages enablement (Settings
-  -> Pages -> source "GitHub Actions") is a one-time manual step.
+- ``docs/conf.py``, ``docs/index.rst``, ``docs/requirements.txt``: a Sphinx
+  site using the Furo theme, MyST, ``sphinx-copybutton``, ``sphinx-design``
+  and Graphviz. It unifies three bodies of material that previously lived
+  apart — the C11 API reference, the SRS/SADS/IS/TP specification set, and
+  hand-written guides. ``conf.py`` runs Doxygen itself and reads the
+  version from ``regulon-c/CMakeLists.txt``, so ``sphinx-build`` is the
+  whole build and the version is not duplicated.
+- ``docs/api/``: per-module reference pages rendered by Breathe from the
+  Doxygen XML, plus an ``index`` page documenting the conventions the API
+  shares across modules (caller-owned instances, init/step/reset,
+  returned faults, explicit ``dt``, compile-time dimension bounds).
+- ``docs/guides/``: quickstart, installation and integration, module
+  selection, cross-compiling, and a verification/compliance page that
+  states plainly what each CI gate proves — and what it does not.
+- ``docs/_ext/regulon_trace.py``: a Sphinx extension that records where
+  each requirement and test ID is defined (a section whose title opens
+  with the ID, or a table row whose first cell is the ID) and rewrites
+  bare IDs on the API pages into links to those anchors. 513 links across
+  the 15 module pages, all resolving.
+- ``regulon-c/scripts/doxygen_filter.py``: replaces the previous shell
+  filter. Besides opening documentation blocks it converts the
+  repository's ``@module``/``@doc``/``@req`` tags and the per-declaration
+  ``/* Satisfies: ... | Test: ... */`` annotations into Doxygen sections,
+  merging an annotation into the block above it when one exists rather
+  than emitting a second block Doxygen would have to choose between.
+- ``.github/workflows/ci_c.yml``: new ``docs-build`` job (job 16) running
+  ``sphinx-build -W`` on every push and pull request, with ``docs/**``
+  added to the path filters. A best-effort ``linkcheck`` pass runs
+  alongside it without gating.
+
+Changed
+~~~~~~~
+- ``regulon-c/Doxyfile``: Doxygen is now an XML backend for Breathe rather
+  than an HTML generator (``GENERATE_HTML=NO``, ``GENERATE_XML=YES``,
+  ``OPTIMIZE_OUTPUT_FOR_C=YES``, dot graphs off). ``RON_STATIC_ASSERT`` is
+  expanded away via ``PREDEFINED`` so build-time budget assertions stop
+  being exported as declarations. With the previous 17 unknown-tag
+  warnings eliminated by the new filter, ``WARN_AS_ERROR=FAIL_ON_WARNINGS``
+  is now on.
+- ``.github/workflows/docs_c.yml``: builds and publishes the Sphinx site.
+  Still ``workflow_dispatch``-only, so an unconfigured Pages setup cannot
+  break the required ``ci_c.yml`` checks.
+- Nine public headers gained ``@brief``/``@param``/``@retval``
+  documentation for the 66 functions that had none: ``ron_filter.h`` (22),
+  ``ron_lqr.h`` (8), ``ron_trajectory.h`` (8), ``ron_statespace.h`` (7),
+  ``ron_lqg.h`` (6), ``ron_kalman.h`` (5), ``ron_observer.h`` (4),
+  ``ron_feedforward.h`` (4), ``ron_gain_sched.h`` (2). Return values were
+  read from the implementations, so the documented fault codes are the
+  ones each function actually returns. Comments only; no declaration or
+  behaviour changes.
+
+Fixed
+~~~~~
+- Rendering the specifications for the first time surfaced latent defects
+  in documents that had never been built: four section underlines shorter
+  than their titles (``IS_ControlLib.rst``), a ``list-table`` row with a
+  stray fourth cell (``SADS_ControlLib.rst``, DD-11) and another with a
+  stray third (``TP_ControlLib.rst``), a sub-case list docutils parsed as
+  a malformed enumerated list, and a ``figure`` directive pointing at an
+  image that was never committed — now a Graphviz context diagram that
+  renders from source.
+- ``ron_scurve_step``'s ``jrk`` parameter was undocumented; caught by
+  enabling ``WARN_AS_ERROR``.
+- ``CONTRIBUTING.md`` used repository-relative links that resolved on
+  GitHub but not in the rendered site; they are now absolute.
 
 Verification evidence
 ~~~~~~~~~~~~~~~~~~~~~~
-- ``doxygen Doxyfile`` (Doxygen 1.9.8, Graphviz 2.42): exits 0, generates
-  454 HTML files, zero errors. The 17 remaining warnings are all
-  "Found documentation for unknown module ...", one per header, from
-  Doxygen interpreting this codebase's own ``@module`` file-header tag
-  as its built-in module-grouping command; harmless (confirmed the
-  generated pages render the intended file-level and enum-value prose
-  correctly) and left as-is rather than risk a more invasive alias fix.
+- ``doxygen Doxyfile`` (Doxygen 1.9.8) with ``WARN_AS_ERROR=FAIL_ON_WARNINGS``:
+  exits 0, zero warnings.
+- ``sphinx-build -W --keep-going -b html docs docs/_build/html`` (Sphinx
+  9.0.4, Breathe 4.36.0): exits 0, zero warnings, from a clean virtualenv
+  built only from ``docs/requirements.txt``.
+- All 176 distinct traceability anchors referenced from the API pages
+  resolve to an existing ``id`` in the target document.
+- ``clang-format --dry-run --Werror`` over ``format_files.txt``,
+  ``check_manifest.sh``, and ``ctest`` (17/17) all pass after the header
+  documentation pass.
 
 ------------------------------------------------------------------------
 

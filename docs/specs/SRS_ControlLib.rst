@@ -214,11 +214,39 @@ The Regulon PID module is a standalone, self-contained software component with n
 
 The module exposes a pure functional interface: the caller is responsible for periodic invocation (scheduling), sensor reading (providing the process variable), and actuator driving (consuming the control variable). The library performs all control calculations internally.
 
-.. figure:: _static/context_diagram.png
+.. graphviz::
    :alt: Context diagram showing Regulon PID module boundaries
    :align: center
+   :caption: *Figure 1 — Regulon PID Module Context Diagram (see SADS for detailed diagrams)*
 
-   *Figure 1 — Regulon PID Module Context Diagram (see SADS for detailed diagrams)*
+   digraph context {
+       rankdir=LR;
+       bgcolor="transparent";
+       node [fontname="Helvetica", fontsize=10, shape=box, style=rounded];
+       edge [fontname="Helvetica", fontsize=9];
+
+       subgraph cluster_app {
+           label="Application firmware";
+           fontname="Helvetica";
+           fontsize=10;
+           style=dashed;
+           color="#888888";
+
+           scheduler [label="Periodic\nscheduler"];
+           sensor    [label="Sensor\ndriver"];
+           actuator  [label="Actuator\ndriver"];
+       }
+
+       regulon [label="Regulon\nPID module", style="rounded,filled",
+                fillcolor="#1a5fb4", fontcolor="white"];
+       plant   [label="Plant", shape=ellipse];
+
+       scheduler -> regulon [label="ron_pid_step(dt)"];
+       sensor    -> regulon [label="y (process variable)"];
+       regulon   -> actuator [label="u (control variable)"];
+       actuator  -> plant;
+       plant     -> sensor [label="measurement"];
+   }
 
 Product Functions — Summary
 -----------------------------

@@ -141,27 +141,139 @@ typedef struct {
  * API
  * ========================================================================= */
 
+/**
+ * @brief Initialise a linear quadratic Gaussian controller.
+ *
+ * LQG is the separation principle made concrete: an LQR control law driven by
+ * a Kalman state estimate, with the two designed independently. This call
+ * therefore performs two solves - the control Riccati equation from @c A,
+ * @c B, @c Q_cost and @c R_cost, and the estimator, delegated to
+ * ron_kf_init() with the noise model in @c Q_noise and @c R_noise.
+ *
+ * The estimator is always the embedded Kalman filter; unlike
+ * ron_lqr_init() there is no choice of estimate source, because
+ * substituting a different estimator is what makes the design no longer LQG.
+ *
+ * @param[out] lqg  Controller instance to initialise. Must not be NULL.
+ * @param[in]  cfg  Configuration. Dimensions must be within their
+ *                  ::RON_LQR_MAX_STATES, ::RON_LQR_MAX_INPUTS and
+ *                  ::RON_KF_MAX_MEASUREMENTS bounds, @c A and @c B must be
+ *                  finite, and the remaining Kalman fields must satisfy
+ *                  ron_kf_init(). Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Controller ready to step.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg or @p cfg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID A dimension, matrix, cost or limit was
+ *                                  invalid, or ron_kf_init() rejected the
+ *                                  estimator configuration.
+ * @retval RON_FAULT_OUTPUT_NAN     The control DARE failed to converge or
+ *                                  produced a non-finite result.
+ */
 /* Satisfies: RON-FR-750, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
 
+/**
+ * @brief Return the controller and its estimator to post-initialisation state.
+ *
+ * Clears the integral accumulator, output history and any latched fault, and
+ * resets the embedded Kalman filter to its configured @c x0 and @c P0. Both
+ * solved gains are kept, so neither Riccati solve is repeated.
+ *
+ * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Controller reset.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ */
 /* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
 ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
 
 /* Advance the embedded Kalman filter prediction step (RON-FR-753). */
+/**
+ * @brief Run the estimator's time update.
+ *
+ * Delegates to ron_kf_predict(). The expected cycle is predict, then update
+ * with the new measurement, then ron_lqg_step().
+ *
+ * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
+ * @param[in]     u    Control input vector, all entries finite. May be NULL
+ *                     when the filter's input dimension is zero; passing the
+ *                     control vector from the previous ron_lqg_step() is the
+ *                     usual choice.
+ *
+ * @retval RON_FAULT_NONE           Estimate propagated.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ * @retval other                    Any fault reported by the filter.
+ */
 /* Satisfies: RON-FR-753 | Test: RON-TC-LQG-002 */
 ron_fault_t ron_lqg_predict(ron_lqg_t *lqg, const ron_float_t u[RON_LQR_MAX_INPUTS]);
 
 /* Apply Kalman measurement correction; silently skips if z_valid == false (RON-FR-754). */
+/**
+ * @brief Run the estimator's measurement update.
+ *
+ * Delegates to ron_kf_update(). Pass @p z_valid as @c false to advance
+ * without correcting when a sample is missing or has been rejected.
+ *
+ * @param[in,out] lqg      Initialised controller instance. Must not be NULL.
+ * @param[in]     z        Measurement vector, all entries finite. Ignored
+ *                         when @p z_valid is @c false.
+ * @param[in]     z_valid  Whether @p z holds a usable measurement.
+ *
+ * @retval RON_FAULT_NONE           Estimate corrected, or correction skipped.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ * @retval other                    Any fault reported by the filter.
+ */
 /* Satisfies: RON-FR-754 | Test: RON-TC-LQG-003, RON-TC-LQG-004 */
 ron_fault_t ron_lqg_update(ron_lqg_t *lqg, const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
                            bool z_valid);
 
 /* Compute MIMO control output u = -K x_hat + Kr r using Kalman estimate. */
+/**
+ * @brief Compute one control vector from the estimator's current estimate.
+ *
+ * Forms @c u = -K*x_hat + Kr*r from the embedded Kalman estimate, adds the
+ * optional integral term, and applies per-input saturation and rate limiting.
+ *
+ * This does not advance the estimator: call ron_lqg_predict() and
+ * ron_lqg_update() first.
+ *
+ * @param[in,out] lqg     Initialised controller instance. Must not be NULL.
+ * @param[in]     r       Reference vector, @c m entries, all finite. Must not
+ *                        be NULL.
+ * @param[in]     dt      Sample period in seconds. Must be positive and
+ *                        finite.
+ * @param[out]    u       Receives the control vector, @c m entries. Must not
+ *                        be NULL.
+ * @param[out]    status  Receives the status word. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Output computed normally.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg, @p r, @p u or @p status was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
+ *                                  @p dt was not positive.
+ * @retval RON_FAULT_INPUT_NAN      An entry of @p r, or the state estimate,
+ *                                  was not finite; the fault latches.
+ * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the
+ *                                  fault latches.
+ */
 /* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
 ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
                          ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status);
 
 /* Read the current Kalman state estimate (RON-FR-758). */
+/**
+ * @brief Copy out the estimator's current state estimate.
+ *
+ * @param[in]  lqg    Initialised controller instance. Must not be NULL.
+ * @param[out] x_hat  Receives the estimate; the leading @c n entries are
+ *                    written. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Estimate copied.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg or @p x_hat was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ */
 /* Satisfies: RON-FR-758 | Test: RON-TC-LQG-005, RON-TC-LQG-007 */
 ron_fault_t ron_lqg_get_state(const ron_lqg_t *lqg, ron_float_t x_hat[RON_LQR_MAX_STATES]);
 

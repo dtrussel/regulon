@@ -1,0 +1,16 @@
+# Documentation toolchain for the Regulon docs site (docs/conf.py).
+#
+# Build locally with:
+#     python3 -m venv .venv && .venv/bin/pip install -r docs/requirements.txt
+#     .venv/bin/sphinx-build -b html docs docs/_build/html
+#
+# Doxygen itself is not a Python package and must be installed separately
+# (apt: doxygen).  conf.py invokes it automatically before the Sphinx build.
+#
+# Upper bounds keep CI reproducible; bump them deliberately.
+sphinx>=8.1,<10
+breathe>=4.35,<5
+furo>=2024.8.6
+myst-parser[linkify]>=4.0,<5
+sphinx-copybutton>=0.5.2,<1
+sphinx-design>=0.6,<1
