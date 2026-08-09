@@ -44,6 +44,13 @@ here alongside the API reference, and the two are cross-linked.
 
       Requirements, architecture, interfaces, and the test plan.
 
+   .. grid-item-card:: Zephyr RTOS
+      :link: guides/zephyr
+      :link-type: doc
+
+      Use Regulon as a Zephyr module: west, Kconfig, and a runnable
+      control-loop sample.
+
 
 At a glance
 -----------
@@ -121,6 +128,7 @@ mandatory. See :doc:`guides/module-selection`.
    guides/quickstart
    guides/installation
    guides/module-selection
+   guides/zephyr
    guides/cross-compiling
    guides/verification
 

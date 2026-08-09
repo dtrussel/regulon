@@ -139,6 +139,34 @@ jobs:
           clang-format --dry-run --Werror "${FILES[@]}"
 
   # ---------------------------------------------------------------------------
+  # Job 4b: Stack usage
+  #
+  # The library runs from ISRs and from RTOS threads whose stacks are sized in
+  # single kilobytes, so a frame that quietly grows is a defect rather than a
+  # style issue - and an easy one to introduce, since every scratch matrix is
+  # sized at RON_MAT_MAX_DIM whatever dimensions are configured. The build
+  # already emits -fstack-usage data; this reads it back.
+  # ---------------------------------------------------------------------------
+  stack-usage:
+    name: Stack Usage Budget
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y cmake gcc
+
+      - name: Build (GCC emits .su files)
+        run: |
+          cmake -B ${{ env.BUILD_DIR }} -S ${{ env.SRC_DIR }} \
+                -DRON_BUILD_TESTS=OFF -DCMAKE_C_COMPILER=gcc
+          cmake --build ${{ env.BUILD_DIR }} --parallel
+
+      - name: Check against the budget
+        run: bash regulon-c/scripts/check_stack_usage.sh ${{ env.BUILD_DIR }} 768
+
+  # ---------------------------------------------------------------------------
   # Job 5: Static analysis - cppcheck (MISRA subset) + complexity
   # ---------------------------------------------------------------------------
   static-analysis:

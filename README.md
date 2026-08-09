@@ -119,6 +119,28 @@ Non-CMake consumers (pkg-config):
 gcc app.c $(pkg-config --cflags --libs regulon) -o app
 ```
 
+### Using it from Zephyr
+
+Regulon ships as a [Zephyr module](https://docs.zephyrproject.org/latest/develop/modules.html).
+Add it to your west manifest, then enable it with one Kconfig option:
+
+```cfg
+CONFIG_REGULON=y
+```
+
+Each optional module has a `CONFIG_REGULON_<MODULE>` option mirroring the
+CMake ones, with dependencies resolved through Kconfig `select`. A runnable
+control-loop sample lives in `zephyr/samples/pid_loop/`:
+
+```bash
+cd zephyr/samples/pid_loop
+west build -b native_sim/native/64 . -- -DZEPHYR_EXTRA_MODULES=$(pwd)/../../..
+./build/zephyr/zephyr.exe
+```
+
+See the [Zephyr integration guide](docs/guides/zephyr.rst) for precision and
+FPU selection, thread/ISR ownership, and sample-period handling.
+
 ### Cross-compiling
 
 Toolchain files are provided for ARM Cortex-M (`gcc`/`clang`) and RISC-V
@@ -142,6 +164,12 @@ output-saturation properties), ARM and RISC-V cross-compile smoke builds, a
 source-manifest drift check, a minimal-subset build, the example programs,
 a timing benchmark, a package-install smoke test, and a documentation
 build with warnings promoted to errors.
+
+A separate [nightly job](.github/workflows/zephyr_nightly.yml) covers the
+Zephyr module against a pinned Zephyr release: the Kconfig module selection,
+the sample on `native_sim`, the behavioural test suite **executed under QEMU**
+on Cortex-M3 and Cortex-M33, and cross-compiles for Cortex-M4F, Cortex-M7 and
+the nRF52840 DK.
 
 ## Documentation
 
@@ -172,6 +200,7 @@ docs/specs/          <- SRS/SADS/IS/TP — requirements, architecture, API, and 
 docs/plans/          <- Per-phase implementation plans and closure evidence
 docs/deviations/     <- MISRA C:2023 deviation records
 regulon-c/           <- C11 implementation
+zephyr/              <- Zephyr module manifest, Kconfig, build glue, and sample
 regulon-rs/          <- Rust Edition 2021 implementation (in progress)
 ```
 

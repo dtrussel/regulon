@@ -1,0 +1,20 @@
+# =============================================================================
+# Zephyr module manifest for the Regulon control systems library.
+#
+# Declaring this file makes the repository usable as a Zephyr module: add it
+# to a workspace's west manifest and Zephyr picks up the Kconfig options and
+# the build glue below automatically. See docs/guides/zephyr.rst.
+#
+# Paths are relative to the repository root (the module root), not to this
+# file.
+#
+# RON-IS-001 §8.1
+# SPDX-License-Identifier: MIT
+# =============================================================================
+name: regulon
+
+build:
+  # Directory holding the module's CMakeLists.txt.
+  cmake: zephyr
+  # Kconfig tree rooted at CONFIG_REGULON.
+  kconfig: zephyr/Kconfig

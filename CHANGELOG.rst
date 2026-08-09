@@ -67,6 +67,203 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Matrix Module Stack Reduction
+-------------------------------------
+
+Running on emulated Cortex-M showed the estimator and optimal-control
+modules needing roughly 4 kB of stack across a call chain, against an RTOS
+thread default near 1 kB — and overflowing it did not fault cleanly, it
+corrupted memory and hung. Every scratch matrix is sized at
+``RON_MAT_MAX_DIM`` rather than at the dimensions configured at run time, so
+usage grows with the **square** of that bound however small the plant is.
+
+**Largest stack frame: 2448 B → 576 B (4.2x).**
+
+Changed
+~~~~~~~
+- **Default dimension bounds lowered** in ``ron_platform.h``: state bounds
+  (``RON_KF_MAX_STATES``, ``RON_SS_MAX_STATES``, ``RON_LQR_MAX_STATES``,
+  ``RON_MAT_MAX_DIM``) 8 → 4; input, output and measurement bounds 4 → 2.
+  This is a **breaking default** for anyone using more than 4 states or 2
+  inputs: those configurations must now set the macros explicitly. They fail
+  at compile time through the existing static assertions and ``#error``
+  guards, or are rejected by runtime configuration validation — never
+  silently. Raising the bounds back to 8 is a single ``-D``.
+- ``ron_lqr.c``: ``ron_lqr_dare_solve`` no longer materialises ``A^T`` and
+  ``B^T`` (2448 B → 576 B), ``lqr_dare_update_p`` carries six products in
+  three scratch matrices instead of five (1376 B → 288 B), and
+  ``lqr_dare_solve_gain`` folds its ``M`` matrix into an existing buffer
+  (1168 B → 304 B). The local ``lqr_transpose`` helper is gone with its last
+  caller.
+- ``ron_kalman.c``: ``kf_update_cov`` runs Joseph form with no additional
+  storage (1888 B → 352 B), ``kf_predict_cov`` writes ``A P A^T`` back into
+  its input (1328 B → 304 B), and ``kf_resolve_gain`` reuses two buffers
+  rather than four (1104 B → 336 B).
+
+Added
+~~~~~
+- ``ron_mat_mul_ta()`` in the internal matrix helper: ``out = lhs^T * rhs``,
+  the transposed-left counterpart of the existing ``ron_mat_mul_t()``. It
+  lets callers form ``A^T B`` without materialising the transpose, which is
+  what removes the two largest scratch matrices from the DARE solver.
+- ``ron_platform.h`` now honours an optional user ``ron_config.h`` — the
+  override mechanism its own comment had documented for some time without
+  anything implementing it. A path can also be given explicitly with
+  ``-DRON_CONFIG_HEADER='"..."'``.
+- ``zephyr/Kconfig``: ``CONFIG_REGULON_MAX_STATES`` / ``_MAX_INPUTS`` /
+  ``_MAX_MEASUREMENTS``. ``RON_MAT_MAX_DIM`` is derived from them in
+  ``zephyr/CMakeLists.txt`` rather than exposed, so no combination of
+  Kconfig values can produce a build that trips the library's own guards.
+- ``regulon-c/scripts/check_stack_usage.sh`` and a ``stack-usage`` CI job
+  enforcing a 768 B per-frame budget from the ``-fstack-usage`` data the
+  build already emits.
+- The aliasing contract of the matrix primitives is now stated in
+  ``ron_matrix_internal.h``: ``ron_mat_add`` may write into one of its
+  operands, the multiplying operations may not. The buffer reuse above
+  depends on that distinction.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- 17/17 host tests pass under GCC, GCC double-precision and Clang.
+- **100% statement and branch coverage retained** on ``ron_matrix.c`` (86
+  lines / 68 branches), ``ron_lqr.c`` (327/239), ``ron_kalman.c`` (171/112)
+  and ``ron_lqg.c`` (181/120) — the buffer reuse left no unreachable path.
+- ``ron_mat_mul_ta`` is covered by the existing DARE tests, and a mutation
+  check confirms they test its semantics rather than merely executing it:
+  changing it to compute ``lhs * rhs`` instead of ``lhs^T * rhs`` fails both
+  the LQR and LQG suites.
+- A build with ``-DRON_..._MAX_STATES=8 -DRON_MAT_MAX_DIM=8`` still compiles
+  and runs, confirming the bounds remain configurable upward; at that bound
+  the algorithmic changes alone give 2448 B → 1920 B.
+- On ``qemu_cortex_m3`` the ztest suite now passes with a **2048 B** thread
+  stack where it previously needed 8192 B. The Kalman and filter tests pass
+  on a wholly default thread; only the DARE solve at init still needs more,
+  which is inherent to an iterative Riccati recursion.
+
+------------------------------------------------------------------------
+
+0.1.0 — Zephyr RTOS Module
+--------------------------
+
+Added
+~~~~~
+- ``zephyr/module.yml``: Zephyr module manifest, making the repository
+  consumable through a west manifest with no vendoring or hand-written
+  build glue.
+- ``zephyr/Kconfig``: ``CONFIG_REGULON`` plus a ``CONFIG_REGULON_<MODULE>``
+  option per optional module, mirroring the ``RON_ENABLE_<MODULE>`` CMake
+  options. The dependency chain the standalone build resolves imperatively
+  is expressed with Kconfig ``select``, so requesting LQG pulls in LQR,
+  state-space and the Kalman filter without the user knowing the chain.
+  ``CONFIG_REGULON_DOUBLE_PRECISION`` and ``CONFIG_REGULON_ASSERT`` cover
+  the two global options.
+- ``zephyr/CMakeLists.txt``: builds a ``zephyr_library`` from the same
+  sources as the standalone build and generates ``ron/ron_modules.h`` from
+  the same template, so ``<ron/ron.h>`` includes exactly the headers whose
+  implementations were compiled regardless of which build system produced
+  the library. ``RON_USE_DOUBLE`` is applied application-wide, since
+  ``ron_float_t`` is part of the ABI.
+- ``zephyr/samples/pid_loop/``: a complete Zephyr application running a PID
+  loop in a periodic thread against a simulated first-order plant, building
+  and running without hardware.
+- ``docs/guides/zephyr.rst``: integration guide covering the west manifest,
+  the Kconfig options, precision and FPU selection, thread/ISR ownership of
+  controller instances, deriving ``dt`` from the scheduler period, fault
+  handling, and troubleshooting.
+
+Changed
+~~~~~~~
+- ``docs/specs/SRS_ControlLib.rst`` (1.2.0 -> 1.2.1): clarified that the
+  RTOS scope exclusion concerns kernel coupling — the library still
+  contains no task wrappers, synchronisation primitives, or kernel calls —
+  and not build-system packaging for an RTOS ecosystem, which is the same
+  category as the CMake package and pkg-config file already shipped. No
+  requirements added or changed.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+Built and run against Zephyr 4.1.1 on ``native_sim/native/64`` with the
+host toolchain:
+
+- Full configuration (``CONFIG_REGULON=y``) builds and runs; the sample
+  loop converges from 0 to 0.994 against a setpoint of 1.0, showing the
+  overshoot expected of a PI controller on a first-order lag.
+- Minimal configuration (every optional module ``=n``) links only the five
+  mandatory baseline objects, and the generated ``ron_modules.h`` reports
+  ``RON_HAVE_*`` as 0 for the excluded modules.
+- ``CONFIG_REGULON_LQG=y`` alone resolves ``REGULON_LQR``,
+  ``REGULON_STATESPACE`` and ``REGULON_KALMAN`` to ``y`` and links
+  ``ron_lqg.c``, ``ron_lqr.c``, ``ron_statespace.c``, ``ron_observer.c``,
+  ``ron_kalman.c`` and ``ron_matrix.c``, confirming the ``select`` chain.
+
+Continuous integration
+~~~~~~~~~~~~~~~~~~~~~~
+- ``zephyr/tests/control/``: a ztest suite checking that each module behaves
+  correctly once cross-compiled and executed on an MCU, rather than merely
+  linking. The host suite already covers behaviour exhaustively; this covers
+  what differs on target - floating point (including targets with no FPU),
+  ABI, alignment, and the Kconfig-selected source set with its generated
+  ``ron_modules.h``. Tests for optional modules compile only when their
+  Kconfig option selected them, which doubles as a check that the
+  ``RON_HAVE_*`` macros agree with what was built.
+- ``.github/workflows/zephyr_nightly.yml``: daily (and manually
+  triggerable) job building the module against a pinned Zephyr release.
+  Zephyr is a large dependency and the glue changes rarely, so gating every
+  push on it would cost more than it catches; what the job actually guards
+  is drift on the Zephyr side, which a daily cadence catches soon enough.
+
+  It asserts behaviour rather than just exit status: the sample must run
+  and converge to within 10% of its setpoint, the minimum-footprint
+  configuration must link exactly the five baseline objects, the complete
+  configuration must link one object per source in
+  ``scripts/lib_sources.txt``, and ``CONFIG_REGULON_LQG=y`` alone must
+  resolve the LQR/state-space/Kalman chain and link the shared matrix
+  helper and observer.
+
+  Beyond the host checks it covers real Cortex-M targets. The behavioural
+  suite is **executed under QEMU** on ``qemu_cortex_m3`` (ARMv7-M, soft
+  float - no FPU at all) and ``mps2/an521`` (Cortex-M33, ARMv8-M, with
+  FPU), and cross-compiled for ``mps2/an386`` (Cortex-M4F, hard float),
+  ``mps2/an500`` (Cortex-M7) and ``nrf52840dk/nrf52840`` (Cortex-M4F with a
+  vendor HAL). Cortex-M4F and M7 have no in-tree QEMU target, so those are
+  compile and link checks; they still cover hard-float ABI selection, FPU
+  code generation and vendor HAL integration. Flash and RAM footprints are
+  written to the job summary.
+
+  Cost is kept down rather than assumed: the ``native_sim`` job needs no
+  SDK at all, the others install only the minimal Zephyr SDK bundle with
+  the single ``arm-zephyr-eabi`` toolchain, and Zephyr is fetched as a
+  shallow clone with ``manifest.project-filter`` reduced to ``cmsis`` and
+  ``hal_nordic`` - roughly 700 MB rather than several gigabytes. Both the
+  tree and the SDK are cached.
+
+Documented
+~~~~~~~~~~
+- ``docs/guides/zephyr.rst`` gained a stack sizing section. Running on
+  target surfaced that the matrix modules need far more stack than
+  Zephyr's default thread provides: worst single frames are ~2.4 kB for
+  the DARE solver, ~1.9 kB for the Kalman covariance update and ~1.3 kB
+  for LQG, so a call chain reaches roughly 4 kB against a default of about
+  one. Overflowing it does not fault cleanly on Cortex-M without stack
+  protection - it corrupts and hangs, which is exactly how it presented -
+  so the section gives measured per-module figures and recommends enabling
+  stack protection during bring-up. Everything below the estimators (PID,
+  filters, trajectory, cascade, autotune, health, metrics) stays under
+  512 B and needs no attention.
+
+Fixed
+~~~~~
+- ``ron_pid_core.c``: initialised ``u_final``, silencing a GCC
+  ``-Wmaybe-uninitialized`` false positive that appears at ``-O2`` and
+  ``-Os`` (the optimisation level Zephyr builds at). The variable was
+  already written on every path where the caller reads it — GCC cannot see
+  that the helper writing it returns a non-``RON_FAULT_NONE`` fault
+  whenever it does not — so this changes no behaviour, and it satisfies
+  MISRA C:2023 Rule 9.1 explicitly rather than by inference. Statement and
+  branch coverage of the file remain 100%.
+
+------------------------------------------------------------------------
+
 0.1.0 — Documentation Site (Sphinx + Breathe)
 ---------------------------------------------
 

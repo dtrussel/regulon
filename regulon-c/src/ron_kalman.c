@@ -115,15 +115,16 @@ static void kf_predict_cov(ron_kf_t *kf, uint8_t n)
     ron_mat_t p_work;
     ron_mat_t q_work;
     ron_mat_t ap;
-    ron_mat_t apat;
 
     ron_mat_load(a_work, &kf->cfg.A[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
     ron_mat_load(p_work, &kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
     ron_mat_load(q_work, &kf->cfg.Q[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
 
+    /* p_work is dead as an input once A P exists, so A P A^T lands back in it
+     * rather than in a fifth scratch matrix. */
     ron_mat_mul(ap, a_work, p_work, n, n, n);
-    ron_mat_mul_t(apat, ap, a_work, n, n, n);
-    ron_mat_add(p_work, apat, q_work, n, n);
+    ron_mat_mul_t(p_work, ap, a_work, n, n, n);
+    ron_mat_add(p_work, p_work, q_work, n, n);
 
     ron_mat_store(&kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, p_work, n, n);
 }
@@ -207,10 +208,8 @@ static ron_fault_t kf_compute_gain(ron_mat_t pht, ron_mat_t s, ron_mat_t gain, u
 static ron_fault_t kf_resolve_gain(const ron_kf_t *kf, ron_mat_t h_work, ron_mat_t p_work,
                                    ron_mat_t r_work, ron_mat_t gain, uint8_t n, uint8_t m)
 {
-    ron_mat_t hp;
-    ron_mat_t s_tmp;
-    ron_mat_t s;
-    ron_mat_t pht;
+    ron_mat_t hp; /* H P, then P H^T once H P has been consumed */
+    ron_mat_t s;  /* H P H^T, then the innovation covariance S  */
 
     if (kf->cfg.steady_state) {
         ron_mat_load(gain, &kf->cfg.K_inf[0][0], (uint8_t) RON_KF_MAX_MEASUREMENTS, n, m);
@@ -218,11 +217,11 @@ static ron_fault_t kf_resolve_gain(const ron_kf_t *kf, ron_mat_t h_work, ron_mat
     }
 
     ron_mat_mul(hp, h_work, p_work, m, n, n);
-    ron_mat_mul_t(s_tmp, hp, h_work, m, n, m);
-    ron_mat_add(s, s_tmp, r_work, m, m);
-    ron_mat_mul_t(pht, p_work, h_work, n, n, m);
+    ron_mat_mul_t(s, hp, h_work, m, n, m);
+    ron_mat_add(s, s, r_work, m, m); /* S = H P H^T + R */
+    ron_mat_mul_t(hp, p_work, h_work, n, n, m);
 
-    return kf_compute_gain(pht, s, gain, n, m);
+    return kf_compute_gain(hp, s, gain, n, m);
 }
 
 /* Satisfies: RON-FR-602 | Test: RON-TC-KF-001, RON-TC-KF-003 */
@@ -267,14 +266,13 @@ static void kf_update_cov(ron_kf_t *kf, ron_mat_t h_work, ron_mat_t r_work, ron_
     ron_mat_mul(ikhp, ikh, p_work, n, n, n);
 
     if (joseph) {
-        ron_mat_t t1;
-        ron_mat_t kr;
-        ron_mat_t t2;
-
-        ron_mat_mul_t(t1, ikhp, ikh, n, n, n);
-        ron_mat_mul(kr, gain, r_work, n, m, m);
-        ron_mat_mul_t(t2, kr, gain, n, m, n);
-        ron_mat_add(ikhp, t1, t2, n, n);
+        /* Joseph form needs three more products but no more storage: kh and
+         * p_work are both dead by here, and ikhp is dead the moment its
+         * contribution has been folded into kh. */
+        ron_mat_mul_t(kh, ikhp, ikh, n, n, n);      /* (I-KH) P (I-KH)^T */
+        ron_mat_mul(p_work, gain, r_work, n, m, m); /* K R               */
+        ron_mat_mul_t(ikhp, p_work, gain, n, m, n); /* K R K^T           */
+        ron_mat_add(ikhp, kh, ikhp, n, n);
     }
 
     ron_mat_store(&kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, ikhp, n, n);
