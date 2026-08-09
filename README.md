@@ -129,13 +129,15 @@ CONFIG_REGULON=y
 ```
 
 Each optional module has a `CONFIG_REGULON_<MODULE>` option mirroring the
-CMake ones, with dependencies resolved through Kconfig `select`. A runnable
-control-loop sample lives in `zephyr/samples/pid_loop/`:
+CMake ones, with dependencies resolved through Kconfig `select`.
+
+A runnable control-loop sample lives in `zephyr/samples/pid_loop/` and an
+on-target behavioural suite in `zephyr/tests/control/`. The repository is
+itself a west workspace, so both run with the same command CI uses:
 
 ```bash
-cd zephyr/samples/pid_loop
-west build -b native_sim/native/64 . -- -DZEPHYR_EXTRA_MODULES=$(pwd)/../../..
-./build/zephyr/zephyr.exe
+west init -l . && west update
+west twister -T zephyr/samples -T zephyr/tests -p native_sim/native/64
 ```
 
 See the [Zephyr integration guide](docs/guides/zephyr.rst) for precision and
@@ -166,10 +168,11 @@ a timing benchmark, a package-install smoke test, and a documentation
 build with warnings promoted to errors.
 
 A separate [nightly job](.github/workflows/zephyr_nightly.yml) covers the
-Zephyr module against a pinned Zephyr release: the Kconfig module selection,
-the sample on `native_sim`, the behavioural test suite **executed under QEMU**
-on Cortex-M3 and Cortex-M33, and cross-compiles for Cortex-M4F, Cortex-M7 and
-the nRF52840 DK.
+Zephyr module against a pinned Zephyr release, driven by `twister`: the sample
+and the behavioural suite **executed under QEMU** on Cortex-M3 and Cortex-M33,
+cross-compiles for Cortex-M4F, Cortex-M7 and the nRF52840 DK, and the Kconfig
+module-selection contract. The platform matrix and pass criteria live in
+`sample.yaml`/`testcase.yaml` next to the code, so the run reproduces locally.
 
 ## Documentation
 

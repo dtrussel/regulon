@@ -1,0 +1,38 @@
+# =============================================================================
+# West manifest — bootstraps a Zephyr workspace so this repository can be
+# built and tested standalone, and by CI.
+#
+# Applications normally consume Regulon the other way round, by adding it to
+# THEIR manifest as a module (see docs/guides/zephyr.rst). This file exists so
+# the repository's own samples and tests can be run without one.
+#
+#     west init -l .
+#     west update
+#     west twister -T zephyr/samples -T zephyr/tests -p native_sim
+#
+# The imported module set is limited to what the targets actually need:
+# `cmsis` for any Cortex-M build and `hal_nordic` for the nRF52840. Without
+# the allowlist a full import pulls several gigabytes of vendor HALs that
+# nothing here builds against.
+#
+# RON-IS-001 §8.1
+# SPDX-License-Identifier: MIT
+# =============================================================================
+manifest:
+  self:
+    path: regulon
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      # Pinned deliberately: a Zephyr bump should be a reviewable change
+      # rather than a surprise from tracking a moving branch.
+      revision: v4.1.0
+      import:
+        name-allowlist:
+          - cmsis
+          - hal_nordic

@@ -406,17 +406,28 @@ Running the test suite on a target
 ----------------------------------
 
 ``zephyr/tests/control/`` is a ztest suite checking that each module behaves
-correctly once cross-compiled, rather than merely linking. Point it at any
-board Zephyr can emulate:
+correctly once cross-compiled, rather than merely linking.
+
+The repository is itself a west workspace, so the sample and the suite run
+with the same command CI uses — including the configuration matrix, which
+lives in ``sample.yaml`` and ``testcase.yaml`` rather than in workflow YAML:
 
 .. code-block:: bash
 
-   west build -b qemu_cortex_m3 -t run zephyr/tests/control \
-         -- -DZEPHYR_EXTRA_MODULES=$(pwd)
+   west init -l .
+   west update
+   west twister -T zephyr/samples -T zephyr/tests -p native_sim/native/64
 
-It is also a reasonable starting point for bring-up on real hardware: flash
-it and watch the console to confirm the library computes correctly on your
-part before wiring it into a control loop.
+Swap in ``-p qemu_cortex_m3`` or ``-p mps2/an521/cpu0`` to run on emulated
+Cortex-M. To build a single configuration by hand instead:
+
+.. code-block:: bash
+
+   west build -b qemu_cortex_m3 -t run zephyr/tests/control
+
+The suite is also a reasonable starting point for bring-up on real hardware:
+flash it and watch the console to confirm the library computes correctly on
+your part before wiring it into a control loop.
 
 Troubleshooting
 ---------------

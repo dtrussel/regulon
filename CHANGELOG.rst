@@ -67,6 +67,61 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Idiomatic Zephyr Tooling (twister)
+------------------------------------------
+
+The Zephyr CI was hand-rolled: a bespoke shallow clone, imperative
+``west config manifest.project-filter``, and pass criteria written as shell
+greps in workflow YAML.  An earlier unmerged branch had already done this the
+way Zephyr documents it, and that approach is adopted here.
+
+Added
+~~~~~
+- ``west.yml`` at the repository root, so the repo is itself a west
+  workspace: ``west init -l . && west update`` and the samples and tests run
+  locally exactly as CI runs them.  The module set is limited declaratively
+  with ``name-allowlist`` (``cmsis``, ``hal_nordic``) rather than by a CI
+  command.
+- ``zephyr/samples/pid_loop/sample.yaml`` and an expanded
+  ``zephyr/tests/control/testcase.yaml``: the platform matrix, the
+  configuration variants and the pass criteria now live next to the code.
+  The sample is checked with twister's ``console`` harness against a verdict
+  line it prints; the suite runs under the ``ztest`` harness.
+- A ``CONFIG_MINIMAL_LIBC=y`` build-only case — the direct proof that the
+  libm removal holds at link time, which was not expressible before.
+- A ``CONFIG_REGULON_DOUBLE_PRECISION=y`` case, since that option changes
+  ``ron_float_t`` across the whole application and had never been exercised
+  on target.
+
+Changed
+~~~~~~~
+- ``.github/workflows/zephyr_nightly.yml`` now uses
+  ``zephyrproject-rtos/action-zephyr-setup`` and ``west twister`` instead of
+  a bespoke fetch and shell assertions.  The build-introspection checks
+  twister cannot express — that the minimum-footprint build links exactly
+  the baseline objects, and the complete build links one object per manifest
+  source — remain as a separate job.
+
+Fixed
+~~~~~
+- The on-target sample and test suite hardcoded ``F``-suffixed literals, so
+  they failed to compile under ``CONFIG_REGULON_DOUBLE_PRECISION=y``
+  (Zephyr builds with ``-Wdouble-promotion -Werror``).  Both now use
+  ``RON_FLOAT_C()``, which adapts to the configured precision.  Found by the
+  new double-precision twister case.
+- The test suite took ``NAN`` from ``<math.h>``, which the minimal libc does
+  not define — the test depended on libm even though the library no longer
+  does.  It now builds a NaN without the header.  Found by the new
+  minimal-libc case.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+``twister`` over ``zephyr/samples`` and ``zephyr/tests`` for
+``native_sim/native/64`` and ``qemu_cortex_m3``: **11 configurations
+executed and passed, 1 built** (the build-only minimal-libc case), exit 0.
+
+------------------------------------------------------------------------
+
 0.1.0 — libm-Free Trigonometry and an Enforceable Static-Analysis Gate
 -----------------------------------------------------------------------
 
