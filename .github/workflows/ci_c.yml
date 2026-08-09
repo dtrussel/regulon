@@ -332,7 +332,8 @@ jobs:
         run: cmake --build regulon-c/build_arm --parallel
 
       - name: Assert the archive references no libm
-        run: bash regulon-c/scripts/check_no_libm.sh \
+        run: |
+          bash regulon-c/scripts/check_no_libm.sh \
                arm-none-eabi-nm regulon-c/build_arm/libregulon.a
 
   # ---------------------------------------------------------------------------
@@ -361,7 +362,8 @@ jobs:
         run: cmake --build regulon-c/build_armv7_clang --parallel
 
       - name: Assert the archive references no libm
-        run: bash regulon-c/scripts/check_no_libm.sh \
+        run: |
+          bash regulon-c/scripts/check_no_libm.sh \
                llvm-nm regulon-c/build_armv7_clang/libregulon.a
 
   # ---------------------------------------------------------------------------
@@ -391,7 +393,8 @@ jobs:
         run: cmake --build regulon-c/build_riscv --parallel
 
       - name: Assert the archive references no libm
-        run: bash regulon-c/scripts/check_no_libm.sh \
+        run: |
+          bash regulon-c/scripts/check_no_libm.sh \
                riscv64-unknown-elf-nm regulon-c/build_riscv/libregulon.a
 
   # ---------------------------------------------------------------------------
