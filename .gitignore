@@ -31,7 +31,7 @@ test_results*.xml
 junit.xml
 
 # Zephyr sample build output
-zephyr/samples/*/build/
+zephyr/samples/*/build*/
 
 # Documentation build output
 docs/_build/

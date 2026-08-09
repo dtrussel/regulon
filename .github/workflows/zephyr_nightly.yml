@@ -1,0 +1,197 @@
+name: Nightly - Zephyr Module
+
+# Builds the Zephyr module once a day rather than on every push.
+#
+# Zephyr is a large external dependency and the module glue changes rarely,
+# so gating every push on it would cost far more than it catches. What this
+# job is really guarding against is drift on the *other* side: a Zephyr
+# release changing Kconfig or module conventions under us. A daily run finds
+# that within a day, which is soon enough.
+#
+# Note that GitHub only runs scheduled workflows on the default branch, so
+# this will not fire from a feature branch. Use the Actions tab (or
+# `gh workflow run zephyr_nightly.yml`) to exercise it before merging.
+#
+# No Zephyr SDK is installed: native_sim builds with the host compiler,
+# which keeps the job to a shallow clone rather than a multi-gigabyte
+# toolchain download.
+#
+# RON-IS-001 §8.1
+on:
+  schedule:
+    # 03:17 UTC daily. Off the hour to avoid the top-of-hour scheduling peak,
+    # when GitHub delays scheduled runs the most.
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zephyr-nightly
+  cancel-in-progress: false
+
+env:
+  # Zephyr release to build against. Bump deliberately; the point of this
+  # job is that a bump is a visible, reviewable change rather than a
+  # surprise from tracking a moving branch.
+  ZEPHYR_REF: v4.1.0
+  SAMPLE_DIR: regulon/zephyr/samples/pid_loop
+  BOARD: native_sim/native/64
+
+jobs:
+  zephyr-module:
+    name: Build and run the Zephyr module
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: regulon
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install west
+        run: pip install west
+
+      - name: Cache the Zephyr tree
+        id: zephyr-cache
+        uses: actions/cache@v4
+        with:
+          path: zephyrproject
+          key: zephyr-${{ env.ZEPHYR_REF }}-${{ runner.os }}
+
+      - name: Fetch Zephyr
+        if: steps.zephyr-cache.outputs.cache-hit != 'true'
+        run: |
+          # Shallow clone, and no modules: native_sim needs no HAL or vendor
+          # module, so filtering them all out turns a multi-gigabyte fetch
+          # into a small one.
+          mkdir -p zephyrproject
+          git clone --depth 1 --branch "$ZEPHYR_REF" \
+              https://github.com/zephyrproject-rtos/zephyr zephyrproject/zephyr
+          cd zephyrproject/zephyr
+          west init -l .
+          cd ..
+          west config manifest.project-filter -- "-.*"
+          west update
+
+      - name: Install Zephyr Python dependencies
+        run: pip install -r zephyrproject/zephyr/scripts/requirements-base.txt
+
+      - name: Write test configurations
+        run: |
+          # The sample's own prj.conf is already the minimum-footprint
+          # configuration, so only the other two need writing.
+          cat > full.conf <<'EOF'
+          CONFIG_REGULON_FILTER=y
+          CONFIG_REGULON_GAIN_SCHED=y
+          CONFIG_REGULON_TRAJECTORY=y
+          CONFIG_REGULON_CASCADE=y
+          CONFIG_REGULON_KALMAN=y
+          CONFIG_REGULON_STATESPACE=y
+          CONFIG_REGULON_LQR=y
+          CONFIG_REGULON_LQG=y
+          CONFIG_REGULON_AUTOTUNE=y
+          CONFIG_REGULON_HEALTH=y
+          CONFIG_REGULON_METRICS=y
+          EOF
+          # Ask for LQG alone and let Kconfig `select` pull the rest.
+          echo 'CONFIG_REGULON_LQG=y' > lqg.conf
+
+      - name: Build the sample (minimum footprint)
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: host
+        run: |
+          west build -b "$BOARD" -d build-min -p always "$SAMPLE_DIR" \
+                -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon
+
+      - name: Run the sample and check it converges
+        run: |
+          # native_sim runs its idle loop forever once main returns, so cap it.
+          timeout 60 ./build-min/zephyr/zephyr.exe > run.out 2>&1 || true
+          cat run.out
+
+          grep -q "regulon PID loop sample" run.out \
+            || { echo "::error::sample did not start"; exit 1; }
+
+          final=$(sed -n 's/.*final y = \(-\?[0-9]\+\) milli.*/\1/p' run.out)
+          [ -n "$final" ] \
+            || { echo "::error::sample did not report a final value"; exit 1; }
+
+          # Setpoint is 1.0 (1000 milli). A wide band still proves the loop
+          # closed, without making the check brittle to floating-point or
+          # scheduling differences between runners.
+          if [ "$final" -lt 900 ] || [ "$final" -gt 1100 ]; then
+            echo "::error::loop did not converge: final=${final} milli, expected 900..1100"
+            exit 1
+          fi
+          echo "converged: final=${final} milli"
+
+      - name: Check the minimum footprint links only the baseline
+        run: |
+          objs=$(ar t build-min/modules/regulon/libregulon.a | sort | tr '\n' ' ')
+          echo "objects: $objs"
+          expected="ron_feedforward.c.obj ron_pid_api.c.obj ron_pid_config.c.obj ron_pid_core.c.obj ron_pid_fault.c.obj "
+          [ "$objs" = "$expected" ] || {
+            echo "::error::expected only the mandatory baseline objects"
+            echo "expected: $expected"
+            exit 1
+          }
+
+      - name: Build the complete library
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: host
+        run: |
+          west build -b "$BOARD" -d build-full -p always "$SAMPLE_DIR" \
+                -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon \
+                   -DEXTRA_CONF_FILE=${{ github.workspace }}/full.conf
+
+          # Every source in the standalone build's manifest should be present.
+          want=$(grep -cvE '^[[:space:]]*(#.*)?$' regulon/regulon-c/scripts/lib_sources.txt)
+          got=$(ar t build-full/modules/regulon/libregulon.a | wc -l)
+          echo "sources in manifest: $want, objects linked: $got"
+          [ "$want" -eq "$got" ] || {
+            echo "::error::complete build linked $got objects, manifest lists $want"
+            exit 1
+          }
+
+      - name: Check the Kconfig select chain
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: host
+        run: |
+          west build -b "$BOARD" -d build-lqg -p always "$SAMPLE_DIR" \
+                -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon \
+                   -DEXTRA_CONF_FILE=${{ github.workspace }}/lqg.conf
+
+          # Asking for LQG alone must pull in its whole dependency chain.
+          for opt in KALMAN STATESPACE LQR LQG; do
+            grep -q "^CONFIG_REGULON_${opt}=y" build-lqg/zephyr/.config || {
+              echo "::error::CONFIG_REGULON_${opt} was not selected by LQG"
+              exit 1
+            }
+          done
+
+          objs=$(ar t build-lqg/modules/regulon/libregulon.a)
+          for src in ron_lqg ron_lqr ron_statespace ron_observer ron_kalman ron_matrix; do
+            echo "$objs" | grep -q "^${src}\.c\.obj$" || {
+              echo "::error::${src}.c was not linked into the LQG build"
+              exit 1
+            }
+          done
+          echo "select chain resolved correctly"
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zephyr-nightly-logs
+          path: |
+            build-*/zephyr/.config
+            run.out
+          if-no-files-found: ignore

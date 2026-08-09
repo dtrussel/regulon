@@ -165,6 +165,10 @@ source-manifest drift check, a minimal-subset build, the example programs,
 a timing benchmark, a package-install smoke test, and a documentation
 build with warnings promoted to errors.
 
+A separate [nightly job](.github/workflows/zephyr_nightly.yml) builds and
+runs the Zephyr module against a pinned Zephyr release, checking that the
+sample converges and that the Kconfig module selection resolves correctly.
+
 ## Documentation
 
 The documentation site is built with Sphinx and Breathe, and covers the API

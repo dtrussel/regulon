@@ -341,7 +341,13 @@ ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float
         ron_float_t i_term;
         pid_feedforward_update_t ff_update;
         ron_float_t u_raw;
-        ron_float_t u_final;
+        /* pid_apply_output_limits() leaves u_final unwritten only on the path
+         * where it returns a non-RON_FAULT_NONE fault, and the caller reads it
+         * only when the fault is RON_FAULT_NONE, so the value below is never
+         * used.  GCC cannot see that pid_fail_step() never returns
+         * RON_FAULT_NONE and warns at -O2/-Os; the initialiser silences that
+         * without changing behaviour (MISRA C:2023 Rule 9.1). */
+        ron_float_t u_final = RON_FLOAT_C(0.0);
 
         pid_prepare_inputs(cfg, state, r, y, dt, &r_n, &y_n, &r_f, &step_status);
 

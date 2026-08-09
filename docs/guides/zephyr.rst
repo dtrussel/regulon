@@ -12,9 +12,11 @@ fixed-size objects. Nothing in it needs a heap, and nothing in it blocks.
 
 .. note::
 
-   Everything on this page was verified against **Zephyr 4.1** by building
-   and running :ref:`the bundled sample <zephyr-sample>` on
-   ``native_sim``.
+   Everything on this page is verified against **Zephyr 4.1** by a nightly
+   CI job that builds and runs :ref:`the bundled sample <zephyr-sample>` on
+   ``native_sim``, and checks that the minimum-footprint configuration links
+   only the PID baseline and that requesting LQG alone pulls in its whole
+   dependency chain.
 
 Adding the module
 -----------------
@@ -301,13 +303,6 @@ Troubleshooting
    part of the library that needs libm. ``CONFIG_REGULON_FILTER`` selects
    ``REQUIRES_FULL_LIBC`` for that reason; if you have forced the minimal
    libc, either allow a fuller one or set ``CONFIG_REGULON_FILTER=n``.
-
-**``'u_final' may be used uninitialized`` in ``ron_pid_core.c``**
-   A known false positive from GCC at ``-Os`` and ``-O2``, which Zephyr
-   uses by default. The variable is written on every path where the caller
-   reads it; the compiler cannot see that the helper writing it returns a
-   non-``NONE`` fault whenever it does not. Harmless unless you build with
-   ``CONFIG_COMPILER_WARNINGS_AS_ERRORS=y``.
 
 **Values look wrong after switching precision**
    ``CONFIG_REGULON_DOUBLE_PRECISION`` changes ``ron_float_t`` for the whole

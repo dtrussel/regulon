@@ -121,15 +121,36 @@ host toolchain:
   ``ron_lqg.c``, ``ron_lqr.c``, ``ron_statespace.c``, ``ron_observer.c``,
   ``ron_kalman.c`` and ``ron_matrix.c``, confirming the ``select`` chain.
 
-Known issue
-~~~~~~~~~~~
-- Zephyr compiles at ``-Os``, which surfaces a pre-existing GCC
-  ``-Wmaybe-uninitialized`` false positive on ``u_final`` in
-  ``ron_pid_core.c``. The variable is written on every path where the
-  caller reads it; GCC cannot see that the helper writing it returns a
-  non-``NONE`` fault whenever it does not. Harmless unless the application
-  sets ``CONFIG_COMPILER_WARNINGS_AS_ERRORS=y``. Documented in the guide's
-  troubleshooting section.
+Continuous integration
+~~~~~~~~~~~~~~~~~~~~~~
+- ``.github/workflows/zephyr_nightly.yml``: daily (and manually
+  triggerable) job building the module against a pinned Zephyr release.
+  Zephyr is a large dependency and the glue changes rarely, so gating every
+  push on it would cost more than it catches; what the job actually guards
+  is drift on the Zephyr side, which a daily cadence catches soon enough.
+
+  It asserts behaviour rather than just exit status: the sample must run
+  and converge to within 10% of its setpoint, the minimum-footprint
+  configuration must link exactly the five baseline objects, the complete
+  configuration must link one object per source in
+  ``scripts/lib_sources.txt``, and ``CONFIG_REGULON_LQG=y`` alone must
+  resolve the LQR/state-space/Kalman chain and link the shared matrix
+  helper and observer.
+
+  No Zephyr SDK is installed - ``native_sim`` builds with the host
+  compiler - and the tree is fetched as a shallow clone with all modules
+  filtered out, so the job stays small.
+
+Fixed
+~~~~~
+- ``ron_pid_core.c``: initialised ``u_final``, silencing a GCC
+  ``-Wmaybe-uninitialized`` false positive that appears at ``-O2`` and
+  ``-Os`` (the optimisation level Zephyr builds at). The variable was
+  already written on every path where the caller reads it — GCC cannot see
+  that the helper writing it returns a non-``RON_FAULT_NONE`` fault
+  whenever it does not — so this changes no behaviour, and it satisfies
+  MISRA C:2023 Rule 9.1 explicitly rather than by inference. Statement and
+  branch coverage of the file remain 100%.
 
 ------------------------------------------------------------------------
 
