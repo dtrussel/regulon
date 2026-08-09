@@ -95,45 +95,6 @@ function Show-Or-Missing {
     return $Value
 }
 
-function Find-NewlibInclude {
-    $Candidates = @(
-        $env:RON_ARM_CLANG_NEWLIB_INCLUDE,
-        "C:\Program Files\Arm GNU Toolchain arm-none-eabi",
-        "C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi",
-        "C:\Program Files\GNU Arm Embedded Toolchain",
-        "C:\Program Files (x86)\GNU Arm Embedded Toolchain"
-    )
-
-    foreach ($candidate in $Candidates) {
-        if ([string]::IsNullOrWhiteSpace($candidate)) {
-            continue
-        }
-        if ((Test-Path -LiteralPath (Join-Path $candidate "math.h"))) {
-            return (Resolve-Path -LiteralPath $candidate).Path
-        }
-    }
-
-    $Patterns = @(
-        "C:\Program Files\Arm GNU Toolchain arm-none-eabi\*\arm-none-eabi\include",
-        "C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi\*\arm-none-eabi\include",
-        "C:\Program Files\GNU Arm Embedded Toolchain\*\arm-none-eabi\include",
-        "C:\Program Files (x86)\GNU Arm Embedded Toolchain\*\arm-none-eabi\include",
-        (Join-Path $env:USERPROFILE "AppData\Roaming\xPacks\@xpack-dev-tools\arm-none-eabi-gcc\*\.content\arm-none-eabi\include"),
-        (Join-Path $env:USERPROFILE "scoop\apps\gcc-arm-none-eabi\current\arm-none-eabi\include"),
-        "C:\ProgramData\chocolatey\lib\gcc-arm-embedded\tools\*\arm-none-eabi\include"
-    )
-
-    foreach ($pattern in $Patterns) {
-        $matches = @(Get-Item -Path $pattern -ErrorAction SilentlyContinue |
-            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "math.h") } |
-            Sort-Object -Property FullName -Descending)
-        if ($matches.Count -gt 0) {
-            return $matches[0].FullName
-        }
-    }
-
-    return $null
-}
 
 function Test-CoverageSummary {
     param([string]$SummaryJson)
@@ -189,7 +150,6 @@ $LlvmProfdata = Find-CommandPath -Names @("llvm-profdata")
 $LlvmAr = Find-CommandPath -Names @("llvm-ar")
 $LlvmRanlib = Find-CommandPath -Names @("llvm-ranlib")
 $LlvmSize = Find-CommandPath -Names @("llvm-size")
-$NewlibInclude = Find-NewlibInclude
 $Ninja = Find-CommandPath -Names @("ninja") -FallbackPaths @(
     "C:\Program Files\Ninja\ninja.exe",
     "C:\Program Files\LLVM\bin\ninja.exe",
@@ -221,7 +181,7 @@ $MissingRequired = $false
 foreach ($step in $Steps) {
     switch ($step) {
         "probe" {
-            Add-Result $Results "probe" "ok" ("cmake={0}; ctest={1}; python={2}; cppcheck={3}; misra={4}; clang-format={5}; clang={6}; clang-cl={7}; llvm-cov={8}; llvm-profdata={9}; llvm-ar={10}; llvm-ranlib={11}; llvm-size={12}; newlib-include={13}; ninja={14}; vs-clangcl-toolset={15}; arm-none-eabi-gcc={16}; cbmc={17}" -f `
+            Add-Result $Results "probe" "ok" ("cmake={0}; ctest={1}; python={2}; cppcheck={3}; misra={4}; clang-format={5}; clang={6}; clang-cl={7}; llvm-cov={8}; llvm-profdata={9}; llvm-ar={10}; llvm-ranlib={11}; llvm-size={12}; ninja={13}; vs-clangcl-toolset={14}; arm-none-eabi-gcc={15}; cbmc={16}" -f `
                 (Show-Or-Missing $CMake),
                 (Show-Or-Missing $CTest),
                 (Show-Or-Missing $Python),
@@ -235,7 +195,6 @@ foreach ($step in $Steps) {
                 (Show-Or-Missing $LlvmAr),
                 (Show-Or-Missing $LlvmRanlib),
                 (Show-Or-Missing $LlvmSize),
-                (Show-Or-Missing $NewlibInclude),
                 (Show-Or-Missing $Ninja),
                 (Show-Or-Missing $VsClangClToolset),
                 (Show-Or-Missing $ArmGcc),
@@ -422,19 +381,12 @@ foreach ($step in $Steps) {
                 "-DCMAKE_TOOLCHAIN_FILE=$Toolchain",
                 "-DCMAKE_C_COMPILER=$Clang",
                 "-DCMAKE_MAKE_PROGRAM=$Ninja")
-            if ($null -ne $NewlibInclude) {
-                $ConfigureArgs += @("-DRON_ARM_CLANG_NEWLIB_INCLUDE=$NewlibInclude", "-DRON_ARM_CLANG_ALLOW_HEADER_SHIM=OFF")
-            } else {
-                $ConfigureArgs += @("-DRON_ARM_CLANG_ALLOW_HEADER_SHIM=ON")
-            }
+            # The library is freestanding (RON-DC-002), so there is no libc to
+            # locate for this build.
             Invoke-External "Configure ARMv7 Clang cross-compile" $CMake @(
                 $ConfigureArgs)
             Invoke-External "Build ARMv7 Clang cross-compile" $CMake @("--build", $BuildDir)
-            if ($null -ne $NewlibInclude) {
-                Add-Result $Results "cross-arm-clang" "ok" "$BuildDir; newlib=$NewlibInclude"
-            } else {
-                Add-Result $Results "cross-arm-clang" "ok" "$BuildDir; freestanding header fallback"
-            }
+            Add-Result $Results "cross-arm-clang" "ok" $BuildDir
         }
         "cbmc" {
             if ($null -eq $Cbmc) {

@@ -67,6 +67,186 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Freestanding Build: No libc Required
+--------------------------------------------
+
+Follows the removal of the ``<math.h>`` dependency below. With ``sin``/``cos``
+computed internally, the library includes only freestanding headers —
+``<stdint.h>``, ``<stdbool.h>``, ``<float.h>``, ``<stddef.h>`` — which the
+compiler supplies itself. It therefore needs no C library at all, and the
+machinery that existed to find one is gone.
+
+Removed
+~~~~~~~
+- ``regulon-c/cmake/freestanding/armv7-none-eabi/include/math.h`` and
+  ``regulon-c/cmake/freestanding/riscv32-unknown-elf/include/math.h``: the
+  declaration-only shims. Both declared nothing but ``sin`` and ``cos``.
+- Roughly 200 lines of Newlib/picolibc header-hunting across the three cross
+  toolchain files, together with the cache options that drove it:
+  ``RON_ARM_GCC_NEWLIB_INCLUDE``, ``RON_ARM_GCC_ALLOW_HEADER_SHIM``,
+  ``RON_ARM_CLANG_NEWLIB_INCLUDE``, ``RON_ARM_CLANG_ALLOW_HEADER_SHIM``,
+  ``RON_RISCV_GCC_LIBC_INCLUDE`` and ``RON_RISCV_GCC_ALLOW_HEADER_SHIM``.
+  Passing any of them is now unnecessary; CMake ignores unknown cache entries,
+  so existing scripts keep working.
+- ``libnewlib-arm-none-eabi`` and ``picolibc-riscv64-unknown-elf`` from the CI
+  cross-compile jobs. Their absence is the point: a target with no C library
+  installed is what turns RON-DC-002 from a claim into a build gate.
+
+Added
+~~~~~
+- ``regulon-c/scripts/check_no_libm.sh``: rejects any archive whose undefined
+  symbols include a ``<math.h>`` §7.12 entry point, checked against an explicit
+  list rather than a pattern. Wired into all three cross-compile jobs. A
+  synthetic ``sinf`` reference confirms it fails when it should.
+- ``RON-TC-QUAL-019`` (minimal standard-library dependencies) and
+  ``RON-TC-QUAL-023`` (Zephyr module builds and runs on target) now have test
+  cases in ``TP_ControlLib.rst``. QUAL-019 appeared only in the traceability
+  matrix before; QUAL-023 is new, covering the twister run that had no test ID.
+
+Changed
+~~~~~~~
+- ``regulon-c/AGENTS.md``: ``<math.h>`` moves from "only in coefficient helpers"
+  to not permitted, which is what RON-DC-002 actually requires.
+- ``docs/guides/cross-compiling.rst``: the "freestanding targets" section now
+  documents that no libc is needed, and what the compiled objects do still
+  reference (soft-float helpers, ``memcpy``/``memset``).
+- ``docs/specs/IS_ControlLib.rst``: the toolchain notes describe the libm gate
+  instead of the removed Newlib auto-detection.
+
+------------------------------------------------------------------------
+
+0.1.0 — Idiomatic Zephyr Tooling (twister)
+------------------------------------------
+
+The Zephyr CI was hand-rolled: a bespoke shallow clone, imperative
+``west config manifest.project-filter``, and pass criteria written as shell
+greps in workflow YAML.  An earlier unmerged branch had already done this the
+way Zephyr documents it, and that approach is adopted here.
+
+Added
+~~~~~
+- ``west.yml`` at the repository root, so the repo is itself a west
+  workspace: ``west init -l . && west update`` and the samples and tests run
+  locally exactly as CI runs them.  The module set is limited declaratively
+  with ``name-allowlist`` (``cmsis``, ``hal_nordic``) rather than by a CI
+  command.
+- ``zephyr/samples/pid_loop/sample.yaml`` and an expanded
+  ``zephyr/tests/control/testcase.yaml``: the platform matrix, the
+  configuration variants and the pass criteria now live next to the code.
+  The sample is checked with twister's ``console`` harness against a verdict
+  line it prints; the suite runs under the ``ztest`` harness.
+- A ``CONFIG_MINIMAL_LIBC=y`` build-only case — the direct proof that the
+  libm removal holds at link time, which was not expressible before.
+- A ``CONFIG_REGULON_DOUBLE_PRECISION=y`` case, since that option changes
+  ``ron_float_t`` across the whole application and had never been exercised
+  on target.
+
+Changed
+~~~~~~~
+- ``.github/workflows/zephyr_nightly.yml`` now uses
+  ``zephyrproject-rtos/action-zephyr-setup`` and ``west twister`` instead of
+  a bespoke fetch and shell assertions.  The build-introspection checks
+  twister cannot express — that the minimum-footprint build links exactly
+  the baseline objects, and the complete build links one object per manifest
+  source — remain as a separate job.
+
+Fixed
+~~~~~
+- The on-target sample and test suite hardcoded ``F``-suffixed literals, so
+  they failed to compile under ``CONFIG_REGULON_DOUBLE_PRECISION=y``
+  (Zephyr builds with ``-Wdouble-promotion -Werror``).  Both now use
+  ``RON_FLOAT_C()``, which adapts to the configured precision.  Found by the
+  new double-precision twister case.
+- The test suite took ``NAN`` from ``<math.h>``, which the minimal libc does
+  not define — the test depended on libm even though the library no longer
+  does.  It now builds a NaN without the header.  Found by the new
+  minimal-libc case.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+``twister`` over ``zephyr/samples`` and ``zephyr/tests`` for
+``native_sim/native/64`` and ``qemu_cortex_m3``: **11 configurations
+executed and passed, 1 built** (the build-only minimal-libc case), exit 0.
+
+------------------------------------------------------------------------
+
+0.1.0 — libm-Free Trigonometry and an Enforceable Static-Analysis Gate
+-----------------------------------------------------------------------
+
+Changed
+~~~~~~~
+- ``ron_filter.c``: the biquad coefficient designers no longer call libm.
+  Sine and cosine come from a Taylor series in Horner form (reciprocal
+  factorials to 1/15! and 1/16!) with range reduction into [0, PI/2], ported
+  and extended from an earlier unmerged branch. **This removes the library's
+  last dependency on the C standard library beyond** ``<stdint.h>``,
+  ``<stdbool.h>`` **and** ``<float.h>``, so it now builds against a minimal
+  libc with no math library at all.
+
+  RON-DC-002 permits ``<math.h>`` only where the functions used are bounded
+  and WCET-analysable.  A typical libm sine is neither — table-driven with
+  data-dependent argument reduction — while the series runs a fixed number
+  of multiply-adds for every input.  This closes that gap rather than
+  recording a deviation against it.
+
+  Worst-case error over the whole valid range is ~6e-12 (sine) and ~5e-13
+  (cosine), both at the reduction boundary: four orders better than the
+  branch's shorter series, which mattered because ``RON_USE_DOUBLE`` is a
+  first-class option and the shorter form was only accurate to single
+  precision.
+- ``ron_autotune.c``: the tuning-rule tables move to block scope inside
+  their only reader (MISRA C:2023 Rule 8.9), and ``ron_autotune_apply``
+  takes ``const ron_at_t *`` — it never writes through that pointer.  The
+  signature change is source-compatible for callers, since a non-const
+  pointer converts freely.  Recorded in ``IS_ControlLib.rst``.
+- ``RON_KF_MAX_MEASUREMENTS`` default raised 2 -> 4.  The bound most likely
+  to be too tight for real multi-sensor use, and free here: ``RON_MAT_MAX_DIM``
+  is already 4, so the scratch matrices do not grow.
+- ``ron_platform.h``: the optional ``ron_config.h`` hook moved to the top of
+  the header, before any code, so it satisfies MISRA Rule 20.1 and is seen
+  before anything it might override.
+
+Fixed
+~~~~~
+- ``.github/workflows/ci_c.yml``: the static-analysis step piped cppcheck to
+  ``tee``, so the pipeline's exit status was ``tee``'s and
+  ``--error-exitcode=1`` was silently discarded — **no MISRA or style finding
+  could fail the build**.  Adding ``set -o pipefail`` restores the gate, and
+  the findings it had been hiding are now resolved: two in ``ron_autotune.c``
+  (fixed above) and two suppressed with new deviation records.
+- ``test_ron_lqr.c`` reused one buffer across the observer and Kalman entry
+  points, whose declared measurement bounds need not match.  Raising
+  ``RON_KF_MAX_MEASUREMENTS`` turned that into a ``-Wstringop-overread``
+  error; the Kalman calls now use a correctly sized buffer.
+
+Added
+~~~~~
+- ``docs/deviations/MISRA_C_deviations.rst``: **DEV-005** (Rule 20.9 —
+  cppcheck cannot evaluate ``__has_include``, which is standard C23 and
+  guarded by ``#if defined(__has_include)``) and **DEV-006** (Rules 2.3/2.4 —
+  ``ron_at_phase_t`` is public API whose users a single-translation-unit
+  analysis cannot see, the same limitation already recorded for Rule 8.7).
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- The series was compared against libm across the full valid range **before**
+  being wired in: max error 5.6e-08 with the shorter series, 6.0e-12 with the
+  extended one adopted here.
+- Biquad coefficients are now checked against libm-derived reference values
+  at four frequencies straddling the range reduction, at a tolerance tight
+  enough to discriminate it: removing the reduction fails the suite, while at
+  the previous looser tolerance it did not.
+- ``nm`` reports no undefined libm symbols in ``libregulon.a``.
+- 17/17 tests under GCC, double precision and Clang; 100% statement and
+  branch coverage retained on ``ron_filter.c`` (367 lines / 220 branches) and
+  ``ron_autotune.c`` (196/116).
+- All four ``filter_*`` CBMC harnesses still verify, including
+  bounded-execution — the series is fixed-iteration by construction.
+- cppcheck with the MISRA addon exits 0 with zero findings, and a synthetic
+  defect confirms the gate now fails where it previously passed silently.
+
+------------------------------------------------------------------------
+
 0.1.0 — Matrix Module Stack Reduction
 -------------------------------------
 

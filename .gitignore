@@ -36,5 +36,7 @@ zephyr/tests/*/build*/
 
 # Documentation build output
 docs/_build/
+# Virtualenv for the docs toolchain (README.md creates this at the repo root)
+.venv/
 __pycache__/
 *.pyc

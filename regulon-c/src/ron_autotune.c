@@ -28,16 +28,6 @@
  *   Td = td_factor * Tu   ->  Kd = Kp * Td
  * ========================================================================= */
 
-/* Satisfies: RON-FR-803 | Test: RON-TC-AT-004 */
-static const ron_float_t at_rule_kp[4] = {RON_FLOAT_C(0.60), RON_FLOAT_C(0.45), RON_FLOAT_C(0.33),
-                                          RON_FLOAT_C(0.20)};
-/* Satisfies: RON-FR-803 | Test: RON-TC-AT-004 */
-static const ron_float_t at_rule_ti[4] = {RON_FLOAT_C(0.50), RON_FLOAT_C(2.20), RON_FLOAT_C(0.50),
-                                          RON_FLOAT_C(0.50)};
-/* Satisfies: RON-FR-803 | Test: RON-TC-AT-004 */
-static const ron_float_t at_rule_td[4] = {RON_FLOAT_C(0.125), RON_FLOAT_C(0.158),
-                                          RON_FLOAT_C(0.333), RON_FLOAT_C(0.333)};
-
 /* =========================================================================
  * Internal helpers
  * ========================================================================= */
@@ -81,7 +71,7 @@ static ron_float_t at_relay_output(ron_at_t *at, ron_float_t e)
 {
     ron_float_t d   = at->cfg.relay_amplitude;
     ron_float_t eps = at->cfg.hysteresis;
-    ron_float_t u   = at->state.u_relay_prev;
+    ron_float_t u;
 
     if (e > eps) {
         u = at->cfg.u_bias + d;
@@ -121,6 +111,15 @@ static bool at_detect_crossing(ron_at_t *at, ron_float_t e)
 /* Satisfies: RON-FR-803 | Test: RON-TC-AT-004 */
 static void at_compute_rule(ron_at_t *at)
 {
+    /* Block scope keeps the tables next to their only reader (MISRA C:2023
+     * Rule 8.9); static const still places them in read-only storage. */
+    static const ron_float_t at_rule_kp[4] = {RON_FLOAT_C(0.60), RON_FLOAT_C(0.45),
+                                              RON_FLOAT_C(0.33), RON_FLOAT_C(0.20)};
+    static const ron_float_t at_rule_ti[4] = {RON_FLOAT_C(0.50), RON_FLOAT_C(2.20),
+                                              RON_FLOAT_C(0.50), RON_FLOAT_C(0.50)};
+    static const ron_float_t at_rule_td[4] = {RON_FLOAT_C(0.125), RON_FLOAT_C(0.158),
+                                              RON_FLOAT_C(0.333), RON_FLOAT_C(0.333)};
+
     unsigned idx   = (unsigned) at->cfg.tuning_rule;
     ron_float_t kp = at_rule_kp[idx] * at->state.Ku;
     ron_float_t ti = at_rule_ti[idx] * at->state.Tu;
@@ -356,7 +355,7 @@ ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_fl
 }
 
 /* Satisfies: RON-FR-804 | Test: RON-TC-AT-005 */
-ron_fault_t ron_autotune_apply(ron_at_t *at, ron_pid_instance_t *pid)
+ron_fault_t ron_autotune_apply(const ron_at_t *at, ron_pid_instance_t *pid)
 {
     ron_fault_t fault;
 

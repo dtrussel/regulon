@@ -27,7 +27,7 @@
 
 /* Loop rate. Both the sleep and the controller's dt derive from this. */
 #define LOOP_PERIOD_MS 10
-#define LOOP_DT_S      ((ron_float_t) LOOP_PERIOD_MS / 1000.0F)
+#define LOOP_DT_S      ((ron_float_t) LOOP_PERIOD_MS / RON_FLOAT_C(1000.0))
 
 #define LOOP_STACK_SIZE 2048
 #define LOOP_PRIORITY   5
@@ -52,19 +52,19 @@ static void drive_plant(ron_float_t u)
 static void control_loop(void *a, void *b, void *c)
 {
     ron_pid_config_t cfg = {
-        .Kp      = 2.0F,
-        .Ki      = 5.0F,
-        .Kd      = 0.0F,
-        .b       = 1.0F,
-        .c       = 1.0F,
-        .u_min   = -10.0F,
-        .u_max   = 10.0F,
-        .I_min   = -100.0F,
-        .I_max   = 100.0F,
+        .Kp      = RON_FLOAT_C(2.0),
+        .Ki      = RON_FLOAT_C(5.0),
+        .Kd      = RON_FLOAT_C(0.0),
+        .b       = RON_FLOAT_C(1.0),
+        .c       = RON_FLOAT_C(1.0),
+        .u_min   = -RON_FLOAT_C(10.0),
+        .u_max   = RON_FLOAT_C(10.0),
+        .I_min   = -RON_FLOAT_C(100.0),
+        .I_max   = RON_FLOAT_C(100.0),
         .aw_mode = RON_AW_BACK_CALC,
-        .T_aw    = 0.05F,
+        .T_aw    = RON_FLOAT_C(0.05),
     };
-    const ron_float_t setpoint = 1.0F;
+    const ron_float_t setpoint = RON_FLOAT_C(1.0);
     k_timepoint_t next;
 
     ARG_UNUSED(a);
@@ -98,14 +98,23 @@ static void control_loop(void *a, void *b, void *c)
 
         if ((step % 50) == 0) {
             printk("step %3d: y = %d milli, u = %d milli\n", step,
-                   (int) (read_plant() * 1000.0F), (int) (u * 1000.0F));
+                   (int) (read_plant() * RON_FLOAT_C(1000.0)), (int) (u * RON_FLOAT_C(1000.0)));
         }
 
         k_sleep(sys_timepoint_timeout(next));
     }
 
     printk("regulon: final y = %d milli (setpoint %d milli)\n",
-           (int) (read_plant() * 1000.0F), (int) (setpoint * 1000.0F));
+           (int) (read_plant() * RON_FLOAT_C(1000.0)), (int) (setpoint * RON_FLOAT_C(1000.0)));
+
+    /* Terminal verdict for twister's console harness (see sample.yaml): the
+     * loop must have settled within 10% of the setpoint. Printed rather than
+     * asserted so the sample stays a sample - it is not a test. */
+    if (ron_fabs(read_plant() - setpoint) < (RON_FLOAT_C(0.1) * setpoint)) {
+        printk("Regulon PID sample: PASS\n");
+    } else {
+        printk("Regulon PID sample: FAIL\n");
+    }
 }
 
 K_THREAD_DEFINE(control_loop_tid, LOOP_STACK_SIZE, control_loop, NULL, NULL, NULL,

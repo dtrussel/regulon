@@ -1124,7 +1124,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-DC-005
      - Cross-compilation build support
      - PT
-     - RON-TC-QUAL-022
+     - RON-TC-QUAL-022, RON-TC-QUAL-023
 
 ------------------------------------------------------------------------
 
@@ -1330,7 +1330,7 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-PERF-001 – PERF-008
      - PT / FV
      - RON-PR-001 – PR-022, RON-FR-953
-   * - RON-TC-QUAL-001 – QUAL-022
+   * - RON-TC-QUAL-001 – QUAL-023
      - UT (static) / Review / PT
      - RON-SR-030 – SR-033, RON-QR-001 – QR-031, RON-DC-001 – DC-005
    * - RON-TC-INT-001 – INT-005
@@ -3604,6 +3604,38 @@ RON-TC-QUAL-017 — Deterministic Reproducibility
    * - **Pass Criterion**
      - Both runs produce identical hash values.
 
+RON-TC-QUAL-019 — Minimal Standard-Library Dependencies
+--------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-DC-002
+   * - **Level**
+     - UT (static) / PT
+   * - **Method**
+     - Three independent checks, each of which alone would catch a regression:
+
+       1. The ARM GCC, ARMv7 Clang and RISC-V cross-compile jobs install **no
+          target C library**, so any use of a non-freestanding header fails to
+          compile.
+       2. ``regulon-c/scripts/check_no_libm.sh`` runs ``nm`` over each produced
+          archive and rejects any undefined symbol matching a ``<math.h>``
+          §7.12 entry point.
+       3. The Zephyr nightly builds the behavioural suite with
+          ``CONFIG_MINIMAL_LIBC=y`` (``regulon.module.control.minimal_libc``),
+          which links against a C library providing no libm at all.
+
+       Where trigonometry is needed — the biquad coefficient designers — it is
+       computed from a fixed-length polynomial in ``ron_filter.c`` rather than
+       taken from libm, whose argument reduction is neither bounded nor
+       WCET-analysable.
+   * - **Pass Criterion**
+     - All three cross builds succeed with no libc present; ``check_no_libm.sh``
+       reports no libm symbols in any archive; the ``minimal_libc`` twister case
+       builds and links.
+
 RON-TC-QUAL-022 — Cross-Compilation Build Succeeds
 ----------------------------------------------------
 
@@ -3623,6 +3655,46 @@ RON-TC-QUAL-022 — Cross-Compilation Build Succeeds
    * - **Pass Criterion**
      - All four builds succeed with zero errors and zero warnings.
        Build artefacts can be linked into a minimal bare-metal harness.
+
+RON-TC-QUAL-023 — Zephyr Module Builds and Runs On Target
+-----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-DC-005
+   * - **Level**
+     - PT / ENV-TARGET
+   * - **Method**
+     - The repository is a west workspace, so the module is exercised the way a
+       Zephyr application would consume it — through ``zephyr/module.yml`` and
+       ``CONFIG_REGULON=y`` — rather than by a bespoke build:
+
+       .. code-block:: bash
+
+          west init -l . && west update
+          west twister -T zephyr/samples -T zephyr/tests \
+                       -p native_sim/native/64 -p qemu_cortex_m3 \
+                       -p mps2/an521/cpu0
+
+       The platform matrix and the configuration variants live in
+       ``zephyr/samples/pid_loop/sample.yaml`` and
+       ``zephyr/tests/control/testcase.yaml``: the complete library, the
+       minimum PID-only footprint, LQG selected alone (exercising the Kconfig
+       ``select`` chain), ``CONFIG_MINIMAL_LIBC=y`` (build-only, see
+       RON-TC-QUAL-019), and ``CONFIG_REGULON_DOUBLE_PRECISION=y``.
+
+       Two build-introspection assertions run separately, since twister cannot
+       express them: that the minimum-footprint build links exactly the
+       mandatory baseline objects, and that the complete build links one object
+       per source in ``regulon-c/scripts/lib_sources.txt``.
+   * - **Pass Criterion**
+     - Every runnable configuration passes under QEMU or ``native_sim``; the
+       ``build_only`` configurations link; the sample prints
+       ``Regulon PID sample: PASS``, matched by twister's console harness, after
+       converging to within 2 % of the unit setpoint; both object-list
+       assertions hold.
 
 ------------------------------------------------------------------------
 
@@ -4335,8 +4407,10 @@ order is:
 
 7. **Quality / reproducibility** (RON-TC-QUAL-013 – QUAL-018).
 
-8. **Performance tests** (RON-TC-PERF-xxx, RON-TC-QUAL-022): run last
-   and on target hardware; require all prior tests to pass.
+8. **Performance and on-target tests** (RON-TC-PERF-xxx, RON-TC-QUAL-022,
+   RON-TC-QUAL-023): run last and on target hardware or an emulator; require
+   all prior tests to pass. RON-TC-QUAL-023 runs on the nightly schedule rather
+   than per push, since it depends on an external Zephyr release.
 
 ------------------------------------------------------------------------
 

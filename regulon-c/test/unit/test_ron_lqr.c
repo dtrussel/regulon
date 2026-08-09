@@ -362,6 +362,10 @@ void test_ron_tc_lqr_008(void)
     ron_float_t r[RON_LQR_MAX_INPUTS] = {RON_FLOAT_C(0.0)};
     ron_float_t u[RON_LQR_MAX_INPUTS];
     ron_float_t y[RON_SS_MAX_OUTPUTS];
+    /* The Kalman entry points declare their measurement vector as
+     * [RON_KF_MAX_MEASUREMENTS], which need not match the observer's output
+     * bound, so give them their own correctly sized buffer. */
+    ron_float_t z[RON_KF_MAX_MEASUREMENTS] = {RON_FLOAT_C(0.0)};
     ron_status_t status;
     uint16_t step;
 
@@ -400,7 +404,7 @@ void test_ron_tc_lqr_008(void)
 
     /* Cross-source estimator calls are rejected. */
     TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqr_kalman_predict(&lqr, NULL));
-    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqr_kalman_update(&lqr, y, true));
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqr_kalman_update(&lqr, z, true));
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqr_observer_step(NULL, y, NULL));
 
     /* Reset on a LUENBERGER-source instance also resets the observer. */

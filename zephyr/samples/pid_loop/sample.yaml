@@ -1,0 +1,50 @@
+# Twister metadata for the Regulon PID sample.
+#
+# The pass criterion lives here rather than in workflow shell: twister runs
+# the binary and matches the console output against the regex below, so the
+# same check applies wherever the sample is run.
+#
+# SPDX-License-Identifier: MIT
+sample:
+  name: Regulon PID Control Loop
+  description: Drive a first-order plant to setpoint with a Regulon PID in a periodic thread
+
+common:
+  tags: regulon controls
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Regulon PID sample: PASS"
+
+tests:
+  # The sample's own prj.conf disables every optional module, so this is also
+  # the minimum-footprint build.
+  sample.regulon.pid:
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
+      - qemu_cortex_m3
+      - mps2/an521/cpu0
+    integration_platforms:
+      - native_sim/native/64
+
+  # The complete library, to prove every module still links and runs together.
+  sample.regulon.pid.full:
+    extra_configs:
+      - CONFIG_REGULON_FILTER=y
+      - CONFIG_REGULON_GAIN_SCHED=y
+      - CONFIG_REGULON_TRAJECTORY=y
+      - CONFIG_REGULON_CASCADE=y
+      - CONFIG_REGULON_KALMAN=y
+      - CONFIG_REGULON_STATESPACE=y
+      - CONFIG_REGULON_LQR=y
+      - CONFIG_REGULON_LQG=y
+      - CONFIG_REGULON_AUTOTUNE=y
+      - CONFIG_REGULON_HEALTH=y
+      - CONFIG_REGULON_METRICS=y
+    platform_allow:
+      - native_sim/native/64
+      - qemu_cortex_m3
+    integration_platforms:
+      - native_sim/native/64

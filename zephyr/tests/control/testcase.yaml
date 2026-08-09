@@ -1,10 +1,83 @@
-# Twister metadata. `depends_on: ram` keeps this off boards too small to
-# hold the complete library plus the ztest harness.
+# Twister metadata for the on-target behavioural suite.
+#
+# The configuration matrix lives here rather than as conf files written by CI:
+# twister builds each variant and runs the ztest binary, so the same matrix
+# applies to a local `west twister` run.
+#
+# SPDX-License-Identifier: MIT
+common:
+  tags: regulon controls
+  harness: ztest
+
 tests:
+  # Complete library. Every optional module's behavioural test compiles in,
+  # which also checks the generated RON_HAVE_* macros against what was built.
   regulon.module.control:
-    tags:
-      - regulon
-      - control
-    integration_platforms:
+    platform_allow:
+      - native_sim
+      - native_sim/native/64
       - qemu_cortex_m3
-      - mps2/an385
+      - mps2/an521/cpu0
+    integration_platforms:
+      - native_sim/native/64
+      - qemu_cortex_m3
+
+  # Minimum footprint: PID core only. Proves the Kconfig gating actually
+  # excludes sources rather than merely defaulting them off.
+  regulon.module.control.minimal:
+    extra_configs:
+      - CONFIG_REGULON_FILTER=n
+      - CONFIG_REGULON_GAIN_SCHED=n
+      - CONFIG_REGULON_TRAJECTORY=n
+      - CONFIG_REGULON_CASCADE=n
+      - CONFIG_REGULON_KALMAN=n
+      - CONFIG_REGULON_STATESPACE=n
+      - CONFIG_REGULON_LQR=n
+      - CONFIG_REGULON_LQG=n
+      - CONFIG_REGULON_AUTOTUNE=n
+      - CONFIG_REGULON_HEALTH=n
+      - CONFIG_REGULON_METRICS=n
+    platform_allow:
+      - native_sim/native/64
+      - qemu_cortex_m3
+    integration_platforms:
+      - native_sim/native/64
+
+  # Ask for LQG alone; Kconfig `select` must pull in LQR, state-space and the
+  # Kalman filter. The suite's dependency-consistency test then checks the
+  # generated macros agree.
+  regulon.module.control.lqg_select:
+    extra_configs:
+      - CONFIG_REGULON_LQG=y
+      - CONFIG_REGULON_FILTER=n
+      - CONFIG_REGULON_GAIN_SCHED=n
+      - CONFIG_REGULON_TRAJECTORY=n
+      - CONFIG_REGULON_CASCADE=n
+      - CONFIG_REGULON_AUTOTUNE=n
+      - CONFIG_REGULON_HEALTH=n
+      - CONFIG_REGULON_METRICS=n
+    platform_allow:
+      - native_sim/native/64
+      - qemu_cortex_m3
+    integration_platforms:
+      - native_sim/native/64
+
+  # The library needs no libm (RON-DC-002), so it must build against the
+  # minimal C library. Build-only: this is a link-time property.
+  regulon.module.control.minimal_libc:
+    extra_configs:
+      - CONFIG_MINIMAL_LIBC=y
+    build_only: true
+    platform_allow:
+      - qemu_cortex_m3
+
+  # Double precision changes ron_float_t across the whole application, so it
+  # is worth running rather than only compiling.
+  regulon.module.control.double:
+    extra_configs:
+      - CONFIG_REGULON_DOUBLE_PRECISION=y
+    platform_allow:
+      - native_sim/native/64
+      - mps2/an521/cpu0
+    integration_platforms:
+      - native_sim/native/64

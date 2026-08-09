@@ -103,6 +103,35 @@ Deviation Table
        function (rejecting any value outside the enumerated range with
        ``RON_FAULT_CONFIG_INVALID``) before the ``if``/``else if`` chain runs,
        and every branch is covered by that module's own Unity suite.
+   * - DEV-005
+     - Rule 20.9 (Undefined identifier in a ``#if`` controlling expression)
+     - ``regulon-c/include/ron/ron_platform.h``.
+     - The optional user-configuration hook tests
+       ``#if __has_include(<ron_config.h>)``.  ``__has_include`` is
+       standardised in C23 (ISO/IEC 9899:2024 §6.10.1) and available as a
+       universal extension in every toolchain this library targets, but
+       cppcheck cannot evaluate it and reports the identifier as undefined.
+       The construct is itself guarded by ``#if defined(__has_include)``, so a
+       toolchain without it falls through to the built-in defaults rather
+       than failing to compile.
+     - The guard makes the feature optional by construction; the defaults it
+       may override are all ``#ifndef``-protected, so the worst case of the
+       header being missed is the documented default configuration.
+
+   * - DEV-006
+     - Rule 2.3 (Unused type declaration), Rule 2.4 (Unused tag declaration)
+     - ``regulon-c/include/ron/ron_autotune.h``.
+     - ``ron_at_phase_t`` names the values stored in ``ron_at_state_t.phase``
+       (held as ``uint8_t`` to keep the struct layout fixed).  The library
+       itself only ever uses the enumerators, never the typedef name, so a
+       single-translation-unit analysis sees the type as unused — but it is
+       public API and is exactly how a consumer interprets ``phase``.  Same
+       whole-program-unaware limitation already recorded for Rule 8.7 in
+       DEV-003.  Rule 2.4 fires on the same declaration for the same reason
+       and is covered by this record.
+     - The enumerators are used and covered inside the library, and the
+       aggregate-header integration test (``RON-TC-INT-001``) compiles the
+       public surface as a consumer would see it.
 
 Pending Review
 --------------

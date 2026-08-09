@@ -184,6 +184,10 @@ jobs:
 
       - name: Run cppcheck (MISRA addon)
         run: |
+          # pipefail matters here: without it the exit status is tee's, so
+          # cppcheck's --error-exitcode is discarded and no finding can fail
+          # the build.
+          set -o pipefail
           mapfile -t SRC < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/lib_sources.txt)
           cppcheck --addon=misra.py --check-level=exhaustive \
                    --enable=style --error-exitcode=1 \
@@ -193,6 +197,9 @@ jobs:
                    --suppress=misra-c2012-15.5 \
                    --suppress=misra-c2012-15.7 \
                    --suppress=misra-c2012-20.10 \
+                   --suppress=misra-c2012-20.9 \
+                   --suppress=misra-c2012-2.3 \
+                   --suppress=misra-c2012-2.4 \
                    -I regulon-c/include \
                    -I regulon-c/src \
                    "${SRC[@]}" \
@@ -304,23 +311,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No libc is installed for this target on purpose. The library is
+      # freestanding (RON-DC-002), so the absence of newlib is what makes this
+      # job prove the property rather than merely assert it: anything that
+      # reintroduces a libc dependency fails to compile here.
       - name: Install dependencies
         run: |
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+            cmake ninja-build gcc-arm-none-eabi
 
       - name: Configure ARM PID build
         run: |
           cmake -G Ninja -B regulon-c/build_arm -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=OFF \
                 -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/arm-none-eabi.cmake \
-                -DRON_ARM_GCC_NEWLIB_INCLUDE=/usr/include/newlib \
-                -DRON_ARM_GCC_ALLOW_HEADER_SHIM=OFF \
                 -DCMAKE_C_FLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb"
 
       - name: Build ARM PID library
         run: cmake --build regulon-c/build_arm --parallel
+
+      - name: Assert the archive references no libm
+        run: |
+          bash regulon-c/scripts/check_no_libm.sh \
+               arm-none-eabi-nm regulon-c/build_arm/libregulon.a
 
   # ---------------------------------------------------------------------------
   # Job 8: ARMv7 Clang bare-metal cross-compile smoke build (RON-TC-QUAL-022)
@@ -336,18 +350,21 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build clang llvm libnewlib-arm-none-eabi
+            cmake ninja-build clang llvm
 
       - name: Configure ARMv7 Clang PID build
         run: |
           cmake -G Ninja -B regulon-c/build_armv7_clang -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=OFF \
-                -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake \
-                -DRON_ARM_CLANG_NEWLIB_INCLUDE=/usr/include/newlib \
-                -DRON_ARM_CLANG_ALLOW_HEADER_SHIM=OFF
+                -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake
 
       - name: Build ARMv7 Clang PID library
         run: cmake --build regulon-c/build_armv7_clang --parallel
+
+      - name: Assert the archive references no libm
+        run: |
+          bash regulon-c/scripts/check_no_libm.sh \
+               llvm-nm regulon-c/build_armv7_clang/libregulon.a
 
   # ---------------------------------------------------------------------------
   # Job 9: RISC-V cross-compile smoke build (RON-TC-QUAL-022)
@@ -363,19 +380,22 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf
+            cmake ninja-build gcc-riscv64-unknown-elf
 
       - name: Configure RISC-V build
         run: |
           cmake -G Ninja -B regulon-c/build_riscv -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=OFF \
                 -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake \
-                -DRON_RISCV_GCC_LIBC_INCLUDE=/usr/lib/picolibc/riscv64-unknown-elf/include \
-                -DRON_RISCV_GCC_ALLOW_HEADER_SHIM=OFF \
                 -DCMAKE_C_FLAGS="-march=rv32imc -mabi=ilp32"
 
       - name: Build RISC-V library
         run: cmake --build regulon-c/build_riscv --parallel
+
+      - name: Assert the archive references no libm
+        run: |
+          bash regulon-c/scripts/check_no_libm.sh \
+               riscv64-unknown-elf-nm regulon-c/build_riscv/libregulon.a
 
   # ---------------------------------------------------------------------------
   # Job 10: CBMC Formal Verification (RON-TP-001)

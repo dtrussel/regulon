@@ -42,28 +42,38 @@ The toolchain targets ``rv32imc``/``ilp32`` using the ``riscv64-unknown-elf``
 GCC that Debian and Ubuntu package, which supports 32-bit targets through
 ``-march``/``-mabi``.
 
-Freestanding targets without a full libc
-----------------------------------------
+Freestanding targets without a libc
+-----------------------------------
 
-Regulon needs very little from the C library — chiefly ``<math.h>``
-declarations for a handful of functions. On a bare toolchain with no libc
-headers at all, both toolchain files can fall back to a declaration-only
-shim under ``regulon-c/cmake/freestanding/``:
+Regulon needs **no C library at all**. The only headers it includes —
+``<stdint.h>``, ``<stdbool.h>``, ``<float.h>`` and ``<stddef.h>`` — are
+freestanding headers that the compiler itself provides, so the library
+compiles against a bare cross toolchain with no sysroot:
 
 .. code-block:: bash
 
    cmake -B build_arm -S regulon-c \
          -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake \
-         -DRON_ARM_GCC_ALLOW_HEADER_SHIM=ON \
          -DRON_BUILD_TESTS=OFF
 
-The RISC-V equivalent is ``RON_RISCV_GCC_ALLOW_HEADER_SHIM``. Both toolchains
-also accept an explicit libc include directory
-(``RON_ARM_GCC_LIBC_INCLUDE`` / ``RON_RISCV_GCC_LIBC_INCLUDE``) when your
-sysroot is somewhere the toolchain file does not look.
+There is nothing to configure for this: no newlib, no picolibc, no sysroot,
+and no ``-lm``. This is RON-DC-002, and it is what makes the library usable
+from a Zephyr application built with ``CONFIG_MINIMAL_LIBC=y`` — a case the
+:doc:`nightly Zephyr job <zephyr>` builds explicitly.
 
-The shim only declares functions; it does not implement them. You still need
-to link an implementation, whether that is newlib, picolibc, or your own.
+The compiled objects reference only three things the compiler or runtime must
+supply: the soft-float helpers your compiler emits for targets without an FPU
+(``libgcc`` / ``compiler-rt`` provide these), and ``memcpy``/``memset``, which
+a C compiler may emit for structure assignment even in freestanding mode.
+
+.. note::
+
+   Earlier releases pulled ``sin`` and ``cos`` from ``<math.h>`` in the biquad
+   coefficient helpers, and the toolchain files carried machinery to locate
+   newlib's headers for them. Those functions are now computed internally with
+   a bounded polynomial, and that machinery — along with the
+   ``RON_*_ALLOW_HEADER_SHIM`` and ``RON_*_NEWLIB_INCLUDE`` options — has been
+   removed. If you were setting either option, you can simply drop it.
 
 Writing a toolchain file for another target
 -------------------------------------------
@@ -84,8 +94,8 @@ needs only a conventional CMake toolchain file:
    # needs a full runtime that a bare cross toolchain may not have.
    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-The two shipped toolchain files are worth reading as worked examples,
-particularly for how they locate libc headers.
+That really is the whole of it — the shipped toolchain files are worth
+reading as worked examples, and they are short for the same reason.
 
 Integer and floating-point requirements
 ---------------------------------------

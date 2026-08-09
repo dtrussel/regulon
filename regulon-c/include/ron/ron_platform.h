@@ -25,6 +25,25 @@
 #include <stdint.h>  /* uint8_t, uint16_t, uint32_t, int32_t … */
 
 /* =========================================================================
+ * Optional user configuration header
+ *
+ * Put a ron_config.h anywhere on the include path and it is pulled in before
+ * the defaults below, so it can override any of them.  Nothing is required:
+ * when no such header exists the defaults stand.
+ *
+ * Defining the macros directly on the command line works too, and takes
+ * precedence over both, since every default below is #ifndef-guarded.
+ *
+ * Satisfies: RON-PR-022.
+ * ========================================================================= */
+
+#if defined(__has_include)
+#if __has_include(<ron_config.h>)
+#include <ron_config.h>
+#endif
+#endif
+
+/* =========================================================================
  * Floating-point precision selection
  *
  * Default: 32-bit single-precision float  (RON-PR-010).
@@ -180,25 +199,6 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 #define RON_VERSION_PATCH 0U
 
 /* =========================================================================
- * Optional user configuration header
- *
- * Put a ron_config.h anywhere on the include path and it is pulled in before
- * the defaults below, so it can override any of them.  Nothing is required:
- * when no such header exists the defaults stand.
- *
- * Defining the macros directly on the command line works too, and takes
- * precedence over both, since every default below is #ifndef-guarded.
- *
- * Satisfies: RON-PR-022.
- * ========================================================================= */
-
-#if defined(__has_include)
-#if __has_include(<ron_config.h>)
-#include <ron_config.h>
-#endif
-#endif
-
-/* =========================================================================
  * Compile-time array dimension constants
  *
  * These bound all fixed-size arrays in the library.  Define them before
@@ -238,7 +238,7 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 
 /** Maximum Kalman measurement dimension m (RON-FR-601). */
 #ifndef RON_KF_MAX_MEASUREMENTS
-#define RON_KF_MAX_MEASUREMENTS 2U
+#define RON_KF_MAX_MEASUREMENTS 4U
 #endif
 
 /** Maximum Kalman input dimension p (RON-FR-601). */

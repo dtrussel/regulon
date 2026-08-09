@@ -273,7 +273,7 @@ ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_fl
  * Satisfies: RON-FR-804.
  */
 /* Satisfies: RON-FR-804 | Test: RON-TC-AT-005 */
-ron_fault_t ron_autotune_apply(ron_at_t *at, ron_pid_instance_t *pid);
+ron_fault_t ron_autotune_apply(const ron_at_t *at, ron_pid_instance_t *pid);
 
 /**
  * @brief Abort the tuning run and restore the PID untouched.

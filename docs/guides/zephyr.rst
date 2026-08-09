@@ -10,6 +10,11 @@ The fit is a natural one: Regulon performs no dynamic allocation, uses no
 recursion or unbounded loops, and keeps all controller state in caller-owned
 fixed-size objects. Nothing in it needs a heap, and nothing in it blocks.
 
+It also needs no libm — the only transcendental functions it uses, the sine
+and cosine behind the biquad coefficient designers, are computed from a
+bounded Taylor series. The whole library therefore builds against
+``CONFIG_MINIMAL_LIBC=y``, which the nightly CI checks.
+
 .. note::
 
    Everything on this page is verified against **Zephyr 4.1** by a nightly
@@ -401,17 +406,28 @@ Running the test suite on a target
 ----------------------------------
 
 ``zephyr/tests/control/`` is a ztest suite checking that each module behaves
-correctly once cross-compiled, rather than merely linking. Point it at any
-board Zephyr can emulate:
+correctly once cross-compiled, rather than merely linking.
+
+The repository is itself a west workspace, so the sample and the suite run
+with the same command CI uses — including the configuration matrix, which
+lives in ``sample.yaml`` and ``testcase.yaml`` rather than in workflow YAML:
 
 .. code-block:: bash
 
-   west build -b qemu_cortex_m3 -t run zephyr/tests/control \
-         -- -DZEPHYR_EXTRA_MODULES=$(pwd)
+   west init -l .
+   west update
+   west twister -T zephyr/samples -T zephyr/tests -p native_sim/native/64
 
-It is also a reasonable starting point for bring-up on real hardware: flash
-it and watch the console to confirm the library computes correctly on your
-part before wiring it into a control loop.
+Swap in ``-p qemu_cortex_m3`` or ``-p mps2/an521/cpu0`` to run on emulated
+Cortex-M. To build a single configuration by hand instead:
+
+.. code-block:: bash
+
+   west build -b qemu_cortex_m3 -t run zephyr/tests/control
+
+The suite is also a reasonable starting point for bring-up on real hardware:
+flash it and watch the console to confirm the library computes correctly on
+your part before wiring it into a control loop.
 
 Troubleshooting
 ---------------
@@ -425,12 +441,6 @@ Troubleshooting
    ``build/zephyr/.config`` for the resolved values rather than reading
    ``prj.conf``, since ``select`` can turn things on that you did not ask
    for and board defconfigs can turn things off.
-
-**``undefined reference to sin``/``cos``**
-   The biquad coefficient designers in :doc:`../api/filter` are the only
-   part of the library that needs libm. ``CONFIG_REGULON_FILTER`` selects
-   ``REQUIRES_FULL_LIBC`` for that reason; if you have forced the minimal
-   libc, either allow a fuller one or set ``CONFIG_REGULON_FILTER=n``.
 
 **Values look wrong after switching precision**
    ``CONFIG_REGULON_DOUBLE_PRECISION`` changes ``ron_float_t`` for the whole
