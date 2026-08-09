@@ -67,6 +67,54 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Freestanding Build: No libc Required
+--------------------------------------------
+
+Follows the removal of the ``<math.h>`` dependency below. With ``sin``/``cos``
+computed internally, the library includes only freestanding headers —
+``<stdint.h>``, ``<stdbool.h>``, ``<float.h>``, ``<stddef.h>`` — which the
+compiler supplies itself. It therefore needs no C library at all, and the
+machinery that existed to find one is gone.
+
+Removed
+~~~~~~~
+- ``regulon-c/cmake/freestanding/armv7-none-eabi/include/math.h`` and
+  ``regulon-c/cmake/freestanding/riscv32-unknown-elf/include/math.h``: the
+  declaration-only shims. Both declared nothing but ``sin`` and ``cos``.
+- Roughly 200 lines of Newlib/picolibc header-hunting across the three cross
+  toolchain files, together with the cache options that drove it:
+  ``RON_ARM_GCC_NEWLIB_INCLUDE``, ``RON_ARM_GCC_ALLOW_HEADER_SHIM``,
+  ``RON_ARM_CLANG_NEWLIB_INCLUDE``, ``RON_ARM_CLANG_ALLOW_HEADER_SHIM``,
+  ``RON_RISCV_GCC_LIBC_INCLUDE`` and ``RON_RISCV_GCC_ALLOW_HEADER_SHIM``.
+  Passing any of them is now unnecessary; CMake ignores unknown cache entries,
+  so existing scripts keep working.
+- ``libnewlib-arm-none-eabi`` and ``picolibc-riscv64-unknown-elf`` from the CI
+  cross-compile jobs. Their absence is the point: a target with no C library
+  installed is what turns RON-DC-002 from a claim into a build gate.
+
+Added
+~~~~~
+- ``regulon-c/scripts/check_no_libm.sh``: rejects any archive whose undefined
+  symbols include a ``<math.h>`` §7.12 entry point, checked against an explicit
+  list rather than a pattern. Wired into all three cross-compile jobs. A
+  synthetic ``sinf`` reference confirms it fails when it should.
+- ``RON-TC-QUAL-019`` (minimal standard-library dependencies) and
+  ``RON-TC-QUAL-023`` (Zephyr module builds and runs on target) now have test
+  cases in ``TP_ControlLib.rst``. QUAL-019 appeared only in the traceability
+  matrix before; QUAL-023 is new, covering the twister run that had no test ID.
+
+Changed
+~~~~~~~
+- ``regulon-c/AGENTS.md``: ``<math.h>`` moves from "only in coefficient helpers"
+  to not permitted, which is what RON-DC-002 actually requires.
+- ``docs/guides/cross-compiling.rst``: the "freestanding targets" section now
+  documents that no libc is needed, and what the compiled objects do still
+  reference (soft-float helpers, ``memcpy``/``memset``).
+- ``docs/specs/IS_ControlLib.rst``: the toolchain notes describe the libm gate
+  instead of the removed Newlib auto-detection.
+
+------------------------------------------------------------------------
+
 0.1.0 — Idiomatic Zephyr Tooling (twister)
 ------------------------------------------
 

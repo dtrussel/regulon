@@ -9,9 +9,9 @@
 #
 # Optional cache variables:
 #   RON_ARM_CLANG_TARGET  LLVM target triple, defaults to armv7-none-eabi.
-#   RON_ARM_CLANG_SYSROOT Optional C library/sysroot for bare-metal headers.
-#   RON_ARM_CLANG_NEWLIB_INCLUDE Optional Newlib include directory.
-#   RON_ARM_CLANG_ALLOW_HEADER_SHIM Allow declaration-only local fallback.
+#   RON_ARM_CLANG_SYSROOT Optional C library/sysroot. The library itself is
+#                         freestanding and needs none; this is only useful if
+#                         you build the tests or examples for the target.
 #   RON_ARM_CLANG_CPU     Optional -mcpu value.
 #   RON_ARM_CLANG_ARCH    Optional -march value.
 #   RON_ARM_CLANG_THUMB   Enable Thumb code generation, defaults ON.
@@ -29,12 +29,6 @@ set(RON_ARM_CLANG_TARGET
 set(RON_ARM_CLANG_SYSROOT
     ""
     CACHE PATH "Optional sysroot containing ARM bare-metal C headers/libraries")
-set(RON_ARM_CLANG_NEWLIB_INCLUDE
-    ""
-    CACHE PATH "Optional Newlib include directory for ARM bare-metal headers")
-set(RON_ARM_CLANG_ALLOW_HEADER_SHIM
-    ON
-    CACHE BOOL "Allow declaration-only header fallback when Newlib is unavailable")
 set(RON_ARM_CLANG_CPU
     ""
     CACHE STRING "Optional ARM CPU passed to Clang with -mcpu")
@@ -75,43 +69,9 @@ endif()
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-nostartfiles -nostdlib")
 
-set(RON_ARM_CLANG_NEWLIB_INCLUDE_CANDIDATES "")
-if(NOT "${RON_ARM_CLANG_NEWLIB_INCLUDE}" STREQUAL "")
-    list(APPEND RON_ARM_CLANG_NEWLIB_INCLUDE_CANDIDATES "${RON_ARM_CLANG_NEWLIB_INCLUDE}")
-endif()
-if(NOT "${RON_ARM_CLANG_SYSROOT}" STREQUAL "")
-    list(APPEND RON_ARM_CLANG_NEWLIB_INCLUDE_CANDIDATES
-         "${RON_ARM_CLANG_SYSROOT}/include"
-         "${RON_ARM_CLANG_SYSROOT}/arm-none-eabi/include")
-endif()
-if(WIN32)
-    file(GLOB RON_ARM_CLANG_WINDOWS_NEWLIB_INCLUDES
-         LIST_DIRECTORIES true
-         "C:/Program Files/Arm GNU Toolchain arm-none-eabi/*/arm-none-eabi/include"
-         "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/*/arm-none-eabi/include"
-         "C:/Program Files/GNU Arm Embedded Toolchain/*/arm-none-eabi/include"
-         "C:/Program Files (x86)/GNU Arm Embedded Toolchain/*/arm-none-eabi/include"
-         "$ENV{USERPROFILE}/AppData/Roaming/xPacks/@xpack-dev-tools/arm-none-eabi-gcc/*/.content/arm-none-eabi/include"
-         "$ENV{USERPROFILE}/scoop/apps/gcc-arm-none-eabi/current/arm-none-eabi/include"
-         "C:/ProgramData/chocolatey/lib/gcc-arm-embedded/tools/*/arm-none-eabi/include")
-    list(APPEND RON_ARM_CLANG_NEWLIB_INCLUDE_CANDIDATES
-         ${RON_ARM_CLANG_WINDOWS_NEWLIB_INCLUDES})
-else()
-    list(APPEND RON_ARM_CLANG_NEWLIB_INCLUDE_CANDIDATES
-         "/usr/include/newlib"
-         "/usr/arm-none-eabi/include"
-         "/usr/lib/arm-none-eabi/include")
-endif()
-
-set(RON_ARM_CLANG_RESOLVED_NEWLIB_INCLUDE "")
-foreach(RON_ARM_CLANG_INCLUDE_CANDIDATE IN LISTS RON_ARM_CLANG_NEWLIB_INCLUDE_CANDIDATES)
-    if((NOT "${RON_ARM_CLANG_INCLUDE_CANDIDATE}" STREQUAL "") AND
-       EXISTS "${RON_ARM_CLANG_INCLUDE_CANDIDATE}/math.h")
-        set(RON_ARM_CLANG_RESOLVED_NEWLIB_INCLUDE "${RON_ARM_CLANG_INCLUDE_CANDIDATE}")
-        break()
-    endif()
-endforeach()
-
+# The library is freestanding (RON-DC-002): the only headers it includes are
+# <stdint.h>, <stdbool.h>, <float.h> and <stddef.h>, all of which Clang
+# provides itself. No libc, no sysroot, and no -lm are needed to build it.
 set(RON_ARM_CLANG_INITIAL_FLAGS "-ffreestanding -fno-builtin")
 if(RON_ARM_CLANG_THUMB)
     string(APPEND RON_ARM_CLANG_INITIAL_FLAGS " -mthumb")
@@ -125,24 +85,6 @@ endif()
 if(NOT "${RON_ARM_CLANG_SYSROOT}" STREQUAL "")
     set(CMAKE_SYSROOT "${RON_ARM_CLANG_SYSROOT}" CACHE PATH "ARMv7 bare-metal sysroot" FORCE)
 endif()
-if(NOT "${RON_ARM_CLANG_RESOLVED_NEWLIB_INCLUDE}" STREQUAL "")
-    message(STATUS "Using ARMv7 Clang Newlib headers: ${RON_ARM_CLANG_RESOLVED_NEWLIB_INCLUDE}")
-    string(APPEND RON_ARM_CLANG_INITIAL_FLAGS " -isystem \"${RON_ARM_CLANG_RESOLVED_NEWLIB_INCLUDE}\"")
-elseif(RON_ARM_CLANG_ALLOW_HEADER_SHIM)
-    message(WARNING
-        "ARMv7 Clang Newlib headers were not found; using declaration-only "
-        "freestanding header fallback for static-library smoke builds. "
-        "Install Newlib and set RON_ARM_CLANG_NEWLIB_INCLUDE for target-library evidence.")
-    set(RON_ARM_CLANG_FREESTANDING_INCLUDE
-        "${CMAKE_CURRENT_LIST_DIR}/../freestanding/armv7-none-eabi/include")
-    string(APPEND RON_ARM_CLANG_INITIAL_FLAGS " -isystem \"${RON_ARM_CLANG_FREESTANDING_INCLUDE}\"")
-else()
-    message(FATAL_ERROR
-        "ARMv7 Clang Newlib headers were not found. Set "
-        "RON_ARM_CLANG_NEWLIB_INCLUDE to the directory containing math.h, "
-        "or enable RON_ARM_CLANG_ALLOW_HEADER_SHIM for an object-only smoke build.")
-endif()
-
 set(CMAKE_C_FLAGS_INIT "${RON_ARM_CLANG_INITIAL_FLAGS}")
 
 # Prevent CMake from searching host system paths for target libraries/includes.

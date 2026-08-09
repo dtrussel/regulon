@@ -2702,13 +2702,13 @@ Example Toolchain File: ``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake
    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
    set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
 
-The Clang ARMv7 toolchain prefers a real Newlib target header set through
-``RON_ARM_CLANG_NEWLIB_INCLUDE``. CI passes ``/usr/include/newlib`` after
-installing ``libnewlib-arm-none-eabi`` and disables the local header fallback
-with ``RON_ARM_CLANG_ALLOW_HEADER_SHIM=OFF``. Windows developer builds
-auto-detect common Arm GNU Toolchain, GNU Arm Embedded, xPack, Scoop, and
-Chocolatey Newlib include locations; otherwise the verification script allows a
-declaration-only fallback for static-library object smoke builds.
+No target C library is required by any of the cross toolchains. Per RON-DC-002
+the library includes only freestanding headers, which the compiler supplies
+itself, so the cross-compile jobs deliberately install no libc for the target:
+a build that succeeds there is evidence of the property rather than an
+assertion about it. Each job then runs ``scripts/check_no_libm.sh`` over the
+produced archive, which fails the build if any ``<math.h>`` entry point appears
+among its undefined symbols.
 
 Example Toolchain File: ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
