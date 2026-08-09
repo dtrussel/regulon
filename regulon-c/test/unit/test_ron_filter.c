@@ -19,6 +19,12 @@
 
 #define TEST_FILTER_TOL RON_FLOAT_C(0.001)
 #define TEST_FILTER_TIGHT_TOL RON_FLOAT_C(0.00001)
+/* Biquad coefficients are checked against libm-derived references at a
+ * tolerance a few ULP above single precision at the coefficient magnitudes
+ * involved.  It has to be this tight to discriminate the sine/cosine range
+ * reduction: the series alone is good to ~8e-7 near Nyquist, so a looser
+ * bound would pass even with the reduction removed. */
+#define TEST_FILTER_COEFF_TOL RON_FLOAT_C(0.000001)
 #define TEST_FILTER_DT RON_FLOAT_C(0.001)
 #define TEST_FILTER_Q RON_FLOAT_C(0.70710678)
 #define TEST_FILTER_SPIKE_LIMIT RON_FLOAT_C(3.0)
@@ -498,6 +504,44 @@ void test_ron_tc_filt_013_biquad_coefficient_helpers_generate_valid_sections(voi
     TEST_ASSERT_TRUE(hp.b0 > RON_FLOAT_C(0.0));
     TEST_ASSERT_TRUE(bp.b0 > RON_FLOAT_C(0.0));
     TEST_ASSERT_TRUE(notch.b0 > RON_FLOAT_C(0.0));
+
+    /* The coefficients are designed with a libm-free sine/cosine (RON-DC-002),
+     * so check them against values computed with libm rather than settling for
+     * "positive".  The four frequencies straddle the series' range reduction:
+     * omega = 2*pi*f*dt is 0.628 (well below PI/2), 1.571 (exactly at the
+     * PI/2 fold), 2.513 (reflected) and 3.135 (just under Nyquist, the worst
+     * case for series convergence). */
+    {
+        static const struct {
+            ron_float_t frequency;
+            ron_float_t b0;
+            ron_float_t b1;
+            ron_float_t a1;
+            ron_float_t a2;
+        } expected[] = {
+            {RON_FLOAT_C(100.0), RON_FLOAT_C(0.067455274), RON_FLOAT_C(0.134910548),
+             RON_FLOAT_C(-1.142980502), RON_FLOAT_C(0.412801597)},
+            {RON_FLOAT_C(250.0), RON_FLOAT_C(0.292893219), RON_FLOAT_C(0.585786437),
+             RON_FLOAT_C(0.0), RON_FLOAT_C(0.171572874)},
+            {RON_FLOAT_C(400.0), RON_FLOAT_C(0.638945525), RON_FLOAT_C(1.277891050),
+             RON_FLOAT_C(1.142980502), RON_FLOAT_C(0.412801597)},
+            {RON_FLOAT_C(499.0), RON_FLOAT_C(0.995566972), RON_FLOAT_C(1.991133944),
+             RON_FLOAT_C(1.991114292), RON_FLOAT_C(0.991153596)},
+        };
+        size_t i;
+
+        for (i = 0U; i < (sizeof(expected) / sizeof(expected[0])); i++) {
+            ron_biquad_section_t s;
+
+            TEST_ASSERT_EQUAL_UINT8(
+                RON_FAULT_NONE,
+                ron_biquad_coeff_lp(&s, expected[i].frequency, TEST_FILTER_Q, TEST_FILTER_DT));
+            TEST_ASSERT_FLOAT_WITHIN(TEST_FILTER_COEFF_TOL, expected[i].b0, s.b0);
+            TEST_ASSERT_FLOAT_WITHIN(TEST_FILTER_COEFF_TOL, expected[i].b1, s.b1);
+            TEST_ASSERT_FLOAT_WITHIN(TEST_FILTER_COEFF_TOL, expected[i].a1, s.a1);
+            TEST_ASSERT_FLOAT_WITHIN(TEST_FILTER_COEFF_TOL, expected[i].a2, s.a2);
+        }
+    }
 }
 
 /* Satisfies: RON-FR-122 | Test: RON-TC-FILT-014 */

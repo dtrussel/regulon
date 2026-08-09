@@ -69,7 +69,7 @@ config REGULON_MAX_INPUTS
 
 config REGULON_MAX_MEASUREMENTS
 	int "Maximum measurement dimension"
-	default 2
+	default 4
 	range 1 32
 	help
 	  Upper bound on the Kalman measurement dimension and the state-space
@@ -89,16 +89,14 @@ menu "Modules"
 config REGULON_FILTER
 	bool "Signal conditioning filters"
 	default y
-	select REQUIRES_FULL_LIBC
 	help
 	  First-order low-pass and high-pass filters, cascaded biquad
 	  sections with Butterworth/notch designers, moving-average, and a
 	  standalone rate limiter.
 
-	  The biquad coefficient designers call sin() and cos(), so this is
-	  the only module that needs a C library with math support. It
-	  therefore selects REQUIRES_FULL_LIBC; disable it if you are
-	  constrained to the minimal libc.
+	  The biquad coefficient designers compute sine and cosine from a
+	  bounded Taylor series rather than calling libm, so this module - like
+	  the rest of the library - builds against Zephyr's minimal libc.
 
 config REGULON_GAIN_SCHED
 	bool "Gain scheduling"

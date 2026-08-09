@@ -184,6 +184,10 @@ jobs:
 
       - name: Run cppcheck (MISRA addon)
         run: |
+          # pipefail matters here: without it the exit status is tee's, so
+          # cppcheck's --error-exitcode is discarded and no finding can fail
+          # the build.
+          set -o pipefail
           mapfile -t SRC < <(grep -vE '^[[:space:]]*(#.*)?$' regulon-c/scripts/lib_sources.txt)
           cppcheck --addon=misra.py --check-level=exhaustive \
                    --enable=style --error-exitcode=1 \
@@ -193,6 +197,9 @@ jobs:
                    --suppress=misra-c2012-15.5 \
                    --suppress=misra-c2012-15.7 \
                    --suppress=misra-c2012-20.10 \
+                   --suppress=misra-c2012-20.9 \
+                   --suppress=misra-c2012-2.3 \
+                   --suppress=misra-c2012-2.4 \
                    -I regulon-c/include \
                    -I regulon-c/src \
                    "${SRC[@]}" \

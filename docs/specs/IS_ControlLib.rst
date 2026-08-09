@@ -1621,7 +1621,7 @@ is defined). They bound the static allocation of all fixed-size arrays in the li
    #endif
 
    #ifndef RON_KF_MAX_MEASUREMENTS
-   #define RON_KF_MAX_MEASUREMENTS   2U   /* max measurement dimension m         */
+   #define RON_KF_MAX_MEASUREMENTS   4U   /* max measurement dimension m         */
    #endif
 
    #ifndef RON_KF_MAX_INPUTS
@@ -2430,7 +2430,7 @@ control and sensing.
    ron_fault_t ron_autotune_step    (ron_at_t *at, ron_float_t r,
                                         ron_float_t y, ron_float_t dt,
                                         ron_float_t *u_out);
-   ron_fault_t ron_autotune_apply   (ron_at_t *at, ron_pid_instance_t *pid);
+   ron_fault_t ron_autotune_apply   (const ron_at_t *at, ron_pid_instance_t *pid);
    ron_fault_t ron_autotune_abort   (ron_at_t *at, ron_pid_instance_t *pid);
    ron_fault_t ron_autotune_results (const ron_at_t *at,
                                         ron_float_t *Ku, ron_float_t *Tu,

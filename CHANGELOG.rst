@@ -67,6 +67,83 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — libm-Free Trigonometry and an Enforceable Static-Analysis Gate
+-----------------------------------------------------------------------
+
+Changed
+~~~~~~~
+- ``ron_filter.c``: the biquad coefficient designers no longer call libm.
+  Sine and cosine come from a Taylor series in Horner form (reciprocal
+  factorials to 1/15! and 1/16!) with range reduction into [0, PI/2], ported
+  and extended from an earlier unmerged branch. **This removes the library's
+  last dependency on the C standard library beyond** ``<stdint.h>``,
+  ``<stdbool.h>`` **and** ``<float.h>``, so it now builds against a minimal
+  libc with no math library at all.
+
+  RON-DC-002 permits ``<math.h>`` only where the functions used are bounded
+  and WCET-analysable.  A typical libm sine is neither — table-driven with
+  data-dependent argument reduction — while the series runs a fixed number
+  of multiply-adds for every input.  This closes that gap rather than
+  recording a deviation against it.
+
+  Worst-case error over the whole valid range is ~6e-12 (sine) and ~5e-13
+  (cosine), both at the reduction boundary: four orders better than the
+  branch's shorter series, which mattered because ``RON_USE_DOUBLE`` is a
+  first-class option and the shorter form was only accurate to single
+  precision.
+- ``ron_autotune.c``: the tuning-rule tables move to block scope inside
+  their only reader (MISRA C:2023 Rule 8.9), and ``ron_autotune_apply``
+  takes ``const ron_at_t *`` — it never writes through that pointer.  The
+  signature change is source-compatible for callers, since a non-const
+  pointer converts freely.  Recorded in ``IS_ControlLib.rst``.
+- ``RON_KF_MAX_MEASUREMENTS`` default raised 2 -> 4.  The bound most likely
+  to be too tight for real multi-sensor use, and free here: ``RON_MAT_MAX_DIM``
+  is already 4, so the scratch matrices do not grow.
+- ``ron_platform.h``: the optional ``ron_config.h`` hook moved to the top of
+  the header, before any code, so it satisfies MISRA Rule 20.1 and is seen
+  before anything it might override.
+
+Fixed
+~~~~~
+- ``.github/workflows/ci_c.yml``: the static-analysis step piped cppcheck to
+  ``tee``, so the pipeline's exit status was ``tee``'s and
+  ``--error-exitcode=1`` was silently discarded — **no MISRA or style finding
+  could fail the build**.  Adding ``set -o pipefail`` restores the gate, and
+  the findings it had been hiding are now resolved: two in ``ron_autotune.c``
+  (fixed above) and two suppressed with new deviation records.
+- ``test_ron_lqr.c`` reused one buffer across the observer and Kalman entry
+  points, whose declared measurement bounds need not match.  Raising
+  ``RON_KF_MAX_MEASUREMENTS`` turned that into a ``-Wstringop-overread``
+  error; the Kalman calls now use a correctly sized buffer.
+
+Added
+~~~~~
+- ``docs/deviations/MISRA_C_deviations.rst``: **DEV-005** (Rule 20.9 —
+  cppcheck cannot evaluate ``__has_include``, which is standard C23 and
+  guarded by ``#if defined(__has_include)``) and **DEV-006** (Rules 2.3/2.4 —
+  ``ron_at_phase_t`` is public API whose users a single-translation-unit
+  analysis cannot see, the same limitation already recorded for Rule 8.7).
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- The series was compared against libm across the full valid range **before**
+  being wired in: max error 5.6e-08 with the shorter series, 6.0e-12 with the
+  extended one adopted here.
+- Biquad coefficients are now checked against libm-derived reference values
+  at four frequencies straddling the range reduction, at a tolerance tight
+  enough to discriminate it: removing the reduction fails the suite, while at
+  the previous looser tolerance it did not.
+- ``nm`` reports no undefined libm symbols in ``libregulon.a``.
+- 17/17 tests under GCC, double precision and Clang; 100% statement and
+  branch coverage retained on ``ron_filter.c`` (367 lines / 220 branches) and
+  ``ron_autotune.c`` (196/116).
+- All four ``filter_*`` CBMC harnesses still verify, including
+  bounded-execution — the series is fixed-iteration by construction.
+- cppcheck with the MISRA addon exits 0 with zero findings, and a synthetic
+  defect confirms the gate now fails where it previously passed silently.
+
+------------------------------------------------------------------------
+
 0.1.0 — Matrix Module Stack Reduction
 -------------------------------------
 

@@ -10,6 +10,11 @@ The fit is a natural one: Regulon performs no dynamic allocation, uses no
 recursion or unbounded loops, and keeps all controller state in caller-owned
 fixed-size objects. Nothing in it needs a heap, and nothing in it blocks.
 
+It also needs no libm — the only transcendental functions it uses, the sine
+and cosine behind the biquad coefficient designers, are computed from a
+bounded Taylor series. The whole library therefore builds against
+``CONFIG_MINIMAL_LIBC=y``, which the nightly CI checks.
+
 .. note::
 
    Everything on this page is verified against **Zephyr 4.1** by a nightly
@@ -425,12 +430,6 @@ Troubleshooting
    ``build/zephyr/.config`` for the resolved values rather than reading
    ``prj.conf``, since ``select`` can turn things on that you did not ask
    for and board defconfigs can turn things off.
-
-**``undefined reference to sin``/``cos``**
-   The biquad coefficient designers in :doc:`../api/filter` are the only
-   part of the library that needs libm. ``CONFIG_REGULON_FILTER`` selects
-   ``REQUIRES_FULL_LIBC`` for that reason; if you have forced the minimal
-   libc, either allow a fuller one or set ``CONFIG_REGULON_FILTER=n``.
 
 **Values look wrong after switching precision**
    ``CONFIG_REGULON_DOUBLE_PRECISION`` changes ``ron_float_t`` for the whole
