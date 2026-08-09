@@ -66,7 +66,24 @@ void ron_mat_mul_t(ron_mat_t out, ron_mat_t lhs, ron_mat_t rhs, uint8_t lhs_rows
                    uint8_t rhs_rows);
 
 /**
+ * @brief out(lhs_cols x rhs_cols) = lhs(inner x lhs_cols)^T * rhs(inner x rhs_cols).
+ *
+ * The transposed-left counterpart of ron_mat_mul_t().  Its purpose is to let
+ * callers form A^T B without materialising A^T, which would cost a whole
+ * scratch matrix of stack on a path where stack is the scarce resource.
+ *
+ * Satisfies: RON-FR-602, RON-FR-733 | Test: RON-TC-KF-003, RON-TC-LQR-003
+ */
+void ron_mat_mul_ta(ron_mat_t out, ron_mat_t lhs, ron_mat_t rhs, uint8_t lhs_cols, uint8_t inner,
+                    uint8_t rhs_cols);
+
+/**
  * @brief out(rows x cols) = lhs + rhs (element-wise).
+ *
+ * `out` may alias `lhs` or `rhs`: each element is written only after both of
+ * its operands have been read.  The multiplying operations above give no such
+ * guarantee — they write `out` while still reading their operands for later
+ * elements, so their destination must be distinct.
  *
  * Satisfies: RON-FR-602 | Test: RON-TC-KF-003
  */

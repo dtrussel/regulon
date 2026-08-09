@@ -211,64 +211,87 @@ Stack sizing
 ------------
 
 Regulon allocates nothing on the heap, but the matrix-based modules use
-substantial **stack** for their working matrices. This is the setting most
-likely to bite when moving from a host build to a target: Zephyr's default
-thread stack is around a kilobyte, and the estimator and optimal-control
-modules need several.
+**stack** for their working matrices, and how much is a compile-time
+decision rather than a runtime one. Every scratch matrix is sized at
+``RON_MAT_MAX_DIM`` regardless of the dimensions actually configured, so:
 
-Worst-case single frame per module, measured with ``-fstack-usage``:
+.. code-block:: text
+
+   frame bytes  ≈  (scratch matrices) × RON_MAT_MAX_DIM² × sizeof(ron_float_t)
+
+Usage therefore grows with the **square** of that bound. A 2-state
+controller built with a bound of 8 pays the full 8×8 price on every call.
+This is the setting worth getting right before anything else.
+
+At the default bound of 4 (single precision), measured with
+``-fstack-usage``:
 
 .. list-table::
    :header-rows: 1
-   :widths: 46 22 32
+   :widths: 52 22 26
 
-   * - Module
-     - Worst frame
-     - Notes
+   * - Call
+     - Deepest frame
+     - Chain
    * - PID, filters, trajectory, cascade, autotune, health, metrics
-     - ≤ 512 B
-     - Comfortable on a default thread stack.
-   * - :doc:`../api/observer`
-     - ~512 B
-     -
-   * - :doc:`../api/lqg`
-     - ~1.3 kB
-     -
-   * - :doc:`../api/kalman`
-     - ~1.9 kB
-     - Covariance update.
-   * - :doc:`../api/lqr`
-     - ~2.4 kB
-     - DARE solver, at ``ron_lqr_init()``.
+     - ≤ 304 B
+     - Fits a default thread
+   * - ``ron_obs_step()``
+     - 240 B
+     - Fits a default thread
+   * - ``ron_kf_predict()`` / ``ron_kf_update()``
+     - 352 B
+     - ~600 B
+   * - ``ron_lqr_init()`` / ``ron_lqg_init()`` (DARE solve)
+     - 576 B
+     - **~950 B**
 
-Frames nest, so budget for the chain rather than the largest single entry:
-``ron_lqr_init()`` reaches roughly **4 kB**, and ``ron_kf_update()`` roughly
-**3 kB**. A thread calling those wants at least:
+Practical guidance:
+
+* **Everything except the DARE solve fits Zephyr's default thread stack**,
+  including the Kalman update.
+* **``ron_lqr_init()`` and ``ron_lqg_init()`` do not.** Give the thread that
+  calls them at least ``2048``. An iterative Riccati solve genuinely needs
+  roughly a kilobyte of working matrices; that is inherent to the algorithm,
+  not overhead that can be tuned away.
 
 .. code-block:: cfg
 
-   CONFIG_MAIN_STACK_SIZE=8192
+   CONFIG_MAIN_STACK_SIZE=2048
 
-or, for a dedicated control thread, a ``K_THREAD_STACK_SIZE`` of 4096 or
-more plus whatever the rest of the thread needs.
+The DARE solve happens **once, at init**. If stack is tight, initialising
+from a thread with a generous stack at startup and then stepping from a
+smaller one is legitimate — ``ron_lqr_step()`` itself is modest.
+
+Tuning the bounds
+~~~~~~~~~~~~~~~~~
+
+Three Kconfig options set the bounds, and ``RON_MAT_MAX_DIM`` is derived
+from them so no combination can produce an invalid build:
+
+.. code-block:: cfg
+
+   CONFIG_REGULON_MAX_STATES=2
+   CONFIG_REGULON_MAX_INPUTS=1
+   CONFIG_REGULON_MAX_MEASUREMENTS=1
+
+For a 2-state plant that quarters the scratch again relative to the default
+bound of 4. Going the other way costs the same way: raising states to 8
+takes the DARE frame from 576 B to 1920 B.
+
+Outside Zephyr the same bounds are plain compile-time macros — set them with
+``-D``, or put them in a ``ron_config.h`` on the include path, which
+``ron_platform.h`` picks up automatically.
 
 .. warning::
 
    Overflowing the stack here does not necessarily produce a clean fault.
    On Cortex-M without stack protection it can corrupt adjacent memory and
-   present as a hang or a jump to a nonsense address, which is a
-   time-consuming thing to diagnose. Enable ``CONFIG_THREAD_STACK_INFO=y``
-   and ``CONFIG_STACK_SENTINEL=y`` (or an MPU-backed
+   present as a hang, or as a kernel panic pointing at something unrelated
+   like an invalid spinlock. Enable ``CONFIG_THREAD_STACK_INFO=y`` and
+   ``CONFIG_STACK_SENTINEL=y`` (or MPU-backed
    ``CONFIG_HW_STACK_PROTECTION=y`` where the SoC supports it) during
    bring-up so an overflow is reported rather than guessed at.
-
-If a controller only uses PID, filtering, trajectories or cascade control,
-none of this applies — those fit a default stack comfortably.
-
-Note that the DARE solve happens once, at ``ron_lqr_init()``. If stack is
-tight, calling init from a thread with a generous stack at startup and then
-stepping from a smaller one is legitimate: ``ron_lqr_step()`` itself is
-modest.
 
 Threads, ISRs and shared state
 ------------------------------

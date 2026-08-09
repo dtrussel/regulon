@@ -41,6 +41,42 @@ config REGULON_DOUBLE_PRECISION
 	  when state covariances span many orders of magnitude, or when a
 	  matrix-based module struggles to converge.
 
+menu "Dimension bounds"
+
+comment "Raising these costs stack in every matrix call, whether or not"
+comment "the extra dimensions are used - scratch grows with the square"
+comment "of the largest state bound. Set them to your largest plant."
+
+config REGULON_MAX_STATES
+	int "Maximum state dimension"
+	default 4
+	range 1 32
+	help
+	  Upper bound on the state dimension n for the Kalman filter,
+	  state-space controller, observer, LQR and LQG.
+
+	  Every scratch matrix in those modules is sized at this bound rather
+	  than at the dimension configured at run time, so stack usage grows
+	  with its square regardless of how small the plant actually is.
+	  Raise it only as far as your largest plant needs.
+
+config REGULON_MAX_INPUTS
+	int "Maximum control input dimension"
+	default 2
+	range 1 32
+	help
+	  Upper bound on the control input dimension m.
+
+config REGULON_MAX_MEASUREMENTS
+	int "Maximum measurement dimension"
+	default 2
+	range 1 32
+	help
+	  Upper bound on the Kalman measurement dimension and the state-space
+	  output dimension.
+
+endmenu
+
 config REGULON_ASSERT
 	bool "Enable runtime RON_ASSERT checks"
 	help

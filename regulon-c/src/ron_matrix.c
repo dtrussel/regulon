@@ -79,6 +79,26 @@ void ron_mat_mul_t(ron_mat_t out, ron_mat_t lhs, ron_mat_t rhs, uint8_t lhs_rows
     }
 }
 
+/* Satisfies: RON-FR-602, RON-FR-733 | Test: RON-TC-KF-003, RON-TC-LQR-003 */
+void ron_mat_mul_ta(ron_mat_t out, ron_mat_t lhs, ron_mat_t rhs, uint8_t lhs_cols, uint8_t inner,
+                    uint8_t rhs_cols)
+{
+    uint8_t i;
+    uint8_t j;
+    uint8_t k;
+
+    for (i = 0U; i < lhs_cols; i++) {
+        for (j = 0U; j < rhs_cols; j++) {
+            ron_float_t sum = RON_FLOAT_C(0.0);
+
+            for (k = 0U; k < inner; k++) {
+                sum += lhs[k][i] * rhs[k][j];
+            }
+            out[i][j] = sum;
+        }
+    }
+}
+
 /* Satisfies: RON-FR-602 | Test: RON-TC-KF-003 */
 void ron_mat_add(ron_mat_t out, ron_mat_t lhs, ron_mat_t rhs, uint8_t rows, uint8_t cols)
 {

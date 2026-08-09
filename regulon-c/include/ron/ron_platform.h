@@ -180,10 +180,38 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 #define RON_VERSION_PATCH 0U
 
 /* =========================================================================
+ * Optional user configuration header
+ *
+ * Put a ron_config.h anywhere on the include path and it is pulled in before
+ * the defaults below, so it can override any of them.  Nothing is required:
+ * when no such header exists the defaults stand.
+ *
+ * Defining the macros directly on the command line works too, and takes
+ * precedence over both, since every default below is #ifndef-guarded.
+ *
+ * Satisfies: RON-PR-022.
+ * ========================================================================= */
+
+#if defined(__has_include)
+#if __has_include(<ron_config.h>)
+#include <ron_config.h>
+#endif
+#endif
+
+/* =========================================================================
  * Compile-time array dimension constants
  *
  * These bound all fixed-size arrays in the library.  Define them before
- * including this header (or via a user ron_config.h) to override defaults.
+ * including this header (or via a user ron_config.h, above) to override the
+ * defaults.
+ *
+ * The defaults are deliberately modest.  Every scratch matrix in the
+ * estimator and optimal-control modules is sized at RON_MAT_MAX_DIM rather
+ * than at the dimension actually configured at run time, so **stack usage
+ * grows with the square of RON_MAT_MAX_DIM** regardless of how small the
+ * plant is.  Raising these bounds costs stack in every call, whether or not
+ * the extra dimensions are used; raise them only as far as the largest plant
+ * actually requires.
  *
  * Satisfies: RON-SR-003 (no dynamic allocation), RON-PR-022.
  * ========================================================================= */
@@ -205,42 +233,42 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 
 /** Maximum Kalman state dimension n (RON-FR-601). */
 #ifndef RON_KF_MAX_STATES
-#define RON_KF_MAX_STATES 8U
+#define RON_KF_MAX_STATES 4U
 #endif
 
 /** Maximum Kalman measurement dimension m (RON-FR-601). */
 #ifndef RON_KF_MAX_MEASUREMENTS
-#define RON_KF_MAX_MEASUREMENTS 4U
+#define RON_KF_MAX_MEASUREMENTS 2U
 #endif
 
 /** Maximum Kalman input dimension p (RON-FR-601). */
 #ifndef RON_KF_MAX_INPUTS
-#define RON_KF_MAX_INPUTS 4U
+#define RON_KF_MAX_INPUTS 2U
 #endif
 
 /** Maximum state-space state dimension (RON-FR-700). */
 #ifndef RON_SS_MAX_STATES
-#define RON_SS_MAX_STATES 8U
+#define RON_SS_MAX_STATES 4U
 #endif
 
 /** Maximum state-space output dimension (RON-FR-700). */
 #ifndef RON_SS_MAX_OUTPUTS
-#define RON_SS_MAX_OUTPUTS 4U
+#define RON_SS_MAX_OUTPUTS 2U
 #endif
 
 /** Maximum state-space input dimension (RON-FR-700). */
 #ifndef RON_SS_MAX_INPUTS
-#define RON_SS_MAX_INPUTS 4U
+#define RON_SS_MAX_INPUTS 2U
 #endif
 
 /** Maximum LQR / LQG state dimension (RON-FR-737). */
 #ifndef RON_LQR_MAX_STATES
-#define RON_LQR_MAX_STATES 8U
+#define RON_LQR_MAX_STATES 4U
 #endif
 
 /** Maximum LQR / LQG control input dimension (RON-FR-737). */
 #ifndef RON_LQR_MAX_INPUTS
-#define RON_LQR_MAX_INPUTS 4U
+#define RON_LQR_MAX_INPUTS 2U
 #endif
 
 /**
@@ -256,7 +284,7 @@ static inline ron_float_t ron_fabs(ron_float_t x)
  * Satisfies: RON-FR-603, RON-FR-700, RON-FR-720, RON-SR-003.
  */
 #ifndef RON_MAT_MAX_DIM
-#define RON_MAT_MAX_DIM 8U
+#define RON_MAT_MAX_DIM 4U
 #endif
 
 /** Minimum relay oscillation cycles before Ku/Tu estimate is valid (RON-FR-802). */

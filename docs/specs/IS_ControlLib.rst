@@ -15,11 +15,11 @@ Implementation Specification
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.0.0
+**Version:** 1.3.0
 
 **Status:** Draft
 
-**Date:** 2025-04-10
+**Date:** 2026-08-09
 
 .. contents:: Table of Contents
    :depth: 3
@@ -63,6 +63,14 @@ Revision History
        Added RON_LQR_MAX_STATES and RON_LQR_MAX_INPUTS compile-time
        constants. Added RON_ENABLE_LQR and RON_ENABLE_LQG CMake options.
        Updated traceability table.
+     - TBD
+   * - 1.3.0
+     - 2026-08-09
+     - Lowered the default matrix dimension bounds (states 8 -> 4, inputs /
+       outputs / measurements 4 -> 2) so the library fits a ~1 kB RTOS
+       thread by default, and documented that scratch stack grows with the
+       square of the largest bound. Added the optional ron_config.h override
+       hook and the ron_mat_mul_ta matrix primitive.
      - TBD
 
 ------------------------------------------------------------------------
@@ -1600,39 +1608,46 @@ is defined). They bound the static allocation of all fixed-size arrays in the li
    #define RON_GS_MAX_BREAKPOINTS   16U   /* max scheduling breakpoints          */
    #endif
 
-   /* Kalman filter */
+   /* Kalman filter
+    *
+    * The dimension bounds below size every scratch matrix in the estimator
+    * and optimal-control modules, whatever dimensions are configured at run
+    * time, so stack usage grows with the square of the largest bound.  The
+    * defaults are chosen to fit a ~1 kB RTOS thread; raise them (and
+    * RON_MAT_MAX_DIM with them) only as far as the largest plant requires.
+    */
    #ifndef RON_KF_MAX_STATES
-   #define RON_KF_MAX_STATES         8U   /* max state dimension n               */
+   #define RON_KF_MAX_STATES         4U   /* max state dimension n               */
    #endif
 
    #ifndef RON_KF_MAX_MEASUREMENTS
-   #define RON_KF_MAX_MEASUREMENTS   4U   /* max measurement dimension m         */
+   #define RON_KF_MAX_MEASUREMENTS   2U   /* max measurement dimension m         */
    #endif
 
    #ifndef RON_KF_MAX_INPUTS
-   #define RON_KF_MAX_INPUTS         4U   /* max input dimension p               */
+   #define RON_KF_MAX_INPUTS         2U   /* max input dimension p               */
    #endif
 
    /* State-space controller / observer */
    #ifndef RON_SS_MAX_STATES
-   #define RON_SS_MAX_STATES         8U
+   #define RON_SS_MAX_STATES         4U
    #endif
 
    #ifndef RON_SS_MAX_OUTPUTS
-   #define RON_SS_MAX_OUTPUTS        4U
+   #define RON_SS_MAX_OUTPUTS        2U
    #endif
 
    #ifndef RON_SS_MAX_INPUTS
-   #define RON_SS_MAX_INPUTS         4U
+   #define RON_SS_MAX_INPUTS         2U
    #endif
 
    /* LQR / LQG controller */
    #ifndef RON_LQR_MAX_STATES
-   #define RON_LQR_MAX_STATES        8U   /* max LQR/LQG state dimension n       */
+   #define RON_LQR_MAX_STATES        4U   /* max LQR/LQG state dimension n       */
    #endif
 
    #ifndef RON_LQR_MAX_INPUTS
-   #define RON_LQR_MAX_INPUTS        4U   /* max LQR/LQG control input dim m     */
+   #define RON_LQR_MAX_INPUTS        2U   /* max LQR/LQG control input dim m     */
    #endif
 
    /* Auto-tuning */

@@ -29,19 +29,6 @@ static bool lqr_finite(ron_float_t v)
  * ========================================================================= */
 
 /* Satisfies: RON-FR-733 | Test: RON-TC-LQR-003 */
-static void lqr_transpose(ron_mat_t dst, ron_mat_t src, uint8_t rows, uint8_t cols)
-{
-    uint8_t i;
-    uint8_t j;
-
-    for (i = 0U; i < rows; i++) {
-        for (j = 0U; j < cols; j++) {
-            dst[j][i] = src[i][j];
-        }
-    }
-}
-
-/* Satisfies: RON-FR-733 | Test: RON-TC-LQR-003 */
 static void lqr_mat_copy(ron_mat_t dst, ron_mat_t src, uint8_t rows, uint8_t cols)
 {
     uint8_t i;
@@ -90,19 +77,20 @@ static ron_float_t lqr_mat_max_abs_diff(ron_mat_t a, ron_mat_t b, uint8_t rows, 
 /* K_i <- (R + B^T P B)^-1 (B^T P A) via Cholesky solve. Returns false if
  * R + B^T P B is not positive definite. */
 /* Satisfies: RON-FR-733 | Test: RON-TC-LQR-003 */
-static bool lqr_dare_solve_gain(ron_mat_t bt, ron_mat_t p, ron_mat_t a_work, ron_mat_t b_work,
-                                ron_mat_t r_work, uint8_t n, uint8_t m, ron_mat_t k_i)
+static bool lqr_dare_solve_gain(ron_mat_t p, ron_mat_t a_work, ron_mat_t b_work, ron_mat_t r_work,
+                                uint8_t n, uint8_t m, ron_mat_t k_i)
 {
     ron_mat_t btp;
-    ron_mat_t btpb;
     ron_mat_t m_mat;
     ron_mat_t btpa;
     uint8_t i;
     uint8_t j;
 
-    ron_mat_mul(btp, bt, p, m, n, n);        /* B^T P    (m x n) */
-    ron_mat_mul(btpb, btp, b_work, m, n, m); /* B^T P B  (m x m) */
-    ron_mat_add(m_mat, r_work, btpb, m, m);  /* M = R + B^T P B  */
+    /* B^T is formed on the fly rather than materialised: at these dimensions
+     * a scratch matrix costs more stack than the operation itself. */
+    ron_mat_mul_ta(btp, b_work, p, m, n, n); /* B^T P    (m x n) */
+    ron_mat_mul(m_mat, btp, b_work, m, n, m);
+    ron_mat_add(m_mat, r_work, m_mat, m, m); /* M = R + B^T P B  */
 
     if (!ron_mat_cholesky(m_mat, m)) {
         return false;
@@ -126,22 +114,22 @@ static bool lqr_dare_solve_gain(ron_mat_t bt, ron_mat_t p, ron_mat_t a_work, ron
 
 /* P_new <- Q + A^T P A - A^T P B K_i. */
 /* Satisfies: RON-FR-733 | Test: RON-TC-LQR-003 */
-static void lqr_dare_update_p(ron_mat_t at, ron_mat_t p, ron_mat_t a_work, ron_mat_t b_work,
-                              ron_mat_t q_work, ron_mat_t k_i, uint8_t n, uint8_t m,
-                              ron_mat_t p_new)
+static void lqr_dare_update_p(ron_mat_t p, ron_mat_t a_work, ron_mat_t b_work, ron_mat_t q_work,
+                              ron_mat_t k_i, uint8_t n, uint8_t m, ron_mat_t p_new)
 {
-    ron_mat_t atp;
-    ron_mat_t atpa;
-    ron_mat_t atpb;
-    ron_mat_t atpbk;
-    ron_mat_t tmp;
+    /* Three scratch matrices carry six products.  A^T is formed on the fly,
+     * and each buffer is reused as soon as its last reader has run - both to
+     * keep this frame small, since it is the deepest one in the library. */
+    ron_mat_t atp;  /* A^T P, then A^T P B K            */
+    ron_mat_t atpa; /* A^T P A, then Q + A^T P A        */
+    ron_mat_t atpb; /* A^T P B                          */
 
-    ron_mat_mul(atp, at, p, n, n, n);
-    ron_mat_mul(atpa, atp, a_work, n, n, n);
-    ron_mat_mul(atpb, atp, b_work, n, n, m);
-    ron_mat_mul(atpbk, atpb, k_i, n, m, n);
-    ron_mat_add(tmp, q_work, atpa, n, n);
-    lqr_mat_sub(p_new, tmp, atpbk, n, n);
+    ron_mat_mul_ta(atp, a_work, p, n, n, n); /* A^T P            */
+    ron_mat_mul(atpa, atp, a_work, n, n, n); /* A^T P A          */
+    ron_mat_mul(atpb, atp, b_work, n, n, m); /* A^T P B          */
+    ron_mat_mul(atp, atpb, k_i, n, m, n);    /* A^T P B K        */
+    ron_mat_add(atpa, q_work, atpa, n, n);   /* Q + A^T P A      */
+    lqr_mat_sub(p_new, atpa, atp, n, n);
 }
 
 /* Satisfies: RON-FR-731, RON-FR-733, RON-FR-739, RON-FR-756 | Test: RON-TC-LQR-003, RON-TC-LQG-006 */
@@ -153,8 +141,6 @@ ron_fault_t ron_lqr_dare_solve(const ron_float_t *a, const ron_float_t *b, const
     ron_mat_t b_work;
     ron_mat_t q_work;
     ron_mat_t r_work;
-    ron_mat_t bt;
-    ron_mat_t at;
     ron_mat_t p;
     uint16_t effective_max_iter = (max_iter == 0U) ? RON_LQR_DARE_DEFAULT_MAX_ITER : max_iter;
     uint16_t iter;
@@ -163,19 +149,17 @@ ron_fault_t ron_lqr_dare_solve(const ron_float_t *a, const ron_float_t *b, const
     ron_mat_load(b_work, b, (uint8_t) RON_LQR_MAX_INPUTS, n, m);
     ron_mat_load(q_work, q, (uint8_t) RON_LQR_MAX_STATES, n, n);
     ron_mat_load(r_work, r, (uint8_t) RON_LQR_MAX_INPUTS, m, m);
-    lqr_transpose(bt, b_work, n, m);
-    lqr_transpose(at, a_work, n, n);
     lqr_mat_copy(p, q_work, n, n); /* P <- Q */
 
     for (iter = 0U; iter < effective_max_iter; iter++) {
         ron_mat_t k_i;
         ron_mat_t p_new;
 
-        if (!lqr_dare_solve_gain(bt, p, a_work, b_work, r_work, n, m, k_i)) {
+        if (!lqr_dare_solve_gain(p, a_work, b_work, r_work, n, m, k_i)) {
             return RON_FAULT_CONFIG_INVALID;
         }
 
-        lqr_dare_update_p(at, p, a_work, b_work, q_work, k_i, n, m, p_new);
+        lqr_dare_update_p(p, a_work, b_work, q_work, k_i, n, m, p_new);
 
         if (lqr_mat_max_abs_diff(p_new, p, n, n) < tol) {
             ron_mat_store(k_out, (uint8_t) RON_LQR_MAX_STATES, k_i, m, n);

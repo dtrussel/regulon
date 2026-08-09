@@ -100,6 +100,37 @@ if(CONFIG_REGULON_DOUBLE_PRECISION)
     zephyr_compile_definitions(RON_USE_DOUBLE=1)
 endif()
 
+# ---------------------------------------------------------------------------
+# Dimension bounds
+#
+# Applied application-wide because they size arrays inside the configuration
+# and instance structs the application declares.
+#
+# RON_MAT_MAX_DIM is derived rather than exposed: ron_kalman.c and
+# ron_observer.c reject a value that does not cover every state, input and
+# measurement bound. Deriving it here means no Kconfig combination can produce
+# a build that fails on those guards.
+# ---------------------------------------------------------------------------
+set(RON_MAT_DIM ${CONFIG_REGULON_MAX_STATES})
+if(CONFIG_REGULON_MAX_INPUTS GREATER RON_MAT_DIM)
+    set(RON_MAT_DIM ${CONFIG_REGULON_MAX_INPUTS})
+endif()
+if(CONFIG_REGULON_MAX_MEASUREMENTS GREATER RON_MAT_DIM)
+    set(RON_MAT_DIM ${CONFIG_REGULON_MAX_MEASUREMENTS})
+endif()
+
+zephyr_compile_definitions(
+    RON_KF_MAX_STATES=${CONFIG_REGULON_MAX_STATES}
+    RON_SS_MAX_STATES=${CONFIG_REGULON_MAX_STATES}
+    RON_LQR_MAX_STATES=${CONFIG_REGULON_MAX_STATES}
+    RON_KF_MAX_INPUTS=${CONFIG_REGULON_MAX_INPUTS}
+    RON_SS_MAX_INPUTS=${CONFIG_REGULON_MAX_INPUTS}
+    RON_LQR_MAX_INPUTS=${CONFIG_REGULON_MAX_INPUTS}
+    RON_KF_MAX_MEASUREMENTS=${CONFIG_REGULON_MAX_MEASUREMENTS}
+    RON_SS_MAX_OUTPUTS=${CONFIG_REGULON_MAX_MEASUREMENTS}
+    RON_MAT_MAX_DIM=${RON_MAT_DIM}
+)
+
 if(CONFIG_REGULON_ASSERT)
     zephyr_library_compile_definitions(
         "RON_ASSERT(cond)=do { if(!(cond)) { __builtin_trap(); } } while(0)"

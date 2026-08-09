@@ -67,6 +67,81 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Matrix Module Stack Reduction
+-------------------------------------
+
+Running on emulated Cortex-M showed the estimator and optimal-control
+modules needing roughly 4 kB of stack across a call chain, against an RTOS
+thread default near 1 kB — and overflowing it did not fault cleanly, it
+corrupted memory and hung. Every scratch matrix is sized at
+``RON_MAT_MAX_DIM`` rather than at the dimensions configured at run time, so
+usage grows with the **square** of that bound however small the plant is.
+
+**Largest stack frame: 2448 B → 576 B (4.2x).**
+
+Changed
+~~~~~~~
+- **Default dimension bounds lowered** in ``ron_platform.h``: state bounds
+  (``RON_KF_MAX_STATES``, ``RON_SS_MAX_STATES``, ``RON_LQR_MAX_STATES``,
+  ``RON_MAT_MAX_DIM``) 8 → 4; input, output and measurement bounds 4 → 2.
+  This is a **breaking default** for anyone using more than 4 states or 2
+  inputs: those configurations must now set the macros explicitly. They fail
+  at compile time through the existing static assertions and ``#error``
+  guards, or are rejected by runtime configuration validation — never
+  silently. Raising the bounds back to 8 is a single ``-D``.
+- ``ron_lqr.c``: ``ron_lqr_dare_solve`` no longer materialises ``A^T`` and
+  ``B^T`` (2448 B → 576 B), ``lqr_dare_update_p`` carries six products in
+  three scratch matrices instead of five (1376 B → 288 B), and
+  ``lqr_dare_solve_gain`` folds its ``M`` matrix into an existing buffer
+  (1168 B → 304 B). The local ``lqr_transpose`` helper is gone with its last
+  caller.
+- ``ron_kalman.c``: ``kf_update_cov`` runs Joseph form with no additional
+  storage (1888 B → 352 B), ``kf_predict_cov`` writes ``A P A^T`` back into
+  its input (1328 B → 304 B), and ``kf_resolve_gain`` reuses two buffers
+  rather than four (1104 B → 336 B).
+
+Added
+~~~~~
+- ``ron_mat_mul_ta()`` in the internal matrix helper: ``out = lhs^T * rhs``,
+  the transposed-left counterpart of the existing ``ron_mat_mul_t()``. It
+  lets callers form ``A^T B`` without materialising the transpose, which is
+  what removes the two largest scratch matrices from the DARE solver.
+- ``ron_platform.h`` now honours an optional user ``ron_config.h`` — the
+  override mechanism its own comment had documented for some time without
+  anything implementing it. A path can also be given explicitly with
+  ``-DRON_CONFIG_HEADER='"..."'``.
+- ``zephyr/Kconfig``: ``CONFIG_REGULON_MAX_STATES`` / ``_MAX_INPUTS`` /
+  ``_MAX_MEASUREMENTS``. ``RON_MAT_MAX_DIM`` is derived from them in
+  ``zephyr/CMakeLists.txt`` rather than exposed, so no combination of
+  Kconfig values can produce a build that trips the library's own guards.
+- ``regulon-c/scripts/check_stack_usage.sh`` and a ``stack-usage`` CI job
+  enforcing a 768 B per-frame budget from the ``-fstack-usage`` data the
+  build already emits.
+- The aliasing contract of the matrix primitives is now stated in
+  ``ron_matrix_internal.h``: ``ron_mat_add`` may write into one of its
+  operands, the multiplying operations may not. The buffer reuse above
+  depends on that distinction.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+- 17/17 host tests pass under GCC, GCC double-precision and Clang.
+- **100% statement and branch coverage retained** on ``ron_matrix.c`` (86
+  lines / 68 branches), ``ron_lqr.c`` (327/239), ``ron_kalman.c`` (171/112)
+  and ``ron_lqg.c`` (181/120) — the buffer reuse left no unreachable path.
+- ``ron_mat_mul_ta`` is covered by the existing DARE tests, and a mutation
+  check confirms they test its semantics rather than merely executing it:
+  changing it to compute ``lhs * rhs`` instead of ``lhs^T * rhs`` fails both
+  the LQR and LQG suites.
+- A build with ``-DRON_..._MAX_STATES=8 -DRON_MAT_MAX_DIM=8`` still compiles
+  and runs, confirming the bounds remain configurable upward; at that bound
+  the algorithmic changes alone give 2448 B → 1920 B.
+- On ``qemu_cortex_m3`` the ztest suite now passes with a **2048 B** thread
+  stack where it previously needed 8192 B. The Kalman and filter tests pass
+  on a wholly default thread; only the DARE solve at init still needs more,
+  which is inherent to an iterative Riccati recursion.
+
+------------------------------------------------------------------------
+
 0.1.0 — Zephyr RTOS Module
 --------------------------
 
