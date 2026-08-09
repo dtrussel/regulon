@@ -123,6 +123,14 @@ host toolchain:
 
 Continuous integration
 ~~~~~~~~~~~~~~~~~~~~~~
+- ``zephyr/tests/control/``: a ztest suite checking that each module behaves
+  correctly once cross-compiled and executed on an MCU, rather than merely
+  linking. The host suite already covers behaviour exhaustively; this covers
+  what differs on target - floating point (including targets with no FPU),
+  ABI, alignment, and the Kconfig-selected source set with its generated
+  ``ron_modules.h``. Tests for optional modules compile only when their
+  Kconfig option selected them, which doubles as a check that the
+  ``RON_HAVE_*`` macros agree with what was built.
 - ``.github/workflows/zephyr_nightly.yml``: daily (and manually
   triggerable) job building the module against a pinned Zephyr release.
   Zephyr is a large dependency and the glue changes rarely, so gating every
@@ -137,9 +145,36 @@ Continuous integration
   resolve the LQR/state-space/Kalman chain and link the shared matrix
   helper and observer.
 
-  No Zephyr SDK is installed - ``native_sim`` builds with the host
-  compiler - and the tree is fetched as a shallow clone with all modules
-  filtered out, so the job stays small.
+  Beyond the host checks it covers real Cortex-M targets. The behavioural
+  suite is **executed under QEMU** on ``qemu_cortex_m3`` (ARMv7-M, soft
+  float - no FPU at all) and ``mps2/an521`` (Cortex-M33, ARMv8-M, with
+  FPU), and cross-compiled for ``mps2/an386`` (Cortex-M4F, hard float),
+  ``mps2/an500`` (Cortex-M7) and ``nrf52840dk/nrf52840`` (Cortex-M4F with a
+  vendor HAL). Cortex-M4F and M7 have no in-tree QEMU target, so those are
+  compile and link checks; they still cover hard-float ABI selection, FPU
+  code generation and vendor HAL integration. Flash and RAM footprints are
+  written to the job summary.
+
+  Cost is kept down rather than assumed: the ``native_sim`` job needs no
+  SDK at all, the others install only the minimal Zephyr SDK bundle with
+  the single ``arm-zephyr-eabi`` toolchain, and Zephyr is fetched as a
+  shallow clone with ``manifest.project-filter`` reduced to ``cmsis`` and
+  ``hal_nordic`` - roughly 700 MB rather than several gigabytes. Both the
+  tree and the SDK are cached.
+
+Documented
+~~~~~~~~~~
+- ``docs/guides/zephyr.rst`` gained a stack sizing section. Running on
+  target surfaced that the matrix modules need far more stack than
+  Zephyr's default thread provides: worst single frames are ~2.4 kB for
+  the DARE solver, ~1.9 kB for the Kalman covariance update and ~1.3 kB
+  for LQG, so a call chain reaches roughly 4 kB against a default of about
+  one. Overflowing it does not fault cleanly on Cortex-M without stack
+  protection - it corrupts and hangs, which is exactly how it presented -
+  so the section gives measured per-module figures and recommends enabling
+  stack protection during bring-up. Everything below the estimators (PID,
+  filters, trajectory, cascade, autotune, health, metrics) stays under
+  512 B and needs no attention.
 
 Fixed
 ~~~~~

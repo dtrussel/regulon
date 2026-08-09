@@ -13,10 +13,36 @@ fixed-size objects. Nothing in it needs a heap, and nothing in it blocks.
 .. note::
 
    Everything on this page is verified against **Zephyr 4.1** by a nightly
-   CI job that builds and runs :ref:`the bundled sample <zephyr-sample>` on
-   ``native_sim``, and checks that the minimum-footprint configuration links
-   only the PID baseline and that requesting LQG alone pulls in its whole
-   dependency chain.
+   CI job. Besides the ``native_sim`` sample and the Kconfig
+   module-selection checks, it runs the library's behavioural test suite on
+   emulated Cortex-M hardware and cross-compiles it for several MCU targets:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 34 30 36
+
+      * - Target
+        - Core
+        - Checked
+      * - ``qemu_cortex_m3``
+        - Cortex-M3, soft float
+        - Suite executed under QEMU
+      * - ``mps2/an521``
+        - Cortex-M33 (ARMv8-M), FPU
+        - Suite executed under QEMU
+      * - ``mps2/an386``
+        - Cortex-M4F, hard float
+        - Cross-compiled
+      * - ``mps2/an500``
+        - Cortex-M7
+        - Cross-compiled
+      * - ``nrf52840dk/nrf52840``
+        - Cortex-M4F, vendor HAL
+        - Cross-compiled
+
+   The emulated runs are the ones that matter most: they exercise target
+   floating point — including a target with no FPU at all — the ABI, and
+   alignment, none of which a host build can stand in for.
 
 Adding the module
 -----------------
@@ -181,6 +207,69 @@ If your target has an FPU, enable it — Regulon is floating-point throughout:
 
    CONFIG_FPU=y
 
+Stack sizing
+------------
+
+Regulon allocates nothing on the heap, but the matrix-based modules use
+substantial **stack** for their working matrices. This is the setting most
+likely to bite when moving from a host build to a target: Zephyr's default
+thread stack is around a kilobyte, and the estimator and optimal-control
+modules need several.
+
+Worst-case single frame per module, measured with ``-fstack-usage``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 46 22 32
+
+   * - Module
+     - Worst frame
+     - Notes
+   * - PID, filters, trajectory, cascade, autotune, health, metrics
+     - ≤ 512 B
+     - Comfortable on a default thread stack.
+   * - :doc:`../api/observer`
+     - ~512 B
+     -
+   * - :doc:`../api/lqg`
+     - ~1.3 kB
+     -
+   * - :doc:`../api/kalman`
+     - ~1.9 kB
+     - Covariance update.
+   * - :doc:`../api/lqr`
+     - ~2.4 kB
+     - DARE solver, at ``ron_lqr_init()``.
+
+Frames nest, so budget for the chain rather than the largest single entry:
+``ron_lqr_init()`` reaches roughly **4 kB**, and ``ron_kf_update()`` roughly
+**3 kB**. A thread calling those wants at least:
+
+.. code-block:: cfg
+
+   CONFIG_MAIN_STACK_SIZE=8192
+
+or, for a dedicated control thread, a ``K_THREAD_STACK_SIZE`` of 4096 or
+more plus whatever the rest of the thread needs.
+
+.. warning::
+
+   Overflowing the stack here does not necessarily produce a clean fault.
+   On Cortex-M without stack protection it can corrupt adjacent memory and
+   present as a hang or a jump to a nonsense address, which is a
+   time-consuming thing to diagnose. Enable ``CONFIG_THREAD_STACK_INFO=y``
+   and ``CONFIG_STACK_SENTINEL=y`` (or an MPU-backed
+   ``CONFIG_HW_STACK_PROTECTION=y`` where the SoC supports it) during
+   bring-up so an overflow is reported rather than guessed at.
+
+If a controller only uses PID, filtering, trajectories or cascade control,
+none of this applies — those fit a default stack comfortably.
+
+Note that the DARE solve happens once, at ``ron_lqr_init()``. If stack is
+tight, calling init from a thread with a generous stack at startup and then
+stepping from a smaller one is legitimate: ``ron_lqr_step()`` itself is
+modest.
+
 Threads, ISRs and shared state
 ------------------------------
 
@@ -284,6 +373,22 @@ PI controller on a first-order lag should show:
 
 Its ``prj.conf`` disables every optional module, so it also demonstrates the
 minimum-footprint configuration.
+
+Running the test suite on a target
+----------------------------------
+
+``zephyr/tests/control/`` is a ztest suite checking that each module behaves
+correctly once cross-compiled, rather than merely linking. Point it at any
+board Zephyr can emulate:
+
+.. code-block:: bash
+
+   west build -b qemu_cortex_m3 -t run zephyr/tests/control \
+         -- -DZEPHYR_EXTRA_MODULES=$(pwd)
+
+It is also a reasonable starting point for bring-up on real hardware: flash
+it and watch the console to confirm the library computes correctly on your
+part before wiring it into a control loop.
 
 Troubleshooting
 ---------------

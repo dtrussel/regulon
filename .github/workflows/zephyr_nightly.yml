@@ -5,16 +5,13 @@ name: Nightly - Zephyr Module
 # Zephyr is a large external dependency and the module glue changes rarely,
 # so gating every push on it would cost far more than it catches. What this
 # job is really guarding against is drift on the *other* side: a Zephyr
-# release changing Kconfig or module conventions under us. A daily run finds
-# that within a day, which is soon enough.
+# release changing Kconfig or module conventions under us, and the library
+# behaving differently once cross-compiled for a real MCU. A daily run finds
+# either within a day, which is soon enough.
 #
 # Note that GitHub only runs scheduled workflows on the default branch, so
 # this will not fire from a feature branch. Use the Actions tab (or
 # `gh workflow run zephyr_nightly.yml`) to exercise it before merging.
-#
-# No Zephyr SDK is installed: native_sim builds with the host compiler,
-# which keeps the job to a shallow clone rather than a multi-gigabyte
-# toolchain download.
 #
 # RON-IS-001 §8.1
 on:
@@ -36,13 +33,29 @@ env:
   # job is that a bump is a visible, reviewable change rather than a
   # surprise from tracking a moving branch.
   ZEPHYR_REF: v4.1.0
-  SAMPLE_DIR: regulon/zephyr/samples/pid_loop
-  BOARD: native_sim/native/64
+  # Zephyr SDK release matching ZEPHYR_REF (zephyr/SDK_VERSION).
+  SDK_VERSION: "0.17.0"
+  # Only Zephyr itself plus the modules the targets below actually need:
+  # cmsis for any Cortex-M build, hal_nordic for the nRF52840. Everything
+  # else is filtered out, which is the difference between a ~700 MB fetch
+  # and a multi-gigabyte one.
+  PROJECT_FILTER: "-.*,+cmsis,+hal_nordic"
 
 jobs:
-  zephyr-module:
-    name: Build and run the Zephyr module
+  # ---------------------------------------------------------------------------
+  # Host: the sample, and the Kconfig module-selection contract.
+  #
+  # Runs on native_sim with the host compiler, so it needs no SDK and gives
+  # fast feedback on the glue itself.
+  # ---------------------------------------------------------------------------
+  native-sim:
+    name: native_sim - sample and module selection
     runs-on: ubuntu-24.04
+
+    env:
+      SAMPLE_DIR: regulon/zephyr/samples/pid_loop
+      BOARD: native_sim/native/64
+      ZEPHYR_TOOLCHAIN_VARIANT: host
 
     steps:
       - uses: actions/checkout@v4
@@ -66,17 +79,14 @@ jobs:
       - name: Fetch Zephyr
         if: steps.zephyr-cache.outputs.cache-hit != 'true'
         run: |
-          # Shallow clone, and no modules: native_sim needs no HAL or vendor
-          # module, so filtering them all out turns a multi-gigabyte fetch
-          # into a small one.
           mkdir -p zephyrproject
           git clone --depth 1 --branch "$ZEPHYR_REF" \
               https://github.com/zephyrproject-rtos/zephyr zephyrproject/zephyr
           cd zephyrproject/zephyr
           west init -l .
           cd ..
-          west config manifest.project-filter -- "-.*"
-          west update
+          west config manifest.project-filter -- "$PROJECT_FILTER"
+          west update --narrow -o=--depth=1
 
       - name: Install Zephyr Python dependencies
         run: pip install -r zephyrproject/zephyr/scripts/requirements-base.txt
@@ -104,7 +114,6 @@ jobs:
       - name: Build the sample (minimum footprint)
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
-          ZEPHYR_TOOLCHAIN_VARIANT: host
         run: |
           west build -b "$BOARD" -d build-min -p always "$SAMPLE_DIR" \
                 -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon
@@ -145,7 +154,6 @@ jobs:
       - name: Build the complete library
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
-          ZEPHYR_TOOLCHAIN_VARIANT: host
         run: |
           west build -b "$BOARD" -d build-full -p always "$SAMPLE_DIR" \
                 -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon \
@@ -163,7 +171,6 @@ jobs:
       - name: Check the Kconfig select chain
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
-          ZEPHYR_TOOLCHAIN_VARIANT: host
         run: |
           west build -b "$BOARD" -d build-lqg -p always "$SAMPLE_DIR" \
                 -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon \
@@ -186,12 +193,210 @@ jobs:
           done
           echo "select chain resolved correctly"
 
-      - name: Upload build logs on failure
+  # ---------------------------------------------------------------------------
+  # Emulated ARM: behavioural tests on real Cortex-M cores.
+  #
+  # This is the part that host testing cannot substitute for. The suite under
+  # regulon-c/test/ already covers behaviour exhaustively on the host; running
+  # here exercises what differs on an MCU - target floating point (including a
+  # soft-float target with no FPU at all), the ABI, alignment, and the
+  # Kconfig-selected source set with its generated ron_modules.h.
+  # ---------------------------------------------------------------------------
+  qemu:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: qemu_cortex_m3
+            name: qemu_cortex_m3 - Cortex-M3 (ARMv7-M, soft float)
+          - board: mps2/an521/cpu0
+            name: mps2/an521 - Cortex-M33 (ARMv8-M, FPU)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: regulon
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install west
+        run: pip install west
+
+      - name: Cache the Zephyr tree
+        id: zephyr-cache
+        uses: actions/cache@v4
+        with:
+          path: zephyrproject
+          key: zephyr-${{ env.ZEPHYR_REF }}-${{ runner.os }}
+
+      - name: Fetch Zephyr
+        if: steps.zephyr-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p zephyrproject
+          git clone --depth 1 --branch "$ZEPHYR_REF" \
+              https://github.com/zephyrproject-rtos/zephyr zephyrproject/zephyr
+          cd zephyrproject/zephyr
+          west init -l .
+          cd ..
+          west config manifest.project-filter -- "$PROJECT_FILTER"
+          west update --narrow -o=--depth=1
+
+      - name: Install Zephyr Python dependencies
+        run: pip install -r zephyrproject/zephyr/scripts/requirements-base.txt
+
+      - name: Cache the Zephyr SDK
+        id: sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: zephyr-sdk-${{ env.SDK_VERSION }}
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-${{ runner.os }}
+
+      - name: Install the Zephyr SDK (ARM toolchain only)
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          # The minimal bundle plus one toolchain, rather than the full SDK:
+          # this is the ARM cross compiler and the QEMU builds Zephyr expects,
+          # without the other dozen architectures.
+          wget -q "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${SDK_VERSION}/zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          tar xf "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          rm "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          cd "zephyr-sdk-${SDK_VERSION}"
+          ./setup.sh -t arm-zephyr-eabi -h -c
+
+      - name: Run the behavioural test suite on ${{ matrix.board }}
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: zephyr
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-${{ env.SDK_VERSION }}
+        run: |
+          west build -b "${{ matrix.board }}" -d build -p always \
+                regulon/zephyr/tests/control \
+                -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon
+
+          # `west build -t run` starts QEMU, which does not always stop on its
+          # own, so cap it and judge by the ztest output rather than the exit
+          # status.
+          timeout 600 west build -d build -t run > qemu.out 2>&1 || true
+          cat qemu.out
+
+          grep -q "PROJECT EXECUTION SUCCESSFUL" qemu.out || {
+            echo "::error::ztest run did not complete successfully on ${{ matrix.board }}"
+            exit 1
+          }
+          grep -qE "SUITE PASS .*\[regulon_module\]" qemu.out || {
+            echo "::error::regulon_module suite did not pass on ${{ matrix.board }}"
+            exit 1
+          }
+          # A suite that silently ran nothing must not read as success.
+          grep -qE "pass = [1-9][0-9]*, fail = 0" qemu.out || {
+            echo "::error::suite reported no passing tests on ${{ matrix.board }}"
+            exit 1
+          }
+
+      - name: Upload output on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: zephyr-nightly-logs
+          name: qemu-${{ strategy.job-index }}-output
           path: |
-            build-*/zephyr/.config
-            run.out
+            qemu.out
+            build/zephyr/.config
           if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Real MCU targets: cross-compile only.
+  #
+  # Cortex-M4F and M7 have no in-tree QEMU target, so these are compile and
+  # link checks. They still catch what a host build cannot: hard-float ABI
+  # selection, FPU code generation, and the vendor HAL integration a real
+  # board pulls in.
+  # ---------------------------------------------------------------------------
+  cross-build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: mps2/an386
+            name: mps2/an386 - Cortex-M4F (hard float)
+          - board: mps2/an500
+            name: mps2/an500 - Cortex-M7
+          - board: nrf52840dk/nrf52840
+            name: nRF52840 DK - Cortex-M4F, vendor HAL
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: regulon
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install west
+        run: pip install west
+
+      - name: Cache the Zephyr tree
+        id: zephyr-cache
+        uses: actions/cache@v4
+        with:
+          path: zephyrproject
+          key: zephyr-${{ env.ZEPHYR_REF }}-${{ runner.os }}
+
+      - name: Fetch Zephyr
+        if: steps.zephyr-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p zephyrproject
+          git clone --depth 1 --branch "$ZEPHYR_REF" \
+              https://github.com/zephyrproject-rtos/zephyr zephyrproject/zephyr
+          cd zephyrproject/zephyr
+          west init -l .
+          cd ..
+          west config manifest.project-filter -- "$PROJECT_FILTER"
+          west update --narrow -o=--depth=1
+
+      - name: Install Zephyr Python dependencies
+        run: pip install -r zephyrproject/zephyr/scripts/requirements-base.txt
+
+      - name: Cache the Zephyr SDK
+        id: sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: zephyr-sdk-${{ env.SDK_VERSION }}
+          key: zephyr-sdk-${{ env.SDK_VERSION }}-arm-${{ runner.os }}
+
+      - name: Install the Zephyr SDK (ARM toolchain only)
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          wget -q "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${SDK_VERSION}/zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          tar xf "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          rm "zephyr-sdk-${SDK_VERSION}_linux-x86_64_minimal.tar.xz"
+          cd "zephyr-sdk-${SDK_VERSION}"
+          ./setup.sh -t arm-zephyr-eabi -h -c
+
+      - name: Cross-compile for ${{ matrix.board }}
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyrproject/zephyr
+          ZEPHYR_TOOLCHAIN_VARIANT: zephyr
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-${{ env.SDK_VERSION }}
+        run: |
+          west build -b "${{ matrix.board }}" -d build -p always \
+                regulon/zephyr/tests/control \
+                -- -DZEPHYR_EXTRA_MODULES=${{ github.workspace }}/regulon
+
+          # Report the footprint; it is the number an integrator actually
+          # wants from this job.
+          arm_size=$(find "$ZEPHYR_SDK_INSTALL_DIR" -name 'arm-zephyr-eabi-size' | head -1)
+          {
+            echo "### ${{ matrix.name }}"
+            echo '```'
+            "$arm_size" build/zephyr/zephyr.elf
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

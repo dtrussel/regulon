@@ -165,9 +165,11 @@ source-manifest drift check, a minimal-subset build, the example programs,
 a timing benchmark, a package-install smoke test, and a documentation
 build with warnings promoted to errors.
 
-A separate [nightly job](.github/workflows/zephyr_nightly.yml) builds and
-runs the Zephyr module against a pinned Zephyr release, checking that the
-sample converges and that the Kconfig module selection resolves correctly.
+A separate [nightly job](.github/workflows/zephyr_nightly.yml) covers the
+Zephyr module against a pinned Zephyr release: the Kconfig module selection,
+the sample on `native_sim`, the behavioural test suite **executed under QEMU**
+on Cortex-M3 and Cortex-M33, and cross-compiles for Cortex-M4F, Cortex-M7 and
+the nRF52840 DK.
 
 ## Documentation
 
