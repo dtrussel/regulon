@@ -30,6 +30,9 @@ coverage_filtered.info
 test_results*.xml
 junit.xml
 
+# Zephyr sample build output
+zephyr/samples/*/build/
+
 # Documentation build output
 docs/_build/
 __pycache__/

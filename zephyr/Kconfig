@@ -1,0 +1,150 @@
+# =============================================================================
+# Kconfig options for the Regulon control systems library.
+#
+# These mirror the RON_ENABLE_<MODULE> CMake options used by the standalone
+# build (regulon-c/cmake/ron_options.cmake).  The dependency relationships
+# that CMake resolves imperatively are expressed here with `select`, so
+# enabling LQG pulls in LQR, state-space and the Kalman filter without the
+# user having to know the chain.
+#
+# The PID core and its integrated feed-forward path are the mandatory
+# baseline and have no option: they are built whenever CONFIG_REGULON is set.
+#
+# RON-IS-001 §8.1
+# SPDX-License-Identifier: MIT
+# =============================================================================
+
+menuconfig REGULON
+	bool "Regulon control systems library"
+	help
+	  Enable the Regulon control systems library: PID, filtering,
+	  feed-forward, gain scheduling, trajectory generation, cascade
+	  control, state estimation and optimal control.
+
+	  The library performs no dynamic allocation and uses no recursion or
+	  unbounded loops; all controller state is caller-owned and
+	  fixed-size, so it is safe to call from an interrupt handler.
+
+if REGULON
+
+config REGULON_DOUBLE_PRECISION
+	bool "Compute in double precision"
+	help
+	  Make ron_float_t a double rather than a float.
+
+	  This is a whole-library ABI decision and is applied globally, so
+	  application code sees the same type as the library.
+
+	  Leave this off on targets whose FPU is single-precision only: every
+	  double operation would otherwise be emulated in software, costing
+	  both cycles and flash. Turn it on when the plant model is stiff,
+	  when state covariances span many orders of magnitude, or when a
+	  matrix-based module struggles to converge.
+
+config REGULON_ASSERT
+	bool "Enable runtime RON_ASSERT checks"
+	help
+	  Turn RON_ASSERT into a trapping runtime check. Useful during
+	  bring-up; it aborts rather than returning a fault, so it is not
+	  intended for production images.
+
+menu "Modules"
+
+config REGULON_FILTER
+	bool "Signal conditioning filters"
+	default y
+	select REQUIRES_FULL_LIBC
+	help
+	  First-order low-pass and high-pass filters, cascaded biquad
+	  sections with Butterworth/notch designers, moving-average, and a
+	  standalone rate limiter.
+
+	  The biquad coefficient designers call sin() and cos(), so this is
+	  the only module that needs a C library with math support. It
+	  therefore selects REQUIRES_FULL_LIBC; disable it if you are
+	  constrained to the minimal libc.
+
+config REGULON_GAIN_SCHED
+	bool "Gain scheduling"
+	default y
+	help
+	  Interpolated or hard-switched controller gains across operating
+	  points, applied to a PID instance from a breakpoint table.
+
+config REGULON_TRAJECTORY
+	bool "Trajectory generators"
+	default y
+	help
+	  Trapezoidal (velocity-limited) and S-curve (jerk-limited) motion
+	  profile generation, evaluated one sample at a time.
+
+config REGULON_CASCADE
+	bool "Cascade control"
+	default y
+	help
+	  Nested inner/outer control loops with independent rates and
+	  anti-windup propagation from the inner loop's saturation.
+
+config REGULON_KALMAN
+	bool "Kalman filter"
+	default y
+	help
+	  Discrete-time linear Kalman filter with separate predict and update
+	  steps, Cholesky innovation solve, optional Joseph-form update, and
+	  support for missing measurements.
+
+config REGULON_STATESPACE
+	bool "State-space control and Luenberger observer"
+	default y
+	select REGULON_KALMAN
+	help
+	  State-feedback control with reference tracking, drawing its state
+	  estimate from an external vector, an embedded Luenberger observer,
+	  or an embedded Kalman filter.
+
+config REGULON_LQR
+	bool "Linear quadratic regulator"
+	default y
+	select REGULON_STATESPACE
+	help
+	  MIMO optimal state feedback. The gain matrix is either supplied
+	  pre-computed or solved at init time from the cost matrices by an
+	  iterative Discrete Algebraic Riccati Equation solver.
+
+	  The DARE solve runs once, at init, and is the expensive call;
+	  steady-state stepping is cheap.
+
+config REGULON_LQG
+	bool "Linear quadratic Gaussian control"
+	default y
+	select REGULON_LQR
+	help
+	  An LQR control law driven by a Kalman state estimate, with both
+	  gains solved independently at init time per the separation
+	  principle.
+
+config REGULON_AUTOTUNE
+	bool "Relay-feedback auto-tuning"
+	default y
+	help
+	  Automatic PID tuning by relay feedback: drives the plant into a
+	  controlled oscillation, measures the ultimate gain and period, and
+	  derives gains via a selectable tuning rule.
+
+config REGULON_HEALTH
+	bool "Control-loop health monitoring"
+	default y
+	help
+	  Passive supervision of a running loop: output-stuck, diverging,
+	  oscillating, sensor-dropout and setpoint-unreachable detection.
+
+config REGULON_METRICS
+	bool "Runtime performance metrics"
+	default y
+	help
+	  Passive accumulation of step-response and steady-state statistics:
+	  IAE/ISE/ITAE, peak overshoot, rise time and settling time.
+
+endmenu
+
+endif # REGULON

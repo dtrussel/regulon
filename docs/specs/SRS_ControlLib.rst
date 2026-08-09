@@ -15,11 +15,11 @@ Software Requirements Specification
 
 **Document ID:** RON-SRS-001
 
-**Version:** 1.0.0
+**Version:** 1.2.1
 
 **Status:** Draft
 
-**Date:** 2025-04-10
+**Date:** 2026-08-09
 
 .. contents:: Table of Contents
    :depth: 3
@@ -63,6 +63,12 @@ Revision History
        FR-739) and Linear Quadratic Gaussian controller (RON-FR-750 –
        FR-759). Updated traceability matrix.
      - TBD
+   * - 1.2.1
+     - 2026-08-09
+     - Clarified the RTOS scope exclusion: it concerns kernel coupling, not
+       build-system packaging for an RTOS ecosystem. No requirements added
+       or changed.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -91,6 +97,22 @@ The library **does not** include:
 - Sensor acquisition or signal conditioning hardware
 - Communication protocol stacks
 - Real-time operating system (RTOS) integration (compatibility is required, but integration is out of scope)
+
+.. note::
+
+   The RTOS exclusion above concerns *coupling*: the library contains no
+   task wrappers, no synchronisation primitives, and no calls into any
+   kernel API, and it will not acquire them. Mutual exclusion around a
+   shared controller instance remains the caller's responsibility
+   (RON-ASM-06).
+
+   Build-system packaging for an RTOS ecosystem is a separate matter and is
+   *not* excluded — it is the same category as the installable CMake package
+   and pkg-config file the library already provides. The repository
+   accordingly ships a Zephyr module manifest (``zephyr/module.yml``) with
+   Kconfig options mirroring the existing per-module build options. That
+   glue selects which existing sources compile; it adds no code to the
+   library and introduces no dependency on Zephyr for any other target.
 
 Definitions, Acronyms, and Abbreviations
 -----------------------------------------

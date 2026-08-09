@@ -67,6 +67,72 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Zephyr RTOS Module
+--------------------------
+
+Added
+~~~~~
+- ``zephyr/module.yml``: Zephyr module manifest, making the repository
+  consumable through a west manifest with no vendoring or hand-written
+  build glue.
+- ``zephyr/Kconfig``: ``CONFIG_REGULON`` plus a ``CONFIG_REGULON_<MODULE>``
+  option per optional module, mirroring the ``RON_ENABLE_<MODULE>`` CMake
+  options. The dependency chain the standalone build resolves imperatively
+  is expressed with Kconfig ``select``, so requesting LQG pulls in LQR,
+  state-space and the Kalman filter without the user knowing the chain.
+  ``CONFIG_REGULON_DOUBLE_PRECISION`` and ``CONFIG_REGULON_ASSERT`` cover
+  the two global options.
+- ``zephyr/CMakeLists.txt``: builds a ``zephyr_library`` from the same
+  sources as the standalone build and generates ``ron/ron_modules.h`` from
+  the same template, so ``<ron/ron.h>`` includes exactly the headers whose
+  implementations were compiled regardless of which build system produced
+  the library. ``RON_USE_DOUBLE`` is applied application-wide, since
+  ``ron_float_t`` is part of the ABI.
+- ``zephyr/samples/pid_loop/``: a complete Zephyr application running a PID
+  loop in a periodic thread against a simulated first-order plant, building
+  and running without hardware.
+- ``docs/guides/zephyr.rst``: integration guide covering the west manifest,
+  the Kconfig options, precision and FPU selection, thread/ISR ownership of
+  controller instances, deriving ``dt`` from the scheduler period, fault
+  handling, and troubleshooting.
+
+Changed
+~~~~~~~
+- ``docs/specs/SRS_ControlLib.rst`` (1.2.0 -> 1.2.1): clarified that the
+  RTOS scope exclusion concerns kernel coupling — the library still
+  contains no task wrappers, synchronisation primitives, or kernel calls —
+  and not build-system packaging for an RTOS ecosystem, which is the same
+  category as the CMake package and pkg-config file already shipped. No
+  requirements added or changed.
+
+Verification evidence
+~~~~~~~~~~~~~~~~~~~~~~
+Built and run against Zephyr 4.1.1 on ``native_sim/native/64`` with the
+host toolchain:
+
+- Full configuration (``CONFIG_REGULON=y``) builds and runs; the sample
+  loop converges from 0 to 0.994 against a setpoint of 1.0, showing the
+  overshoot expected of a PI controller on a first-order lag.
+- Minimal configuration (every optional module ``=n``) links only the five
+  mandatory baseline objects, and the generated ``ron_modules.h`` reports
+  ``RON_HAVE_*`` as 0 for the excluded modules.
+- ``CONFIG_REGULON_LQG=y`` alone resolves ``REGULON_LQR``,
+  ``REGULON_STATESPACE`` and ``REGULON_KALMAN`` to ``y`` and links
+  ``ron_lqg.c``, ``ron_lqr.c``, ``ron_statespace.c``, ``ron_observer.c``,
+  ``ron_kalman.c`` and ``ron_matrix.c``, confirming the ``select`` chain.
+
+Known issue
+~~~~~~~~~~~
+- Zephyr compiles at ``-Os``, which surfaces a pre-existing GCC
+  ``-Wmaybe-uninitialized`` false positive on ``u_final`` in
+  ``ron_pid_core.c``. The variable is written on every path where the
+  caller reads it; GCC cannot see that the helper writing it returns a
+  non-``NONE`` fault whenever it does not. Harmless unless the application
+  sets ``CONFIG_COMPILER_WARNINGS_AS_ERRORS=y``. Documented in the guide's
+  troubleshooting section.
+
+------------------------------------------------------------------------
+
 0.1.0 — Documentation Site (Sphinx + Breathe)
 ---------------------------------------------
 
