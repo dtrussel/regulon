@@ -1,8 +1,11 @@
 Installation and Integration
 ============================
 
-There are three ways to consume Regulon. Pick by how you manage
-dependencies, not by project size — all three build the same library.
+There are four ways to consume Regulon. Pick by how you manage
+dependencies, not by project size — all four build the same library.
+
+If you are on Zephyr, skip to :ref:`zephyr-module` — the RTOS handles this
+for you and the other three do not apply.
 
 Install, then find_package
 --------------------------
@@ -63,9 +66,48 @@ A pkg-config file is installed alongside the library:
 
    gcc app.c $(pkg-config --cflags --libs regulon) -o app
 
-For a hand-written Makefile, the library is a single static archive with no
-dependencies beyond the C standard library — add the include directory and
-link ``libregulon.a`` directly.
+For a hand-written Makefile, the library is a single static archive that
+needs no C library at all — add the include directory and link
+``libregulon.a`` directly. There is no ``-lm``; see
+:doc:`cross-compiling` for what the objects do still reference.
+
+.. _zephyr-module:
+
+Zephyr module
+-------------
+
+On Zephyr, none of the above applies. Regulon ships as a `Zephyr module
+<https://docs.zephyrproject.org/latest/develop/modules.html>`_, so west
+fetches it and Kconfig enables it — there is no install step, no
+``add_subdirectory``, and nothing to add to your application's
+``CMakeLists.txt``.
+
+Add it to your workspace manifest (``west.yml``):
+
+.. code-block:: yaml
+
+   projects:
+     - name: regulon
+       url: https://github.com/dtrussel/regulon
+       revision: main
+       path: modules/lib/regulon
+
+Then ``west update``, and turn it on in ``prj.conf``:
+
+.. code-block:: cfg
+
+   CONFIG_REGULON=y
+
+That is the whole integration. Each optional module has a
+``CONFIG_REGULON_<MODULE>`` option mirroring the CMake ones, with
+dependencies resolved through Kconfig ``select``, and
+``CONFIG_REGULON_DOUBLE_PRECISION`` replaces ``RON_USE_DOUBLE``.
+
+The :doc:`Zephyr guide <zephyr>` covers the rest: choosing modules,
+precision and FPU selection, sizing thread stacks and tuning the dimension
+bounds, thread and ISR ownership of controller state, getting the sample
+period right, and running the bundled sample and behavioural suite on a
+target.
 
 Choosing precision
 ------------------

@@ -67,6 +67,37 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Zephyr in the Integration Docs
+---------------------------------------
+
+The Zephyr module had a guide of its own and a card on the landing page, but
+neither of the two places a reader looks when deciding *how to depend on the
+library* mentioned it. Someone following the documentation rather than the
+README would not have discovered the module existed.
+
+Changed
+~~~~~~~
+- ``docs/guides/installation.rst``: Zephyr is now the fourth documented way to
+  consume the library, alongside ``find_package``, vendoring and pkg-config,
+  with the manifest entry and the one Kconfig option needed to get going. The
+  page opens by pointing Zephyr users straight at it, since the other three
+  paths do not apply to them.
+- ``docs/specs/IS_ControlLib.rst`` (1.3.0 → 1.3.1): the Integration Guide had a
+  C track and a Rust track but nothing for Zephyr, despite every Zephyr glue
+  file citing RON-IS-001. Adds a track covering module declaration, Kconfig
+  gating, precision and dimension bounds through Kconfig instead of CMake
+  cache variables, and the ``CONFIG_MINIMAL_LIBC`` obligation. Framed as a
+  packaging path over the C track rather than a third implementation, so the
+  "Both Tracks" sections that follow stay accurate.
+
+Fixed
+~~~~~
+- ``docs/guides/installation.rst`` claimed the archive had "no dependencies
+  beyond the C standard library". It needs no C library at all — the claim
+  predated the libm removal.
+
+------------------------------------------------------------------------
+
 0.1.0 — Freestanding Build: No libc Required
 --------------------------------------------
 
