@@ -21,10 +21,10 @@ Software Architecture and Design Specification
 
 **Date:** 2025-04-10
 
-.. contents:: Table of Contents
-   :depth: 3
-   :local:
-   :backlinks: none
+.. Furo renders a numbered, nested "On this page" panel in the right sidebar
+   for every page, so an inline ``.. contents::`` here would duplicate it --
+   which the theme flags in-page. sectnum stays: it supplies the section
+   numbers that both the headings and that sidebar panel display.
 
 .. sectnum::
 

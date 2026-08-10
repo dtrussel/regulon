@@ -67,6 +67,31 @@ Added
 
 ------------------------------------------------------------------------
 
+0.1.0 — Remove the Duplicated Spec Tables of Contents
+------------------------------------------------------
+
+Fixed
+~~~~~
+- The four specification pages each opened with a ``.. contents::``
+  directive, which Furo renders as a red in-page block reading "ERROR: Adding
+  a table of contents in Furo-based documentation is unnecessary...". The
+  message is injected by the theme's stylesheet rather than logged by Sphinx,
+  so ``sphinx-build -W`` never saw it and the block was only visible in a
+  browser.
+
+  The theme is right that it was redundant: Furo already renders a nested,
+  numbered, sticky "On this page" panel per page — 166 entries at three
+  levels on the test plan, matching the ``:depth: 3`` the directive asked
+  for. The directives are removed rather than given Furo's escape-hatch
+  class, and ``.. sectnum::`` stays, since it supplies the numbering that
+  both the headings and the sidebar panel display.
+
+  Affected ``SRS_ControlLib``, ``SADS_ControlLib``, ``IS_ControlLib`` and
+  ``TP_ControlLib``. HTML is the only configured builder, so nothing else
+  relied on the inline version.
+
+------------------------------------------------------------------------
+
 0.1.0 — Zephyr in the Integration Docs
 ---------------------------------------
 
