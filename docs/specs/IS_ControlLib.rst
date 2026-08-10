@@ -15,16 +15,16 @@ Implementation Specification
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.3.0
+**Version:** 1.3.1
 
 **Status:** Draft
 
-**Date:** 2026-08-09
+**Date:** 2026-08-10
 
-.. contents:: Table of Contents
-   :depth: 3
-   :local:
-   :backlinks: none
+.. Furo renders a numbered, nested "On this page" panel in the right sidebar
+   for every page, so an inline ``.. contents::`` here would duplicate it --
+   which the theme flags in-page. sectnum stays: it supplies the section
+   numbers that both the headings and that sidebar panel display.
 
 .. sectnum::
 
@@ -71,6 +71,13 @@ Revision History
        thread by default, and documented that scratch stack grows with the
        square of the largest bound. Added the optional ron_config.h override
        hook and the ron_mat_mul_ta matrix primitive.
+     - TBD
+   * - 1.3.1
+     - 2026-08-10
+     - Added the Zephyr integration track to the Integration Guide: module
+       manifest declaration, Kconfig gating and precision/bounds selection,
+       and the CONFIG_MINIMAL_LIBC obligation. Documents an integration path
+       that was implemented and verified (RON-TC-QUAL-023) but unspecified.
      - TBD
 
 ------------------------------------------------------------------------
@@ -2974,6 +2981,55 @@ C Track — Minimal Integration Steps
 
 4. **Handle faults** via ``ron_pid_fault_clear()`` and optionally
    ``ron_pid_reset()`` before resuming automatic mode.
+
+Zephyr — Consuming the C Track as an RTOS Module
+--------------------------------------------------
+
+Zephyr is not a third implementation. The library is the same C static
+archive, and steps 1–4 above apply unchanged; what differs is only how it is
+acquired and configured. The library **shall** ship a Zephyr module manifest
+so that no application-side build glue is required.
+
+1. **Declare the module** in the application's west manifest. West discovers
+   ``zephyr/module.yml`` at the repository root and wires the module's
+   ``Kconfig`` and ``CMakeLists.txt`` into the build automatically.
+
+   .. code-block:: yaml
+
+      projects:
+        - name: regulon
+          url: https://github.com/dtrussel/regulon
+          revision: main
+          path: modules/lib/regulon
+
+   Production applications **shall** pin ``revision`` to a released tag
+   rather than a moving branch.
+
+2. **Enable it** in ``prj.conf``. ``CONFIG_REGULON`` gates the whole library;
+   each optional module has a ``CONFIG_REGULON_<MODULE>`` option mirroring the
+   corresponding ``RON_ENABLE_<MODULE>`` CMake option, with inter-module
+   dependencies resolved through Kconfig ``select`` rather than left to the
+   integrator.
+
+   .. code-block:: cfg
+
+      CONFIG_REGULON=y
+      CONFIG_REGULON_LQG=y     # selects LQR, state-space and Kalman
+
+3. **Select precision and bounds** through Kconfig rather than CMake cache
+   variables. ``CONFIG_REGULON_DOUBLE_PRECISION`` replaces ``RON_USE_DOUBLE``;
+   ``CONFIG_REGULON_MAX_STATES``, ``..._MAX_INPUTS`` and
+   ``..._MAX_MEASUREMENTS`` set the dimension bounds. The bounds size every
+   scratch matrix, so they drive stack consumption quadratically and **shall**
+   be set no larger than the application needs.
+
+4. **Own the instance from one context.** The ISR-safety rules below apply
+   unchanged: a controller stepped from a Zephyr thread or ISR must not be
+   reconfigured concurrently from another.
+
+The library requires no libm and no full C library, so an application
+**shall** be able to build it with ``CONFIG_MINIMAL_LIBC=y`` (RON-DC-002).
+Verification of this integration path is specified by RON-TC-QUAL-023.
 
 Rust Track — Minimal Integration Steps
 ----------------------------------------

@@ -14,6 +14,10 @@ is not separately optional because PID configuration validation depends on it.
 Everything else is controlled by a ``RON_ENABLE_<MODULE>`` option, each
 defaulting to ``ON`` so that a plain build gives the complete library.
 
+On Zephyr the same choices are made through Kconfig instead: every option
+below has a ``CONFIG_REGULON_<MODULE>`` counterpart with the same name and
+the same dependency behaviour. See :doc:`zephyr`.
+
 .. list-table::
    :header-rows: 1
    :widths: 32 38 30
