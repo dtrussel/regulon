@@ -156,6 +156,7 @@ typedef struct {
     ron_float_t saved_Ki;     /**< PID Ki captured at start.                */
     ron_float_t saved_Kd;     /**< PID Kd captured at start.                */
     ron_op_mode_t saved_mode; /**< PID operating mode captured at start.    */
+    bool pid_saved;           /**< saved_* hold a real snapshot (set by start). */
 } ron_autotune_state_t;
 
 /* =========================================================================
@@ -278,8 +279,10 @@ ron_fault_t ron_autotune_apply(const ron_autotune_t *at, ron_pid_t *pid);
 /**
  * @brief Abort the tuning run and restore the PID untouched.
  *
- * Restores the gains and operating mode captured at start and marks the run as
- * aborted.  Safe to call in any phase after start.
+ * Restores the gains and operating mode captured by ron_autotune_start() and
+ * marks the run as aborted.  Safe to call in any phase.  If no run was ever
+ * started there is no snapshot to restore, so the PID is left untouched and
+ * only the run is marked aborted.
  *
  * @param[in,out] at   Pointer to a started instance.
  * @param[in,out] pid  Target PID instance.

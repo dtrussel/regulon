@@ -193,12 +193,18 @@ static void at_step_relay(ron_autotune_t *at, ron_float_t y, ron_float_t dt, boo
     }
 }
 
-/* Restore the PID gains and operating mode captured at start. */
+/*
+ * Restore the PID gains and operating mode captured at start.  Without a
+ * snapshot (no run ever started) the saved_* fields are placeholders, so the
+ * PID is left untouched.
+ */
 /* Satisfies: RON-FR-807 | Test: RON-TC-AT-008 */
 static void at_restore_pid(const ron_autotune_t *at, ron_pid_t *pid)
 {
-    (void) ron_pid_set_gains(pid, at->state.saved_Kp, at->state.saved_Ki, at->state.saved_Kd);
-    (void) ron_pid_set_mode(pid, at->state.saved_mode, at->cfg.u_bias);
+    if (at->state.pid_saved) {
+        (void) ron_pid_set_gains(pid, at->state.saved_Kp, at->state.saved_Ki, at->state.saved_Kd);
+        (void) ron_pid_set_mode(pid, at->state.saved_mode, at->cfg.u_bias);
+    }
 }
 
 /* Validate the runtime arguments of one step. */
@@ -262,6 +268,7 @@ static void at_seed_state(ron_autotune_t *at)
     at->state.saved_Ki   = RON_FLOAT_C(0.0);
     at->state.saved_Kd   = RON_FLOAT_C(0.0);
     at->state.saved_mode = RON_MODE_AUTOMATIC;
+    at->state.pid_saved  = false;
 }
 
 /* =========================================================================
@@ -299,6 +306,7 @@ ron_fault_t ron_autotune_start(ron_autotune_t *at, ron_pid_t *pid)
     at->state.saved_Ki   = pid->config.Ki;
     at->state.saved_Kd   = pid->config.Kd;
     at->state.saved_mode = pid->state.mode;
+    at->state.pid_saved  = true;
 
     /* Prime the relay with a definite initial drive. */
     at->state.u_relay_prev = at->cfg.u_bias + at->cfg.relay_amplitude;

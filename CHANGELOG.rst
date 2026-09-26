@@ -297,6 +297,10 @@ Fixed
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
   PID-only lint/analysis/proof commands; it now mirrors the CI gates over
   the source manifests.
+- ``ron_autotune_abort()`` on a tuner that was never started restored the
+  zeroed placeholder snapshot, zeroing the PID's gains. The restore now runs
+  only when ``ron_autotune_start()`` captured a snapshot (new opaque
+  ``pid_saved`` state flag); the run is still marked aborted.
 
 ------------------------------------------------------------------------
 

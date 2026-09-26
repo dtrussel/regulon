@@ -488,6 +488,27 @@ void test_ron_tc_at_008(void)
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_autotune_abort(&un, &pid));
     }
 
+    /* Abort before any start: nothing was snapshotted, so the PID keeps its
+     * gains and mode (twice, so the aborted phase does not unlock a restore);
+     * the run is still marked aborted. */
+    {
+        ron_autotune_t at0;
+        ron_pid_t pid0;
+        uint8_t n;
+
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_init(&pid0, &pcfg));
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_init(&at0, &cfg));
+        for (n = 0U; n < 2U; ++n) {
+            TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_abort(&at0, &pid0));
+            TEST_ASSERT_TRUE(at0.state.aborted);
+            TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_ABORTED, at0.state.phase);
+            TEST_ASSERT_EQUAL_INT(RON_MODE_AUTOMATIC, (int) pid0.state.mode);
+            TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(7.0), pid0.config.Kp);
+            TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(3.0), pid0.config.Ki);
+            TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(1.0), pid0.config.Kd);
+        }
+    }
+
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_start(&at, &pid));
     TEST_ASSERT_EQUAL_INT(RON_MODE_MANUAL, (int) pid.state.mode);
 
