@@ -11,15 +11,11 @@
 
 #include "ron/ron_cascade.h"
 
+#include "ron_util_internal.h"
+
 /* =========================================================================
  * Internal helpers
  * ========================================================================= */
-
-/* Satisfies: RON-SR-020 */
-static bool cascade_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
 
 /* Satisfies: RON-SR-006 */
 static ron_fault_t cascade_check_inst(const ron_cascade_instance_t *casc)
@@ -114,7 +110,7 @@ ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ro
     if (!casc->outer.state.is_initialised || !casc->inner.state.is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if ((dt <= RON_FLOAT_C(0.0)) || !cascade_isfinite(dt)) {
+    if ((dt <= RON_FLOAT_C(0.0)) || !ron_util_isfinite(dt)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -139,7 +135,7 @@ ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mod
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if (!cascade_isfinite(manual_inner) || !cascade_isfinite(manual_outer)) {
+    if (!ron_util_isfinite(manual_inner) || !ron_util_isfinite(manual_outer)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 

@@ -13,14 +13,9 @@
 
 #include "ron_lqr_internal.h"
 #include "ron_matrix_internal.h"
+#include "ron_util_internal.h"
 
 #define RON_LQR_DARE_DEFAULT_MAX_ITER 200U
-
-/* Satisfies: RON-SR-020 | Test: RON-TC-LQR-006 */
-static bool lqr_finite(ron_float_t v)
-{
-    return ron_mat_vec_finite(&v, 1U);
-}
 
 /* =========================================================================
  * DARE solver (RON-FR-731, RON-FR-733, RON-FR-739) — SADS DD-19: iterative
@@ -206,7 +201,7 @@ static bool lqr_dare_cost_valid(const ron_lqr_config_t *cfg)
         !ron_mat_strided_finite(&cfg->R_cost[0][0], (uint8_t) RON_LQR_MAX_INPUTS, cfg->m, cfg->m)) {
         return false;
     }
-    return lqr_finite(cfg->dare_tol) && (cfg->dare_tol > RON_FLOAT_C(0.0));
+    return ron_util_isfinite(cfg->dare_tol) && (cfg->dare_tol > RON_FLOAT_C(0.0));
 }
 
 /* Kr is always consumed by the control law; K is only meaningful in
@@ -422,32 +417,6 @@ static void lqr_compute_raw(ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt
  * Output limiting (RON-FR-736, PID-equivalent semantics, per input)
  * ========================================================================= */
 
-/* Satisfies: RON-FR-022, RON-FR-736 | Test: RON-TC-LQR-004 */
-static ron_float_t lqr_rate_limit(ron_float_t u_sat, ron_float_t u_prev, ron_float_t du_max,
-                                  ron_float_t dt, bool *limited)
-{
-    ron_float_t limited_value = u_sat;
-
-    if (du_max <= RON_FLOAT_C(0.0)) {
-        *limited = false;
-    } else {
-        ron_float_t delta_max = du_max * dt;
-        ron_float_t delta     = u_sat - u_prev;
-
-        if (delta > delta_max) {
-            *limited      = true;
-            limited_value = u_prev + delta_max;
-        } else if (delta < (-delta_max)) {
-            *limited      = true;
-            limited_value = u_prev - delta_max;
-        } else {
-            *limited = false;
-        }
-    }
-
-    return limited_value;
-}
-
 /* Satisfies: RON-FR-020, RON-FR-022, RON-FR-736 | Test: RON-TC-LQR-004 */
 static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw, ron_float_t dt,
                              ron_float_t *u, ron_status_t *status)
@@ -464,7 +433,8 @@ static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw, ron_float
             *status = (ron_status_t) (*status | RON_STATUS_SATURATED);
         }
 
-        u_final = lqr_rate_limit(u_sat, lqr->state.u_prev[j], cfg->du_max[j], dt, &rate_limited);
+        u_final =
+            ron_util_rate_limit(u_sat, lqr->state.u_prev[j], cfg->du_max[j], dt, &rate_limited);
         if (rate_limited) {
             *status = (ron_status_t) (*status | RON_STATUS_RATE_LIMITED);
         }
@@ -481,7 +451,7 @@ static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw, ron_float
 /* Satisfies: RON-FR-730, RON-FR-736 | Test: RON-TC-LQR-006 */
 static bool lqr_step_args_valid(const ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt)
 {
-    if (!ron_mat_vec_finite(r, lqr->cfg.m) || !lqr_finite(dt)) {
+    if (!ron_mat_vec_finite(r, lqr->cfg.m) || !ron_util_isfinite(dt)) {
         return false;
     }
     return dt > RON_FLOAT_C(0.0);
@@ -526,19 +496,6 @@ ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS]
  * Lifecycle, runtime gains, embedded estimators
  * ========================================================================= */
 
-/* Satisfies: RON-FR-739 | Test: RON-TC-LQR-001 */
-static void lqr_zero_matrix(ron_float_t *dst, uint8_t n)
-{
-    uint8_t i;
-    uint8_t j;
-
-    for (i = 0U; i < n; i++) {
-        for (j = 0U; j < n; j++) {
-            dst[((size_t) i * (size_t) RON_LQR_MAX_STATES) + (size_t) j] = RON_FLOAT_C(0.0);
-        }
-    }
-}
-
 /* Satisfies: RON-FR-732, RON-FR-738, RON-FR-739 | Test: RON-TC-LQR-001 */
 static ron_fault_t lqr_resolve_gain_precomputed(ron_lqr_t *lqr)
 {
@@ -547,7 +504,7 @@ static ron_fault_t lqr_resolve_gain_precomputed(ron_lqr_t *lqr)
 
     ron_mat_load(k_work, &cfg->K[0][0], (uint8_t) RON_LQR_MAX_STATES, cfg->m, cfg->n);
     ron_mat_store(&lqr->state.K_solved[0][0], (uint8_t) RON_LQR_MAX_STATES, k_work, cfg->m, cfg->n);
-    lqr_zero_matrix(&lqr->state.P_solved[0][0], cfg->n);
+    ron_mat_zero(&lqr->state.P_solved[0][0], RON_LQR_MAX_STATES, cfg->n, cfg->n);
     lqr->state.dare_converged = false;
 
     return RON_FAULT_NONE;

@@ -65,13 +65,14 @@ configure_file(
 # ---------------------------------------------------------------------------
 # Library source list (mandatory baseline + selected modules)
 # ---------------------------------------------------------------------------
-# Mandatory baseline: PID core + integrated feed-forward path.
+# Mandatory baseline: PID core, integrated feed-forward path, shared helpers.
 set(RON_LIB_SOURCES
     src/ron_pid_api.c
     src/ron_pid_config.c
     src/ron_pid_core.c
     src/ron_pid_fault.c
     src/ron_feedforward.c
+    src/ron_util.c
 )
 
 if(RON_ENABLE_FILTER)

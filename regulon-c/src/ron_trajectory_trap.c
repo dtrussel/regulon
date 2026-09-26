@@ -11,35 +11,14 @@
 
 #include "ron/ron_trajectory.h"
 
-#define TRAP_SQRT_STEPS (16U)
+#include "ron_util_internal.h"
+
 #define TRAP_POS_TOL RON_FLOAT_C(0.000001)
-
-/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-static bool trap_isfinite(ron_float_t value)
-{
-    return RON_ISFINITE(value);
-}
-
-/* Satisfies: RON-FR-500 | Test: RON-TC-TRAJ-001 */
-static ron_float_t trap_sqrt(ron_float_t value)
-{
-    ron_float_t x;
-    uint8_t step;
-
-    x    = (value > RON_FLOAT_C(1.0)) ? value : RON_FLOAT_C(1.0);
-    step = 0U;
-    while (step < TRAP_SQRT_STEPS) {
-        x = RON_FLOAT_C(0.5) * (x + (value / x));
-        step++;
-    }
-
-    return x;
-}
 
 /* Satisfies: RON-FR-500 | Test: RON-TC-TRAJ-001 */
 static ron_fault_t trap_validate_config(const ron_trap_config_t *cfg)
 {
-    if (!trap_isfinite(cfg->v_max) || !trap_isfinite(cfg->a_max)) {
+    if (!ron_util_isfinite(cfg->v_max) || !ron_util_isfinite(cfg->a_max)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if ((cfg->v_max <= RON_FLOAT_C(0.0)) || (cfg->a_max <= RON_FLOAT_C(0.0))) {
@@ -49,25 +28,13 @@ static ron_fault_t trap_validate_config(const ron_trap_config_t *cfg)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-502 | Test: RON-TC-TRAJ-003 */
-static ron_float_t trap_abs(ron_float_t value)
-{
-    return (value < RON_FLOAT_C(0.0)) ? (-value) : value;
-}
-
-/* Satisfies: RON-FR-503 | Test: RON-TC-TRAJ-004 */
-static ron_float_t trap_sign_nonzero(ron_float_t value)
-{
-    return (value < RON_FLOAT_C(0.0)) ? RON_FLOAT_C(-1.0) : RON_FLOAT_C(1.0);
-}
-
 /* Satisfies: RON-FR-501, RON-FR-503 | Test: RON-TC-TRAJ-002, RON-TC-TRAJ-004 */
 static void trap_plan(ron_trap_t *t)
 {
     ron_float_t distance;
     ron_float_t peak;
 
-    distance = trap_abs(t->state.target - t->state.pos);
+    distance = ron_fabs(t->state.target - t->state.pos);
     if (distance <= TRAP_POS_TOL) {
         t->state.direction = RON_FLOAT_C(1.0);
         t->state.v_peak    = RON_FLOAT_C(0.0);
@@ -76,8 +43,8 @@ static void trap_plan(ron_trap_t *t)
         return;
     }
 
-    t->state.direction = trap_sign_nonzero(t->state.target - t->state.pos);
-    peak               = trap_sqrt(t->cfg.a_max * distance);
+    t->state.direction = ron_util_sign_nonzero(t->state.target - t->state.pos);
+    peak               = ron_util_sqrt(t->cfg.a_max * distance);
     t->state.v_peak    = ron_clamp(peak, RON_FLOAT_C(0.0), t->cfg.v_max);
     t->state.phase     = RON_TRAP_PHASE_ACCEL;
     t->state.finished  = false;
@@ -189,7 +156,7 @@ static void trap_integrate_active(ron_trap_t *t, ron_float_t dt)
     ron_float_t distance;
     ron_float_t speed_along;
 
-    distance     = trap_abs(t->state.target - t->state.pos);
+    distance     = ron_fabs(t->state.target - t->state.pos);
     speed_along  = t->state.vel * t->state.direction;
     t->state.acc = trap_select_acceleration(t, distance, speed_along);
     t->state.vel += t->state.acc * dt;
@@ -202,7 +169,7 @@ static void trap_finish_if_reached(ron_trap_t *t, ron_float_t dt)
 {
     if ((t->state.direction * (t->state.target - t->state.pos) <= TRAP_POS_TOL) &&
         ((t->state.phase == RON_TRAP_PHASE_DECEL) ||
-         (trap_abs(t->state.vel) <= (t->cfg.a_max * dt)))) {
+         (ron_fabs(t->state.vel) <= (t->cfg.a_max * dt)))) {
         trap_finish(t);
     }
 }
@@ -220,7 +187,7 @@ ron_fault_t ron_trap_init(ron_trap_t *t, const ron_trap_config_t *cfg, ron_float
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if (!trap_isfinite(pos0)) {
+    if (!ron_util_isfinite(pos0)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -253,7 +220,7 @@ ron_fault_t ron_trap_set_target(ron_trap_t *t, ron_float_t target)
     if (t->state.fault_code != RON_FAULT_NONE) {
         return t->state.fault_code;
     }
-    if (!trap_isfinite(target)) {
+    if (!ron_util_isfinite(target)) {
         t->state.fault_code = RON_FAULT_CONFIG_INVALID;
         t->state.status     = RON_STATUS_FAULT;
         return RON_FAULT_CONFIG_INVALID;
@@ -275,7 +242,7 @@ ron_fault_t ron_trap_step(ron_trap_t *t, ron_float_t dt, ron_float_t *pos, ron_f
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if ((dt <= RON_FLOAT_C(0.0)) || !trap_isfinite(dt)) {
+    if ((dt <= RON_FLOAT_C(0.0)) || !ron_util_isfinite(dt)) {
         t->state.fault_code = RON_FAULT_CONFIG_INVALID;
         t->state.status     = RON_STATUS_FAULT;
         return RON_FAULT_CONFIG_INVALID;

@@ -59,6 +59,7 @@ zephyr_library_sources(
     ${RON_ROOT}/src/ron_pid_core.c
     ${RON_ROOT}/src/ron_pid_fault.c
     ${RON_ROOT}/src/ron_feedforward.c
+    ${RON_ROOT}/src/ron_util.c
 )
 
 zephyr_library_sources_ifdef(CONFIG_REGULON_FILTER     ${RON_ROOT}/src/ron_filter.c)

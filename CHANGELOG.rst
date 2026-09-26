@@ -31,6 +31,14 @@ Changed
 - The biquad coefficient designers compute sine/cosine with an internal
   fixed-iteration series instead of libm. The library now includes only
   freestanding headers and needs **no C library at all** (RON-DC-002).
+- Numeric helpers the modules each carried a private copy of now live once
+  in the internal ``ron_util.c`` (part of the mandatory baseline): the
+  finite check (12 copies, 3 implementations), the output rate limiter (4
+  identical copies), square root, sign, pi, and the LQR/LQG strided matrix
+  zeroing (now ``ron_mat_zero``). The trapezoidal and S-curve planners now use
+  the 30-step square root the matrix module already used instead of 16/18
+  steps, which is more accurate for large ``a_max * distance`` products.
+  A minimum-footprint build links six baseline objects instead of five.
 - ``regulon-c/scripts/verify_pid.ps1`` renamed to ``verify.ps1`` (it already
   covered the whole library) and its cppcheck suppressions synced with CI.
 - The CMake package declares ``SameMinorVersion`` until 1.0, so

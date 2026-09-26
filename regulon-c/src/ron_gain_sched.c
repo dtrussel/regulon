@@ -11,11 +11,7 @@
 
 #include "ron/ron_gain_sched.h"
 
-/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-static bool gs_isfinite(ron_float_t value)
-{
-    return RON_ISFINITE(value);
-}
+#include "ron_util_internal.h"
 
 /* Satisfies: RON-FR-302 | Test: RON-TC-GS-003, RON-TC-GS-004 */
 static bool gs_mode_valid(ron_gs_mode_t mode)
@@ -96,7 +92,7 @@ static bool gs_same_config(const ron_pid_config_t *lhs, const ron_pid_config_t *
 /* Satisfies: RON-FR-306 | Test: RON-TC-GS-008 */
 static ron_fault_t gs_validate_first_entry(ron_float_t sigma, const ron_pid_config_t *cfg)
 {
-    if (!gs_isfinite(sigma)) {
+    if (!ron_util_isfinite(sigma)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if (ron_pid_config_validate(cfg) != RON_FAULT_NONE) {
@@ -111,7 +107,7 @@ static ron_fault_t gs_validate_next_entry(ron_gs_mode_t mode, ron_float_t prev_s
                                           const ron_pid_config_t *prev_cfg, ron_float_t sigma,
                                           const ron_pid_config_t *cfg)
 {
-    if (!gs_isfinite(sigma)) {
+    if (!ron_util_isfinite(sigma)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if (ron_pid_config_validate(cfg) != RON_FAULT_NONE) {
@@ -240,7 +236,7 @@ ron_fault_t ron_gs_update(const ron_gs_table_t *tbl, ron_pid_instance_t *pid, ro
     if ((tbl == NULL) || (pid == NULL)) {
         return RON_FAULT_NULL_POINTER;
     }
-    if (!pid->state.is_initialised || !gs_isfinite(sigma)) {
+    if (!pid->state.is_initialised || !ron_util_isfinite(sigma)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 

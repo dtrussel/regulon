@@ -11,11 +11,10 @@
 
 #include "ron/ron_autotune.h"
 
+#include "ron_util_internal.h"
+
 /* Number of half-period crossings per full oscillation cycle. */
 #define RON_AT_HALF_PER_CYCLE ((uint16_t) 2U)
-
-/* Pi (no <math.h> dependency — bare-metal safe per ron_platform.h policy). */
-#define RON_AT_PI RON_FLOAT_C(3.14159265358979323846)
 
 /* Smallest peak-to-peak half-amplitude treated as a real oscillation. */
 #define RON_AT_MIN_AMPLITUDE RON_FLOAT_C(1.0e-6)
@@ -35,28 +34,22 @@
  * Internal helpers
  * ========================================================================= */
 
-/* Satisfies: RON-SR-020 */
-static bool at_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
-
 /* Satisfies: RON-FR-801 | Test: RON-TC-AT-002 */
 static bool at_config_valid(const ron_at_config_t *cfg)
 {
-    if (!at_isfinite(cfg->relay_amplitude) || (cfg->relay_amplitude <= RON_FLOAT_C(0.0))) {
+    if (!ron_util_isfinite(cfg->relay_amplitude) || (cfg->relay_amplitude <= RON_FLOAT_C(0.0))) {
         return false;
     }
-    if (!at_isfinite(cfg->hysteresis) || (cfg->hysteresis < RON_FLOAT_C(0.0))) {
+    if (!ron_util_isfinite(cfg->hysteresis) || (cfg->hysteresis < RON_FLOAT_C(0.0))) {
         return false;
     }
-    if (!at_isfinite(cfg->u_bias)) {
+    if (!ron_util_isfinite(cfg->u_bias)) {
         return false;
     }
     if (cfg->min_cycles == 0U) {
         return false;
     }
-    if (!at_isfinite(cfg->timeout_s) || (cfg->timeout_s <= RON_FLOAT_C(0.0))) {
+    if (!ron_util_isfinite(cfg->timeout_s) || (cfg->timeout_s <= RON_FLOAT_C(0.0))) {
         return false;
     }
     if ((uint32_t) cfg->tuning_rule >= RON_AT_RULE_COUNT) {
@@ -155,7 +148,7 @@ static void at_estimate(ron_at_t *at)
     }
 
     at->state.Tu = RON_FLOAT_C(2.0) * half_avg;
-    at->state.Ku = (RON_FLOAT_C(4.0) * at->cfg.relay_amplitude) / (RON_AT_PI * amplitude);
+    at->state.Ku = (RON_FLOAT_C(4.0) * at->cfg.relay_amplitude) / (RON_UTIL_PI * amplitude);
     at_compute_rule(at);
 
     at->state.done  = true;
@@ -219,10 +212,10 @@ static ron_fault_t at_step_args_valid(const ron_at_t *at, ron_float_t r, ron_flo
     if (!at->state.is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if ((dt <= RON_FLOAT_C(0.0)) || !at_isfinite(dt)) {
+    if ((dt <= RON_FLOAT_C(0.0)) || !ron_util_isfinite(dt)) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!at_isfinite(r) || !at_isfinite(y)) {
+    if (!ron_util_isfinite(r) || !ron_util_isfinite(y)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     return RON_FAULT_NONE;

@@ -20,6 +20,8 @@ regulon-c/src/ron_pid_internal.h
 regulon-c/src/ron_statespace.c
 regulon-c/src/ron_trajectory_scurve.c
 regulon-c/src/ron_trajectory_trap.c
+regulon-c/src/ron_util.c
+regulon-c/src/ron_util_internal.h
 regulon-c/include/ron/ron.h
 regulon-c/include/ron/ron_autotune.h
 regulon-c/include/ron/ron_cascade.h

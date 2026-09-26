@@ -702,6 +702,7 @@ specifications) live at the root.
    │   │   ├── ron_pid_{api,config,core,fault}.c
    │   │   ├── ron_trajectory_{trap,scurve}.c
    │   │   ├── ron_<module>.c          -- one per remaining module
+   │   │   ├── ron_util.c              -- internal scalar helpers (baseline)
    │   │   ├── ron_matrix.c            -- internal fixed-size matrix helper
    │   │   └── ron_*_internal.h        -- internal headers (not installed)
    │   ├── test/
@@ -2605,7 +2606,8 @@ The top-level build **shall**:
   ``regulon::regulon``;
 - always compile the mandatory baseline (``ron_pid_api.c``,
   ``ron_pid_config.c``, ``ron_pid_core.c``, ``ron_pid_fault.c``,
-  ``ron_feedforward.c``) and add each optional module's sources only when its
+  ``ron_feedforward.c``, and ``ron_util.c``, the internal scalar helpers every
+  module shares) and add each optional module's sources only when its
   ``RON_ENABLE_<MODULE>`` option is on, adding the internal matrix helper
   (``ron_matrix.c``) whenever Kalman, state-space, LQR or LQG is enabled;
 - resolve module dependencies by forcing options on — LQG → LQR → state-space

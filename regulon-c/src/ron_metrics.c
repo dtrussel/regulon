@@ -10,6 +10,8 @@
 
 #include "ron/ron_metrics.h"
 
+#include "ron_util_internal.h"
+
 /* Smallest |step_size| (engineering units) for which the transient metrics
  * (rise, overshoot, settling) are evaluated.  A step below this is treated as
  * "no step", so the transient metrics stay at their not-reached sentinels and
@@ -30,24 +32,18 @@
  * Internal helpers — validation
  * ========================================================================= */
 
-/* Satisfies: RON-SR-020 */
-static bool metrics_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
-
 /* A finite, strictly positive quantity. */
 /* Satisfies: RON-FR-950 | Test: RON-TC-MET-001 */
 static bool metrics_pos_valid(ron_float_t value)
 {
-    return metrics_isfinite(value) && (value > RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value > RON_FLOAT_C(0.0));
 }
 
 /* A finite, non-negative quantity. */
 /* Satisfies: RON-FR-950 | Test: RON-TC-MET-001 */
 static bool metrics_nonneg_valid(ron_float_t value)
 {
-    return metrics_isfinite(value) && (value >= RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value >= RON_FLOAT_C(0.0));
 }
 
 /* Satisfies: RON-FR-950, RON-FR-952 | Test: RON-TC-MET-001 */
@@ -88,10 +84,10 @@ static ron_fault_t metrics_check_handle(const ron_metrics_t *m)
 /* Satisfies: RON-SR-020 | Test: RON-TC-MET-001 */
 static ron_fault_t metrics_check_inputs(ron_float_t r, ron_float_t y, ron_float_t dt)
 {
-    if (!metrics_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
+    if (!ron_util_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!metrics_isfinite(r) || !metrics_isfinite(y)) {
+    if (!ron_util_isfinite(r) || !ron_util_isfinite(y)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     return RON_FAULT_NONE;

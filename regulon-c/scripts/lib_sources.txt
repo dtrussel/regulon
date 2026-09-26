@@ -17,3 +17,4 @@ regulon-c/src/ron_pid_fault.c
 regulon-c/src/ron_statespace.c
 regulon-c/src/ron_trajectory_scurve.c
 regulon-c/src/ron_trajectory_trap.c
+regulon-c/src/ron_util.c

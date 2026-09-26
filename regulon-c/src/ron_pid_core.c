@@ -13,6 +13,7 @@
 #include "ron/ron_platform.h"
 
 #include "ron_pid_internal.h"
+#include "ron_util_internal.h"
 
 typedef struct {
     ron_float_t u_ff;
@@ -170,35 +171,6 @@ static ron_float_t pid_integral(const ron_pid_config_t *cfg, const ron_pid_state
     return ron_clamp(i_new, cfg->I_min, cfg->I_max);
 }
 
-/* Satisfies: RON-FR-022, RON-FR-026 | Test: RON-TC-PID-017, RON-TC-PID-019 */
-static ron_float_t pid_rate_limit(ron_float_t u_sat, ron_float_t u_prev, ron_float_t du_max,
-                                  ron_float_t dt, bool *limited)
-{
-    ron_float_t limited_value;
-
-    limited_value = u_sat;
-    if (du_max <= RON_FLOAT_C(0.0)) {
-        *limited = false;
-    } else {
-        ron_float_t delta_max;
-        ron_float_t delta;
-
-        delta_max = du_max * dt;
-        delta     = u_sat - u_prev;
-        if (delta > delta_max) {
-            *limited      = true;
-            limited_value = u_prev + delta_max;
-        } else if (delta < (-delta_max)) {
-            *limited      = true;
-            limited_value = u_prev - delta_max;
-        } else {
-            *limited = false;
-        }
-    }
-
-    return limited_value;
-}
-
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007, RON-TC-SAFE-010 */
 static ron_fault_t pid_fail_step(ron_pid_instance_t *inst, ron_fault_t code, ron_float_t *u_out,
                                  ron_status_t *status)
@@ -274,7 +246,8 @@ static ron_fault_t pid_apply_output_limits(ron_pid_instance_t *inst, ron_float_t
             *step_status = (ron_status_t) (*step_status | RON_STATUS_SATURATED);
         }
 
-        *u_final = pid_rate_limit(u_sat, inst->state.u_sat_prev, cfg->du_max, dt, &rate_limited);
+        *u_final =
+            ron_util_rate_limit(u_sat, inst->state.u_sat_prev, cfg->du_max, dt, &rate_limited);
         if (rate_limited) {
             *step_status = (ron_status_t) (*step_status | RON_STATUS_RATE_LIMITED);
         }

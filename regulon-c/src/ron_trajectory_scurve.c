@@ -10,31 +10,11 @@
 
 #include "ron/ron_trajectory.h"
 
+#include "ron_util_internal.h"
+
 #define SCURVE_ROOT_STEPS (18U)
 #define SCURVE_POS_TOL RON_FLOAT_C(0.000001)
 #define SCURVE_ONE_SIXTH RON_FLOAT_C(0.1666666666666667)
-
-/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-static bool scurve_isfinite(ron_float_t value)
-{
-    return RON_ISFINITE(value);
-}
-
-/* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
-static ron_float_t scurve_sqrt(ron_float_t value)
-{
-    ron_float_t x;
-    uint8_t step;
-
-    x    = (value > RON_FLOAT_C(1.0)) ? value : RON_FLOAT_C(1.0);
-    step = 0U;
-    while (step < SCURVE_ROOT_STEPS) {
-        x = RON_FLOAT_C(0.5) * (x + (value / x));
-        step++;
-    }
-
-    return x;
-}
 
 /* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
 static ron_float_t scurve_cbrt(ron_float_t value)
@@ -53,21 +33,9 @@ static ron_float_t scurve_cbrt(ron_float_t value)
 }
 
 /* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
-static ron_float_t scurve_abs(ron_float_t value)
-{
-    return (value < RON_FLOAT_C(0.0)) ? (-value) : value;
-}
-
-/* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
 static ron_float_t scurve_min(ron_float_t lhs, ron_float_t rhs)
 {
     return (lhs < rhs) ? lhs : rhs;
-}
-
-/* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
-static ron_float_t scurve_sign_nonzero(ron_float_t value)
-{
-    return (value < RON_FLOAT_C(0.0)) ? RON_FLOAT_C(-1.0) : RON_FLOAT_C(1.0);
 }
 
 /* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
@@ -96,8 +64,8 @@ static ron_scurve_phase_t scurve_next_phase(ron_scurve_phase_t phase)
 /* Satisfies: RON-FR-510 | Test: RON-TC-TRAJ-005 */
 static ron_fault_t scurve_validate_config(const ron_scurve_config_t *cfg)
 {
-    if (!scurve_isfinite(cfg->v_max) || !scurve_isfinite(cfg->a_max) ||
-        !scurve_isfinite(cfg->j_max)) {
+    if (!ron_util_isfinite(cfg->v_max) || !ron_util_isfinite(cfg->a_max) ||
+        !ron_util_isfinite(cfg->j_max)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if ((cfg->v_max <= RON_FLOAT_C(0.0)) || (cfg->a_max <= RON_FLOAT_C(0.0)) ||
@@ -156,15 +124,15 @@ static void scurve_plan(ron_scurve_t *t)
     ron_float_t cruise_time;
 
     scurve_clear_phase_times(&t->state);
-    distance = scurve_abs(t->state.target - t->state.pos);
+    distance = ron_fabs(t->state.target - t->state.pos);
     if (distance <= SCURVE_POS_TOL) {
         scurve_finish(t);
         return;
     }
 
-    t->state.direction = scurve_sign_nonzero(t->state.target - t->state.pos);
+    t->state.direction = ron_util_sign_nonzero(t->state.target - t->state.pos);
     t_acc_limit        = t->cfg.a_max / t->cfg.j_max;
-    t_vel_limit        = scurve_sqrt(t->cfg.v_max / t->cfg.j_max);
+    t_vel_limit        = ron_util_sqrt(t->cfg.v_max / t->cfg.j_max);
     t_limit            = scurve_min(t_acc_limit, t_vel_limit);
     t_short            = scurve_cbrt(distance / (RON_FLOAT_C(2.0) * t->cfg.j_max));
     t->state.t_phase   = RON_FLOAT_C(0.0);
@@ -291,7 +259,7 @@ ron_fault_t ron_scurve_init(ron_scurve_t *t, const ron_scurve_config_t *cfg, ron
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if (!scurve_isfinite(pos0)) {
+    if (!ron_util_isfinite(pos0)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -328,7 +296,7 @@ ron_fault_t ron_scurve_set_target(ron_scurve_t *t, ron_float_t target)
     if (t->state.fault_code != RON_FAULT_NONE) {
         return t->state.fault_code;
     }
-    if (!scurve_isfinite(target)) {
+    if (!ron_util_isfinite(target)) {
         t->state.fault_code = RON_FAULT_CONFIG_INVALID;
         t->state.status     = RON_STATUS_FAULT;
         return RON_FAULT_CONFIG_INVALID;
@@ -394,7 +362,7 @@ ron_fault_t ron_scurve_step(ron_scurve_t *t, ron_float_t dt, ron_float_t *pos, r
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if ((dt <= RON_FLOAT_C(0.0)) || !scurve_isfinite(dt)) {
+    if ((dt <= RON_FLOAT_C(0.0)) || !ron_util_isfinite(dt)) {
         t->state.fault_code = RON_FAULT_CONFIG_INVALID;
         t->state.status     = RON_STATUS_FAULT;
         return RON_FAULT_CONFIG_INVALID;

@@ -11,15 +11,10 @@
 #include "ron/ron_statespace.h"
 
 #include "ron_matrix_internal.h"
+#include "ron_util_internal.h"
 
 /* Scalar finiteness via the shared (fully exercised) vector helper, so this
  * unit carries no inline RON_ISFINITE macro expansions. */
-/* Satisfies: RON-SR-020 | Test: RON-TC-SS-009 */
-static bool ss_finite(ron_float_t v)
-{
-    return ron_mat_vec_finite(&v, 1U);
-}
-
 /* =========================================================================
  * Configuration validation
  * ========================================================================= */
@@ -27,7 +22,8 @@ static bool ss_finite(ron_float_t v)
 /* Satisfies: RON-FR-702 | Test: RON-TC-SS-003, RON-TC-SS-009 */
 static bool ss_integral_valid(const ron_ss_config_t *cfg)
 {
-    if (!ss_finite(cfg->Ki_aug) || !ss_finite(cfg->i_min) || !ss_finite(cfg->i_max)) {
+    if (!ron_util_isfinite(cfg->Ki_aug) || !ron_util_isfinite(cfg->i_min) ||
+        !ron_util_isfinite(cfg->i_max)) {
         return false;
     }
     if (cfg->i_min > cfg->i_max) {
@@ -39,7 +35,8 @@ static bool ss_integral_valid(const ron_ss_config_t *cfg)
 /* Satisfies: RON-FR-700, RON-FR-703 | Test: RON-TC-SS-009 */
 static bool ss_limits_valid(const ron_ss_config_t *cfg)
 {
-    if (!ss_finite(cfg->u_min) || !ss_finite(cfg->u_max) || !ss_finite(cfg->du_max)) {
+    if (!ron_util_isfinite(cfg->u_min) || !ron_util_isfinite(cfg->u_max) ||
+        !ron_util_isfinite(cfg->du_max)) {
         return false;
     }
     if (cfg->u_min >= cfg->u_max) {
@@ -87,7 +84,7 @@ static ron_fault_t ss_validate_config(const ron_ss_config_t *cfg)
     if (!ss_source_valid(cfg->source)) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!ron_mat_vec_finite(&cfg->K[0], cfg->n) || !ss_finite(cfg->Kr)) {
+    if (!ron_mat_vec_finite(&cfg->K[0], cfg->n) || !ron_util_isfinite(cfg->Kr)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if (!ss_limits_valid(cfg)) {
@@ -178,32 +175,6 @@ static ron_float_t ss_compute_raw(ron_ss_t *ss, ron_float_t r, ron_float_t dt,
  * Output limiting (RON-FR-703, PID-equivalent semantics)
  * ========================================================================= */
 
-/* Satisfies: RON-FR-022 | Test: RON-TC-SS-004 */
-static ron_float_t ss_rate_limit(ron_float_t u_sat, ron_float_t u_prev, ron_float_t du_max,
-                                 ron_float_t dt, bool *limited)
-{
-    ron_float_t limited_value = u_sat;
-
-    if (du_max <= RON_FLOAT_C(0.0)) {
-        *limited = false;
-    } else {
-        ron_float_t delta_max = du_max * dt;
-        ron_float_t delta     = u_sat - u_prev;
-
-        if (delta > delta_max) {
-            *limited      = true;
-            limited_value = u_prev + delta_max;
-        } else if (delta < (-delta_max)) {
-            *limited      = true;
-            limited_value = u_prev - delta_max;
-        } else {
-            *limited = false;
-        }
-    }
-
-    return limited_value;
-}
-
 /* Satisfies: RON-FR-020, RON-FR-022, RON-FR-703 | Test: RON-TC-SS-004 */
 static ron_float_t ss_apply_limits(const ron_ss_t *ss, ron_float_t u_raw, ron_float_t dt,
                                    ron_status_t *status)
@@ -217,7 +188,7 @@ static ron_float_t ss_apply_limits(const ron_ss_t *ss, ron_float_t u_raw, ron_fl
         *status = (ron_status_t) (*status | RON_STATUS_SATURATED);
     }
 
-    u_final = ss_rate_limit(u_sat, ss->state.u_prev, cfg->du_max, dt, &rate_limited);
+    u_final = ron_util_rate_limit(u_sat, ss->state.u_prev, cfg->du_max, dt, &rate_limited);
     if (rate_limited) {
         *status = (ron_status_t) (*status | RON_STATUS_RATE_LIMITED);
     }
@@ -245,7 +216,7 @@ ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t
     if (!ss->state.is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!ss_finite(r) || !ss_finite(dt) || (dt <= RON_FLOAT_C(0.0))) {
+    if (!ron_util_isfinite(r) || !ron_util_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
         return RON_FAULT_INPUT_NAN;
     }
 
@@ -255,7 +226,7 @@ ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t
     }
 
     u_raw = ss_compute_raw(ss, r, dt, x_hat);
-    if (!ss_finite(u_raw)) {
+    if (!ron_util_isfinite(u_raw)) {
         return RON_FAULT_OUTPUT_NAN;
     }
 
@@ -350,7 +321,7 @@ ron_fault_t ron_ss_set_gains(ron_ss_t *ss, const ron_float_t K[RON_SS_MAX_STATES
     if (!ss->state.is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!ron_mat_vec_finite(K, ss->cfg.n) || !ss_finite(Kr)) {
+    if (!ron_mat_vec_finite(K, ss->cfg.n) || !ron_util_isfinite(Kr)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
