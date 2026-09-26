@@ -36,7 +36,8 @@ pub use cascade::{Cascade, CascadeStatus};
 pub use error::RonError;
 pub use estimator::{Estimator, EstimatorConfig, EstimatorSource};
 pub use filter::{
-    FilterFault, FilterSnapshot, FilterStatus, Lp1, Lp1Config, RateLimiter, RateLimiterConfig,
+    Biquad, BiquadSection, FilterFault, FilterSnapshot, FilterStatus, Lp1, Lp1Config,
+    MovingAverage, RateLimiter, RateLimiterConfig, BIQUAD_MAX_SECTIONS, MA_MAX_WINDOW,
 };
 pub use gain_sched::{GainSchedule, ScheduleMode, GS_MAX_BREAKPOINTS};
 pub use health::{HealthCallback, HealthConfig, HealthMonitor, HealthStatus};

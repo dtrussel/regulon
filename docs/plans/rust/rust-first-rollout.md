@@ -155,10 +155,11 @@ Matrix and state-estimation modules (implemented after the scalar batch):
   `005`, `009`), `lqr` (`RON-TC-LQR-001` to `009`) and `lqg`
   (`RON-TC-LQG-001` to `009`).
 - 160 tests pass in both precisions; all three Kani harnesses verify.
+- The filter module then gained the moving average and the biquad cascade
+  (`RON-TC-FILT-008` to `015`, Kani `FILT-009-FV`, `FILT-012-FV`): 169 tests
+  and five Kani harnesses pass. Every SRS module now has a Rust port.
 
 Remaining for parity with C:
-- `filter`: moving average (`RON-FR-115` to `117`) and biquad
-  (`RON-FR-120` to `123`); only LP1 and the rate limiter are ported.
 - `regulon-sys` C-ABI crate and the `ci_rust.yml` workflow.
 
 ## Notes

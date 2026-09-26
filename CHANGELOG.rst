@@ -215,6 +215,13 @@ Added
   an embedded ``Kalman`` built from the noise model, designed independently
   by the separation principle. Heap freedom (RON-TC-LQG-010-FV) holds by
   construction in the ``no_std`` crate.
+- Rust: moving-average (``MovingAverage<M>``, RON-FR-115 – FR-117,
+  RON-TC-FILT-008 – FILT-010) and cascaded biquad filters (``Biquad<S>``,
+  RON-FR-120 – FR-123, RON-TC-FILT-011 – FILT-015) with low-pass,
+  high-pass, band-pass and notch design helpers (libm-free sine/cosine, as
+  in C) and runtime notch retuning. Kani harnesses cover RON-TC-FILT-009-FV
+  and FILT-012-FV. A step whose output would not be finite leaves the
+  window/section state untouched (C updates it first).
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
@@ -270,6 +277,9 @@ Fixed
   dropped when a term is not finite (regression test under RON-TC-SAFE-012).
   Found by the first Kani run of ``ron_tc_pid_015_fv``, whose input bounds
   now also match RON-TC-PID-015-FV and the C harness.
+- Rust: three rate-limiter tests carried RON-TC-FILT-008 – FILT-010, which
+  the test plan defines as moving-average tests; they are now filed under
+  FILT-003/-004.
 - Rust: the filter tests did not compile with the ``double_precision``
   feature (an ``f32`` literal in RON-TC-FILT-005).
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
