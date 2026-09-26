@@ -49,6 +49,7 @@ ctest --test-dir regulon-c/build --output-on-failure
 clang-format --dry-run --Werror "${FMT[@]}"
 python3 -m lizard -C 10 "${SRC[@]}"
 bash regulon-c/scripts/check_manifest.sh
+python3 regulon-c/scripts/check_traceability.py
 bash regulon-c/scripts/check_stack_usage.sh <gcc-build-dir> 768
 
 # MISRA C:2023 (suppressions are the deviations in docs/deviations/)

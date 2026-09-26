@@ -51,6 +51,9 @@ Added
 - CI enforces 100% MC/DC (``-fcoverage-mcdc``, RON-TC-QUAL-015), which the
   test plan specified but no job measured. The one uncovered condition,
   clamping anti-windup at exactly zero error, gained a test.
+- ``regulon-c/scripts/check_traceability.py``, run in CI: fails when code or
+  tests use a test ID the test plan does not define, cite a requirement the
+  SRS does not define, or when a requirement has no test in the plan.
 - CI gates: per-frame stack budget (``check_stack_usage.sh``, 768 B), no-libm
   symbol check on every cross build (``check_no_libm.sh``), and a
   ``sphinx-build -W`` documentation build.
@@ -68,6 +71,8 @@ Removed
 
 Fixed
 -----
+- ``ron_lqg.h`` cited RON-TC-LQG-010, which does not exist; the case is
+  RON-TC-LQG-010-FV.
 - ``regulon.pc`` still listed ``Libs.private: -lm`` after the libm removal,
   so static pkg-config consumers linked a math library the archive never
   uses.

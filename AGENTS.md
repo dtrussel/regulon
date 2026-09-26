@@ -35,6 +35,6 @@ Record all new or changed test/proof claims in `docs/specs/TP_ControlLib.rst`.
 
 ## PR Checklist
 - [ ] Every new function has a `Satisfies:` + `Test:` annotation in the implementation-specific style.
-- [ ] Every new test ID exists in `TP_ControlLib.rst`.
+- [ ] Every new test ID exists in `TP_ControlLib.rst` (`python3 regulon-c/scripts/check_traceability.py`).
 - [ ] Relevant implementation-specific lint, format, test, coverage, and formal gates pass.
 - [ ] `CHANGELOG.rst` updated.

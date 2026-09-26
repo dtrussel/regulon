@@ -452,7 +452,9 @@ jobs:
   # The format / cppcheck / lizard / coverage / CBMC jobs read their file lists
   # from scripts/lib_sources.txt and scripts/format_files.txt.  This job fails
   # if a production source has been added without being registered in those
-  # manifests, so no file can silently escape a gate.
+  # manifests, so no file can silently escape a gate. It also checks that every
+  # test ID the code uses is defined in the test plan and every requirement is
+  # covered by it (check_traceability.py).
   # ---------------------------------------------------------------------------
   manifest-check:
     name: Source Manifest Drift Check
@@ -462,6 +464,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify manifests are in sync with the tree
         run: bash regulon-c/scripts/check_manifest.sh
+      - name: Verify requirement / test / code traceability
+        run: python3 regulon-c/scripts/check_traceability.py
 
   # ---------------------------------------------------------------------------
   # Job 12: Minimal-subset smoke build (per-module selection)

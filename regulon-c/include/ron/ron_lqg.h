@@ -84,7 +84,7 @@ typedef enum {
  * Only the leading n/m/p rows and columns of each 2-D array are used.
  * ========================================================================= */
 
-/* Satisfies: RON-FR-750..RON-FR-759 | Test: RON-TC-LQG-001..RON-TC-LQG-010 */
+/* Satisfies: RON-FR-750..RON-FR-759 | Test: RON-TC-LQG-001..RON-TC-LQG-009, RON-TC-LQG-010-FV */
 typedef struct {
     uint8_t n;                     /**< State dim  (1..RON_LQR_MAX_STATES).       */
     uint8_t m;                     /**< Input dim  (1..RON_LQR_MAX_INPUTS).       */
@@ -126,7 +126,7 @@ typedef struct {
  * Controller instance (RON-FR-759)
  * ========================================================================= */
 
-/* Satisfies: RON-FR-759 | Test: RON-TC-LQG-001, RON-TC-LQG-010 */
+/* Satisfies: RON-FR-759 | Test: RON-TC-LQG-001, RON-TC-LQG-010-FV */
 typedef struct {
     ron_lqg_config_t cfg;
     ron_kf_t kalman; /**< Embedded Kalman filter (optimal estimator). */

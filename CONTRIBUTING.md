@@ -32,7 +32,8 @@ formal-proof conventions) in the implementation-specific `AGENTS.md`.
 
 - [ ] Every new function has a `Satisfies:` + `Test:` annotation in the
       implementation-specific style.
-- [ ] Every new test ID exists in `TP_ControlLib.rst`.
+- [ ] Every new test ID exists in `TP_ControlLib.rst`
+      (`python3 regulon-c/scripts/check_traceability.py` checks this).
 - [ ] Relevant lint, format, test, coverage, and formal-verification gates
       pass locally (see `regulon-c/AGENTS.md` for the exact commands, or
       `regulon-c/scripts/verify.ps1` for a local runner on Windows).
