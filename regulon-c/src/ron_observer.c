@@ -71,8 +71,8 @@ static ron_fault_t obs_validate_config(const ron_obs_config_t *cfg)
  * ========================================================================= */
 
 /* Satisfies: RON-FR-720 | Test: RON-TC-SS-006 */
-static void obs_advance(ron_obs_t *obs, const ron_float_t *y, const ron_float_t *u, uint8_t n,
-                        uint8_t m, uint8_t p)
+static void obs_advance(const ron_obs_t *obs, const ron_float_t *y, const ron_float_t *u, uint8_t n,
+                        uint8_t m, uint8_t p, ron_vec_t x_next)
 {
     ron_mat_t work;
     ron_vec_t cx;
@@ -107,7 +107,7 @@ static void obs_advance(ron_obs_t *obs, const ron_float_t *y, const ron_float_t 
     }
 
     for (i = 0U; i < n; i++) {
-        obs->state.x_hat[i] = ax[i] + bu[i] + li[i];
+        x_next[i] = ax[i] + bu[i] + li[i];
     }
 }
 
@@ -115,9 +115,11 @@ static void obs_advance(ron_obs_t *obs, const ron_float_t *y, const ron_float_t 
 ron_fault_t ron_obs_step(ron_obs_t *obs, const ron_float_t y[RON_SS_MAX_OUTPUTS],
                          const ron_float_t u[RON_SS_MAX_INPUTS])
 {
+    ron_vec_t x_next;
     uint8_t n;
     uint8_t m;
     uint8_t p;
+    uint8_t i;
 
     if (obs == NULL) {
         return RON_FAULT_NULL_POINTER;
@@ -145,10 +147,14 @@ ron_fault_t ron_obs_step(ron_obs_t *obs, const ron_float_t y[RON_SS_MAX_OUTPUTS]
         }
     }
 
-    obs_advance(obs, y, u, n, m, p);
-
-    if (!ron_mat_vec_finite(&obs->state.x_hat[0], n)) {
+    /* Advance into a candidate and commit it only if finite, so a numeric
+     * blow-up never becomes the observer's state. */
+    obs_advance(obs, y, u, n, m, p, x_next);
+    if (!ron_mat_vec_finite(x_next, n)) {
         return RON_FAULT_OUTPUT_NAN;
+    }
+    for (i = 0U; i < n; i++) {
+        obs->state.x_hat[i] = x_next[i];
     }
 
     return RON_FAULT_NONE;

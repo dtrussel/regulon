@@ -311,6 +311,12 @@ Fixed
   ``finished``). The kinematic setpoints are now checked after integration;
   on failure the fault latches, the status becomes ``RON_STATUS_FAULT`` and
   the state and outputs keep the last finite setpoints.
+- ``ron_obs_step()``, ``ron_kf_predict()`` and ``ron_kf_update()`` wrote a
+  non-finite estimate / covariance into the instance before returning
+  ``RON_FAULT_OUTPUT_NAN``, so the filter kept ``NaN``/``inf`` state and every
+  later call failed too. They now compute into locals and commit only a
+  finite result; a rejected step leaves the state unchanged. The headers no
+  longer claim the fault "latches" (these modules have no fault register).
 
 ------------------------------------------------------------------------
 

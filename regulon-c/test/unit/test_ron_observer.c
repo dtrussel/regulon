@@ -297,7 +297,8 @@ void test_ron_tc_ss_009(void)
     cfg.p = (uint8_t) (RON_SS_MAX_INPUTS + 1U);
     TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_obs_init(&obs, &cfg));
 
-    /* Numeric overflow during the step yields RON_FAULT_OUTPUT_NAN. */
+    /* Numeric overflow during the step yields RON_FAULT_OUTPUT_NAN and leaves
+     * the previous (finite) estimate in place. */
     cfg         = make_obs_cfg();
     cfg.n       = 1U;
     cfg.m       = 1U;
@@ -309,13 +310,18 @@ void test_ron_tc_ss_009(void)
     TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_obs_init(&obs, &cfg));
     y[0] = RON_FLOAT_C(0.0);
     {
-        ron_fault_t fault = RON_FAULT_NONE;
+        ron_fault_t fault  = RON_FAULT_NONE;
+        ron_float_t x_prev = obs.state.x_hat[0];
         uint8_t k;
 
         for (k = 0U; (k < 20U) && (fault == RON_FAULT_NONE); k++) {
-            fault = ron_obs_step(&obs, y, NULL);
+            x_prev = obs.state.x_hat[0];
+            fault  = ron_obs_step(&obs, y, NULL);
         }
         TEST_ASSERT_EQUAL(RON_FAULT_OUTPUT_NAN, fault);
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_obs_get_state(&obs, x_hat));
+        TEST_ASSERT_TRUE(RON_ISFINITE(x_hat[0]));
+        TEST_ASSERT_TRUE(x_hat[0] == x_prev);
     }
 }
 

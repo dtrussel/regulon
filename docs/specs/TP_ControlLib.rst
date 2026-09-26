@@ -2753,25 +2753,31 @@ RON-TC-KF-008 — Bounded Storage, Defensive Paths, Finite Checks
      - A maximum-dimension configuration
        (``n = RON_KF_MAX_STATES``, ``m = RON_KF_MAX_MEASUREMENTS``,
        ``p = RON_KF_MAX_INPUTS``) using only caller-owned storage in a
-       single ``ron_kf_t``.  A second scalar configuration with
-       ``A = 1.0e30`` to provoke numeric overflow.
+       single ``ron_kf_t``.  Scalar overflow configurations: ``A = 1.0e30``
+       with ``x0 = 0`` (covariance overflows on predict); ``A = 10`` with
+       ``x0`` at the float maximum (estimate overflows on predict);
+       ``x0`` at the negative float maximum with ``z`` at the positive one
+       (estimate overflows on update); steady-state gain ``K_inf = 1.0e30``
+       with ``P0`` at the float maximum (covariance overflows on update).
    * - **Stimulus**
      - Run five predict–update cycles on the max-dimension instance.  Call
        every public entry point with ``NULL`` arguments, with an
        uninitialised instance, with a control vector containing ``NaN``,
-       and with a measurement vector containing ``+inf``.  Drive the
-       overflow instance through repeated predicts until the estimate or
-       covariance becomes non-finite, then call ``ron_kf_update`` with a
-       finite measurement.
+       and with a measurement vector containing ``+inf``.  Drive the first
+       overflow instance through repeated predicts until the covariance
+       would become non-finite, then call ``ron_kf_update`` with a finite
+       measurement; run one predict or update on each other overflow
+       instance.
    * - **Pass Criterion**
      - The max-dimension run completes with finite outputs and no heap
        allocation.  Null-argument calls return ``RON_FAULT_NULL_POINTER``;
        uninitialised-instance calls return ``RON_FAULT_CONFIG_INVALID``;
        non-finite control/measurement inputs return
        ``RON_FAULT_INPUT_NAN``; a dropout call with ``z = NULL`` returns
-       ``RON_FAULT_NONE``.  The overflow scenario yields
-       ``RON_FAULT_OUTPUT_NAN`` from both ``ron_kf_predict`` and
-       ``ron_kf_update`` once the state becomes non-finite.
+       ``RON_FAULT_NONE``.  Every overflowing predict or update returns
+       ``RON_FAULT_OUTPUT_NAN`` and leaves the estimate and covariance
+       exactly as they were (finite); the update that follows the rejected
+       predict returns ``RON_FAULT_NONE`` with a finite state.
 
 RON-TC-KF-008-FV — No Heap Allocation in Kalman (Formal)
 ---------------------------------------------------------
@@ -3019,7 +3025,8 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
        Invalid configurations return ``RON_FAULT_CONFIG_INVALID``; null
        arguments ``RON_FAULT_NULL_POINTER``; non-finite ``r`` / non-positive
        ``dt`` ``RON_FAULT_INPUT_NAN``; overflow yields
-       ``RON_FAULT_OUTPUT_NAN``.
+       ``RON_FAULT_OUTPUT_NAN``, and an overflowing observer step leaves the
+       previous finite estimate in place.
 
 ------------------------------------------------------------------------
 
