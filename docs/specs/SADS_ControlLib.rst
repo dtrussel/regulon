@@ -1652,6 +1652,23 @@ computed analytically from the current kinematic state and the constraints
 Phase switching is by elapsed-time comparison against the analytically
 precomputed phase durations. All seven durations are recomputed on goal update.
 
+Reset and State Read-Back
+--------------------------
+
+Both generators share the lifecycle operations (RON-FR-514, RON-FR-515):
+
+.. code-block:: none
+
+   OPERATION reset(inst, pos0) → FaultCode
+     -- NULL → NULL_POINTER; not initialised or pos0 non-finite → CONFIG_INVALID
+     seed state exactly as init does, keeping inst.cfg:
+       pos ← pos0, target ← pos0, vel ← acc (← jerk) ← 0,
+       phase ← DONE, finished ← TRUE, hold ← FALSE, fault ← NONE
+
+   OPERATION get_state(inst, out) → FaultCode
+     -- NULL inst or out → NULL_POINTER; not initialised → CONFIG_INVALID
+     out ← copy of inst.state
+
 ------------------------------------------------------------------------
 
 Module Design: ron_kalman

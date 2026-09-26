@@ -257,7 +257,7 @@ zero-padded three-digit sequence number.
      - RON-FR-400 – FR-406
    * - ``TRAJ``
      - Trajectory generators
-     - RON-FR-500 – FR-513
+     - RON-FR-500 – FR-515
    * - ``KF``
      - Kalman filter
      - RON-FR-600 – FR-607
@@ -803,6 +803,14 @@ that verify it. Every requirement **shall** appear in at least one row.
      - Hold mode
      - UT
      - RON-TC-TRAJ-008
+   * - RON-FR-514
+     - Reset to a position
+     - UT
+     - RON-TC-TRAJ-009
+   * - RON-FR-515
+     - State read-back
+     - UT
+     - RON-TC-TRAJ-010
    * - RON-FR-600
      - Kalman predict–update cycle
      - UT
@@ -1288,9 +1296,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-CASC-004-FV
      - FV
      - RON-FR-403
-   * - RON-TC-TRAJ-001 – TRAJ-008
+   * - RON-TC-TRAJ-001 – TRAJ-010
      - UT
-     - RON-FR-500 – FR-513
+     - RON-FR-500 – FR-515
    * - RON-TC-KF-001 – KF-008
      - UT
      - RON-FR-600 – FR-607
@@ -2472,6 +2480,51 @@ RON-TC-TRAJ-008 - Hold Mode
    * - **Pass Criterion**
      - Position, velocity, acceleration, and jerk outputs do not change while
        held. The generator resumes and eventually reaches the commanded target.
+
+RON-TC-TRAJ-009 - Reset to a Position
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-514
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid trapezoidal and S-curve generators, each mid-move and held.
+   * - **Stimulus**
+     - Reset each to position 2.5; then call reset with a NULL instance, an
+       uninitialised instance and a non-finite position.
+   * - **Pass Criterion**
+     - After the reset: position and target equal 2.5, velocity and
+       acceleration (and jerk) are zero, ``finished`` is true, hold is
+       cleared and the configuration is unchanged; a following step returns
+       ``RON_FAULT_NONE`` and position 2.5. NULL returns
+       ``RON_FAULT_NULL_POINTER``; the uninitialised instance and the
+       non-finite position return ``RON_FAULT_CONFIG_INVALID`` and leave the
+       state unchanged.
+
+RON-TC-TRAJ-010 - State Read-Back
+----------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-515
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid trapezoidal and S-curve generators after several steps of a move.
+   * - **Stimulus**
+     - Read the state; then call with a NULL instance, a NULL output and an
+       uninitialised instance.
+   * - **Pass Criterion**
+     - The copy equals the instance's state field for field (position,
+       velocity, acceleration, phase, target, flags). NULL arguments return
+       ``RON_FAULT_NULL_POINTER``; the uninitialised instance returns
+       ``RON_FAULT_CONFIG_INVALID``.
 
 ------------------------------------------------------------------------
 
@@ -4432,9 +4485,9 @@ must reach 100% before a release is considered verified.
      - 7
      - 7 IT + 1 FV
      - All mapped
-   * - RON-FR-500 – FR-513 (Trajectory)
-     - 11
-     - 8 UT
+   * - RON-FR-500 – FR-515 (Trajectory)
+     - 13
+     - 10 UT
      - All mapped
    * - RON-FR-600 – FR-607 (Kalman)
      - 8

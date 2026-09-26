@@ -1230,6 +1230,13 @@ S-Curve (Jerk-Limited) Profile
    * - RON-FR-513
      - Both generators **shall** support a ``hold`` mode that freezes output
        without resetting kinematic state.
+   * - RON-FR-514
+     - Both generators **shall** provide a reset that re-seeds the kinematic
+       state at rest at a given position, clears hold, finished-move and
+       fault state, and preserves the configuration.
+   * - RON-FR-515
+     - Both generators **shall** provide read-only access to their complete
+       internal state.
 
 ------------------------------------------------------------------------
 
@@ -1627,7 +1634,7 @@ Appendix C: Traceability Matrix (Summary)
    * - Cascade controller
      - RON-FR-400 – FR-406
    * - Trajectory generators
-     - RON-FR-500 – FR-513
+     - RON-FR-500 – FR-515
    * - Kalman filter
      - RON-FR-600 – FR-607
    * - State-space controller

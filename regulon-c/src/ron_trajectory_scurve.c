@@ -3,7 +3,8 @@
  * @brief    Jerk-limited S-curve trajectory generator.
  * @module   ron_trajectory
  * @doc      RON-IS-001
- * @req      RON-FR-510, RON-FR-511, RON-FR-512, RON-FR-513
+ * @req      RON-FR-510, RON-FR-511, RON-FR-512, RON-FR-513, RON-FR-514,
+ *           RON-FR-515
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  */
@@ -246,6 +247,28 @@ static void scurve_integrate_step(ron_scurve_t *t, ron_float_t dt)
     }
 }
 
+/* Seed the state at rest at pos0; shared by init and reset. */
+/* Satisfies: RON-FR-512, RON-FR-514 | Test: RON-TC-TRAJ-007, RON-TC-TRAJ-009 */
+static void scurve_seed_state(ron_scurve_t *t, ron_float_t pos0)
+{
+    t->state.pos            = pos0;
+    t->state.vel            = RON_FLOAT_C(0.0);
+    t->state.acc            = RON_FLOAT_C(0.0);
+    t->state.jrk            = RON_FLOAT_C(0.0);
+    t->state.target         = pos0;
+    t->state.direction      = RON_FLOAT_C(1.0);
+    t->state.t_phase        = RON_FLOAT_C(0.0);
+    t->state.t_total        = RON_FLOAT_C(0.0);
+    t->state.elapsed        = RON_FLOAT_C(0.0);
+    t->state.phase          = RON_SCURVE_PHASE_DONE;
+    t->state.fault_code     = RON_FAULT_NONE;
+    t->state.status         = RON_STATUS_OK;
+    t->state.hold           = false;
+    t->state.finished       = true;
+    t->state.is_initialised = true;
+    scurve_clear_phase_times(&t->state);
+}
+
 /* Satisfies: RON-FR-510, RON-FR-512 | Test: RON-TC-TRAJ-005, RON-TC-TRAJ-007 */
 ron_fault_t ron_scurve_init(ron_scurve_t *t, const ron_scurve_config_t *cfg, ron_float_t pos0)
 {
@@ -263,23 +286,8 @@ ron_fault_t ron_scurve_init(ron_scurve_t *t, const ron_scurve_config_t *cfg, ron
         return RON_FAULT_CONFIG_INVALID;
     }
 
-    t->cfg                  = *cfg;
-    t->state.pos            = pos0;
-    t->state.vel            = RON_FLOAT_C(0.0);
-    t->state.acc            = RON_FLOAT_C(0.0);
-    t->state.jrk            = RON_FLOAT_C(0.0);
-    t->state.target         = pos0;
-    t->state.direction      = RON_FLOAT_C(1.0);
-    t->state.t_phase        = RON_FLOAT_C(0.0);
-    t->state.t_total        = RON_FLOAT_C(0.0);
-    t->state.elapsed        = RON_FLOAT_C(0.0);
-    t->state.phase          = RON_SCURVE_PHASE_DONE;
-    t->state.fault_code     = RON_FAULT_NONE;
-    t->state.status         = RON_STATUS_OK;
-    t->state.hold           = false;
-    t->state.finished       = true;
-    t->state.is_initialised = true;
-    scurve_clear_phase_times(&t->state);
+    t->cfg = *cfg;
+    scurve_seed_state(t, pos0);
 
     return RON_FAULT_NONE;
 }
@@ -391,5 +399,33 @@ ron_fault_t ron_scurve_hold(ron_scurve_t *t, bool hold)
     }
 
     t->state.hold = hold;
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-FR-514 | Test: RON-TC-TRAJ-009 */
+ron_fault_t ron_scurve_reset(ron_scurve_t *t, ron_float_t pos0)
+{
+    if (t == NULL) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!t->state.is_initialised || !ron_util_isfinite(pos0)) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+
+    scurve_seed_state(t, pos0);
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-FR-515 | Test: RON-TC-TRAJ-010 */
+ron_fault_t ron_scurve_get_state(const ron_scurve_t *t, ron_scurve_state_t *state)
+{
+    if ((t == NULL) || (state == NULL)) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!t->state.is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+
+    *state = t->state;
     return RON_FAULT_NONE;
 }

@@ -50,6 +50,9 @@ Changed
 
 Added
 -----
+- ``ron_trap_reset``/``ron_trap_get_state`` and ``ron_scurve_reset``/
+  ``ron_scurve_get_state`` (RON-FR-514/515): the trajectory generators were
+  the only modules with no reset or state read-back.
 - ``ron_pid_config_from_isa()``: sets a configuration's gains from the ideal
   (ISA) form (``Ki = Kp/Ti``, ``Kd = Kp*Td``; ``Ti = +Inf`` disables integral
   action). RON-FR-002 required the ISA form but the C library had no support

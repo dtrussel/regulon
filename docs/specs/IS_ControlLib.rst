@@ -1954,6 +1954,8 @@ established for ``ron_pid.h`` apply equally to all headers.
                                        ron_float_t *pos, ron_float_t *vel,
                                        ron_float_t *acc, bool *finished);
    ron_fault_t ron_trap_hold       (ron_trap_t *t, bool hold);
+   ron_fault_t ron_trap_reset      (ron_trap_t *t, ron_float_t pos0);
+   ron_fault_t ron_trap_get_state  (const ron_trap_t *t, ron_trap_state_t *state);
 
    /* ── S-curve (jerk-limited) profile ──────────────────────── */
    typedef struct {
@@ -2003,6 +2005,8 @@ established for ``ron_pid.h`` apply equally to all headers.
                                          ron_float_t *acc, ron_float_t *jrk,
                                          bool *finished);
    ron_fault_t ron_scurve_hold       (ron_scurve_t *t, bool hold);
+   ron_fault_t ron_scurve_reset      (ron_scurve_t *t, ron_float_t pos0);
+   ron_fault_t ron_scurve_get_state  (const ron_scurve_t *t, ron_scurve_state_t *state);
 
    #ifdef __cplusplus
    }
