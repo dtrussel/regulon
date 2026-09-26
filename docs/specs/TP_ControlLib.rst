@@ -15,7 +15,7 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.3.0
+**Version:** 1.4.0
 
 **Status:** Draft
 
@@ -64,6 +64,13 @@ Revision History
      - RON-TC-PID-002 now exercises ``ron_pid_config_from_isa``; added
        RON-TC-TRAJ-009/-010 and RON-TC-EST-001 – EST-003; RON-TC-QUAL-015
        (MC/DC) is enforced in CI; the Rust CI pipeline is marked as planned.
+     - dtrussel
+   * - 1.4.0
+     - 2026-09-26
+     - The Rust track runs every module's test IDs and the Kani harnesses
+       for RON-TC-PID-015-FV, SAFE-011-FV, AT-007-FV, FILT-009-FV and
+       FILT-012-FV; its CI pipeline (``ci_rust.yml``) exists and is
+       described below.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -425,35 +432,42 @@ locally on Windows.
          coverage_html/
          cppcheck_results.xml
 
-**Rust track CI pipeline** (planned ``ci_rust.yml``; the workflow does not
-exist yet, see ``docs/plans/rust/rust-first-rollout.md``):
+**Rust track CI pipeline** (``.github/workflows/ci_rust.yml``, run from
+``regulon-rs/`` on every push or pull request touching the crate, the
+specifications or the traceability script):
 
-.. code-block:: yaml
+.. list-table::
+   :header-rows: 1
+   :widths: 22 48 30
 
-   - name: Run tests with nextest (JUnit XML)
-     run: |
-       cargo nextest run --workspace \
-         --profile ci \
-         --test-output immediate-final
-     working-directory: rust/
-
-   - name: Kani formal verification
-     run: cargo kani --workspace
-     working-directory: rust/
-
-   - name: Coverage (llvm-cov)
-     run: |
-       cargo llvm-cov nextest --workspace \
-         --lcov --output-path coverage.lcov \
-         --mcdc
-     working-directory: rust/
-
-   - uses: actions/upload-artifact@v4
-     with:
-       name: test-reports-rust
-       path: |
-         rust/target/nextest/ci/junit.xml
-         rust/coverage.lcov
+   * - Job
+     - Command
+     - Test case
+   * - ``fmt``
+     - ``cargo fmt --all --check``
+     - RON-TC-QUAL-001
+   * - ``clippy`` (single, double)
+     - ``cargo clippy --workspace [--features double_precision] --
+       -D warnings -D clippy::all -D clippy::pedantic``
+     - RON-TC-QUAL-001
+   * - ``test`` (stable single/double, beta single)
+     - ``cargo test --workspace [--features double_precision]``
+     - all Rust unit tests; RON-TC-QUAL-008
+   * - ``cross``
+     - ``cargo build --workspace --release --target thumbv7em-none-eabihf``
+     - RON-TC-QUAL-022
+   * - ``kani``
+     - ``cargo kani --workspace`` (``model-checking/kani-github-action``)
+     - all ``-FV`` cases with a Rust harness
+   * - ``audit``
+     - ``cargo audit``
+     - RON-TC-QUAL-004
+   * - ``coverage``
+     - ``cargo llvm-cov --workspace --lcov`` (reported, not yet enforced)
+     - RON-TC-QUAL-014
+   * - ``traceability``
+     - ``python3 regulon-c/scripts/check_traceability.py``
+     - requirement / test-ID traceability
 
 Coverage Requirements
 ---------------------
@@ -4729,4 +4743,4 @@ Open Items
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-TP-001 v1.1.0*
+*End of Document — RON-TP-001 v1.4.0*

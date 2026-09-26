@@ -160,7 +160,14 @@ Matrix and state-estimation modules (implemented after the scalar batch):
   and five Kani harnesses pass. Every SRS module now has a Rust port.
 
 Remaining for parity with C:
-- `regulon-sys` C-ABI crate and the `ci_rust.yml` workflow.
+- None for module parity. `.github/workflows/ci_rust.yml` gates the crate
+  (fmt, pedantic clippy in both precisions, tests on stable/beta and both
+  precisions, `thumbv7em-none-eabihf` build, Kani, `cargo audit`, coverage
+  report, traceability).
+- Decision: no `regulon-sys` C-ABI crate. `regulon-rs` is for Rust-native
+  users; C and C++ firmware uses the C11 track.
+- Open: raising Rust coverage to the RON-TC-QUAL-014 target and enforcing
+  it in CI; `rustfmt.toml` and the MISRA Rust deviation record.
 
 ## Notes
 

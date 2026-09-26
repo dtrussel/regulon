@@ -15,7 +15,7 @@ Implementation Specification
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.5.0
+**Version:** 1.6.0
 
 **Status:** Draft
 
@@ -97,6 +97,14 @@ Revision History
        per-controller source enums, estimator fields and wrappers of
        ``ron_statespace.h`` and ``ron_lqr.h``.
      - dtrussel
+   * - 1.6.0
+     - 2026-09-26
+     - Rust track: every SRS module is implemented in ``regulon-rs/`` and
+       gated by ``ci_rust.yml``. The planned ``regulon-sys`` C-ABI crate is
+       dropped: the Rust crate serves Rust-native users only, and C users
+       use the C11 track. Crate tree, ``unsafe`` rule and traceability rows
+       updated accordingly.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -122,8 +130,8 @@ Scope
 -----
 
 This document covers every module of the Regulon library specified in
-RON-SRS-001. The C11 track implements all of them; the Rust track implements a
-subset (see ``regulon-rs/``). It does not cover test code or documentation
+RON-SRS-001. Both tracks implement all of them: the C11 track in
+``regulon-c/`` and the Rust track in ``regulon-rs/``. It does not cover test code or documentation
 tooling except where a concrete verification entrypoint is needed to reproduce
 the quality gates.
 
@@ -429,12 +437,12 @@ Rust Implementation Track
 
 .. note::
 
-   This track describes the **target** Rust implementation. ``regulon-rs/``
-   currently implements the PID and filter modules only (see
-   ``docs/plans/rust/rust-first-rollout.md``). Artefacts named below that do
-   not exist yet — the other module files, the ``regulon-sys`` C-ABI crate,
-   a ``ci_rust.yml`` workflow, ``rustfmt.toml`` and
-   ``docs/deviations/MISRA_Rust_deviations.rst`` — are planned, not missing.
+   ``regulon-rs/`` implements every module specified in RON-SRS-001 and is
+   gated in CI by ``.github/workflows/ci_rust.yml`` (see
+   ``docs/plans/rust/rust-first-rollout.md``). The crate serves Rust-native
+   users only: there is no C-ABI wrapper crate, and C or C++ firmware uses the
+   C11 track. ``rustfmt.toml`` and ``docs/deviations/MISRA_Rust_deviations.rst``
+   remain planned; the crate currently uses the default ``rustfmt`` style.
 
 Language Standard
 -----------------
@@ -454,49 +462,40 @@ Crate and Module Structure
 
 .. code-block:: none
 
-   rust/
+   regulon-rs/
    ├── Cargo.toml                      -- workspace root
-   ├── regulon/                        -- main library crate
-   │   ├── Cargo.toml
-   │   └── src/
-   │       ├── lib.rs                  -- crate root; re-exports all public API
-   │       ├── platform.rs             -- float type alias, math helpers, assert macros
-   │       ├── error.rs                -- RonError enum (mirrors ron_fault_t)
-   │       ├── pid/
-   │       │   ├── mod.rs
-   │       │   ├── config.rs
-   │       │   ├── core.rs
-   │       │   └── types.rs
-   │       ├── filter/
-   │       │   ├── mod.rs
-   │       │   ├── lp1.rs
-   │       │   ├── moving_avg.rs
-   │       │   ├── biquad.rs
-   │       │   └── rate_limiter.rs
-   │       ├── feedforward.rs
-   │       ├── gain_sched.rs
-   │       ├── cascade.rs
-   │       ├── trajectory/
-   │       │   ├── mod.rs
-   │       │   ├── trapezoidal.rs
-   │       │   └── scurve.rs
-   │       ├── kalman.rs
-   │       ├── statespace.rs
-   │       ├── observer.rs
-   │       ├── autotune.rs
-   │       ├── health.rs
-   │       └── metrics.rs
-   └── regulon-sys/                    -- optional C-ABI wrapper crate
+   ├── .cargo/config.toml              -- cross-compilation targets
+   └── regulon/                        -- the library crate (#![no_std])
        ├── Cargo.toml
        └── src/
-           └── lib.rs                  -- #[no_mangle] extern "C" functions
+           ├── lib.rs                  -- crate root; re-exports the public API
+           ├── platform.rs             -- float type alias, bounded math helpers
+           ├── error.rs                -- RonError
+           ├── matrix.rs               -- const-generic Matrix<R, C>, Cholesky
+           ├── pid/                    -- PID incl. feed-forward (types, config, core)
+           ├── filter/                 -- LP1, moving average, biquad, rate limiter
+           ├── gain_sched/
+           ├── cascade/
+           ├── trajectory/             -- trapezoidal.rs, scurve.rs
+           ├── observer/
+           ├── kalman/
+           ├── estimator/              -- shared state-estimate source
+           ├── statespace/
+           ├── lqr/                    -- incl. solve_dare
+           ├── lqg/
+           ├── autotune/
+           ├── health/
+           └── metrics/
+
+Each module directory holds ``mod.rs``, a ``tests.rs`` of traceable unit
+tests and, where formal proofs exist, a ``proofs.rs`` of Kani harnesses
+compiled only under ``cfg(kani)``.
 
 Rust Naming Conventions
 -----------------------
 
 Rust idioms are used rather than mechanically mapping from C. The ``ron``
-abbreviation is used as the crate/module prefix in ``use`` statements and
-in the C-ABI wrapper.
+abbreviation is used as the crate/module prefix in ``use`` statements.
 
 .. list-table::
    :header-rows: 1
@@ -520,9 +519,6 @@ in the C-ABI wrapper.
    * - Modules
      - ``snake_case``
      - ``ron::gain_sched``, ``ron::trajectory``
-   * - C-ABI exported symbols
-     - ``ron_<module>_<verb>`` (matching C track)
-     - ``ron_pid_step``, ``ron_kf_update``
 
 Key Rust Design Patterns
 ------------------------
@@ -573,13 +569,11 @@ significant safety value:
        pub fn to_automatic(self) -> Pid<Automatic> { ... }  // bumpless transfer
    }
 
-**No ``unsafe`` in library code (goal):**
+**No ``unsafe``:**
 
-All Regulon library code shall be written in safe Rust. The sole permissible
-use of ``unsafe`` is in the C-ABI wrapper crate (``regulon-sys``) for
-``extern "C"`` function bodies that must dereference raw pointers from C
-callers. Each such block shall be individually justified with a safety
-comment.
+All Regulon Rust code shall be written in safe Rust; the crate contains no
+``unsafe`` blocks. Because there is no C-ABI wrapper, no raw pointers cross
+the crate boundary.
 
 **``#[no_std]`` compatibility:**
 
@@ -620,9 +614,6 @@ In addition, the following rules are mandated:
    * - Explicit integer widths
      - Use ``u8``, ``u16``, ``u32``, ``i32``, ``f32``/``f64`` etc.
        explicitly; avoid ``usize`` for control-system quantities.
-   * - ``#[repr(C)]`` on ABI-boundary types
-     - Any type exposed through the C-ABI wrapper shall be annotated
-       ``#[repr(C)]`` to guarantee layout compatibility.
    * - File-level documentation
      - Every ``.rs`` file shall begin with a ``//!`` module doc comment
        including: purpose, document ID (RON-IS-001), requirement IDs
@@ -2917,9 +2908,6 @@ clippy`` enforce them automatically):
    * - Modules
      - ``snake_case``
      - ``ron::gain_sched``, ``ron::trajectory``
-   * - C-ABI exported symbols (``regulon-sys``)
-     - ``ron_<module>_<verb>`` (mirrors C track)
-     - ``ron_pid_step``, ``ron_kf_update``
 
 Rust Track — Comment Style
 ---------------------------
@@ -3218,9 +3206,9 @@ denote track-specific deliverables.
      - RON-FR-600 – FR-607
    * - State-space + observer API (both)
      - RON-FR-700 – FR-723
-   * - LQR controller API (C)
+   * - LQR controller API (both)
      - RON-FR-730 – FR-739
-   * - LQG controller API (C)
+   * - LQG controller API (both)
      - RON-FR-750 – FR-759
    * - Auto-tuning API (both)
      - RON-FR-800 – FR-807
@@ -3232,7 +3220,7 @@ denote track-specific deliverables.
      - RON-DC-005, RON-QR-004
    * - Cargo workspace + ``.cargo/config.toml`` cross targets (Rust)
      - RON-DC-005, RON-QR-004
-   * - ``extern "C"`` guards in C headers / ``regulon-sys`` C-ABI crate (both)
+   * - ``extern "C"`` guards in C headers (C)
      - RON-QR-001
    * - No heap allocation in either track (both)
      - RON-DC-002, RON-SR-003
@@ -3285,11 +3273,11 @@ Open Items
        governance. Both tracks shall carry the same licence.
      - Project governance
    * - OI-08
-     - ``regulon-sys`` C-ABI wrapper crate ABI stability policy to be
-       defined: semantic versioning constraints, ``#[repr(C)]`` audit,
-       and interoperability test suite against the C track headers.
-     - Implementation phase
+     - Closed in v1.6.0: no ``regulon-sys`` C-ABI wrapper crate will be
+       built. The Rust crate serves Rust-native users; C and C++ firmware
+       uses the C11 track, so no cross-track ABI policy is needed.
+     - Closed
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-IS-001 v1.1.0*
+*End of Document — RON-IS-001 v1.6.0*

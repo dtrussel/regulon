@@ -106,6 +106,11 @@ Changed
 - ``check_manifest.sh`` also fails when ``RON_VERSION_*`` in
   ``ron_platform.h`` and ``project(VERSION)`` disagree.
 - ``ron_autotune_apply`` takes ``const ron_autotune_t *`` (source-compatible).
+- The specifications no longer plan a ``regulon-sys`` C-ABI crate:
+  ``regulon-rs`` is for Rust-native use only and C users use the C11 track.
+  The IS drops the C-ABI naming rows and the ``#[repr(C)]`` rule, states that
+  the Rust crate has no ``unsafe``, shows the real ``regulon-rs/`` layout and
+  closes OI-08; the TP records the ``ci_rust.yml`` jobs.
 - The API reference moved from Doxygen HTML to a Sphinx + Breathe site that
   also renders the specifications and usage guides, with requirement/test
   IDs on API entries linking into the specs.
