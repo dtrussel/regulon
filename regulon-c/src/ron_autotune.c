@@ -20,6 +20,9 @@
 /* Smallest peak-to-peak half-amplitude treated as a real oscillation. */
 #define RON_AT_MIN_AMPLITUDE RON_FLOAT_C(1.0e-6)
 
+/* Number of tuning rules in ron_at_rule_t; sizes the rule tables below. */
+#define RON_AT_RULE_COUNT ((uint32_t) RON_AT_RULE_NO_OS + 1U)
+
 /* =========================================================================
  * Tuning-rule factor tables (RON-FR-803), indexed by ron_at_rule_t.
  *
@@ -56,7 +59,7 @@ static bool at_config_valid(const ron_at_config_t *cfg)
     if (!at_isfinite(cfg->timeout_s) || (cfg->timeout_s <= RON_FLOAT_C(0.0))) {
         return false;
     }
-    if ((unsigned) cfg->tuning_rule > (unsigned) RON_AT_RULE_NO_OS) {
+    if ((uint32_t) cfg->tuning_rule >= RON_AT_RULE_COUNT) {
         return false;
     }
     return true;
@@ -113,14 +116,14 @@ static void at_compute_rule(ron_at_t *at)
 {
     /* Block scope keeps the tables next to their only reader (MISRA C:2023
      * Rule 8.9); static const still places them in read-only storage. */
-    static const ron_float_t at_rule_kp[4] = {RON_FLOAT_C(0.60), RON_FLOAT_C(0.45),
-                                              RON_FLOAT_C(0.33), RON_FLOAT_C(0.20)};
-    static const ron_float_t at_rule_ti[4] = {RON_FLOAT_C(0.50), RON_FLOAT_C(2.20),
-                                              RON_FLOAT_C(0.50), RON_FLOAT_C(0.50)};
-    static const ron_float_t at_rule_td[4] = {RON_FLOAT_C(0.125), RON_FLOAT_C(0.158),
-                                              RON_FLOAT_C(0.333), RON_FLOAT_C(0.333)};
+    static const ron_float_t at_rule_kp[RON_AT_RULE_COUNT] = {RON_FLOAT_C(0.60), RON_FLOAT_C(0.45),
+                                                              RON_FLOAT_C(0.33), RON_FLOAT_C(0.20)};
+    static const ron_float_t at_rule_ti[RON_AT_RULE_COUNT] = {RON_FLOAT_C(0.50), RON_FLOAT_C(2.20),
+                                                              RON_FLOAT_C(0.50), RON_FLOAT_C(0.50)};
+    static const ron_float_t at_rule_td[RON_AT_RULE_COUNT] = {
+        RON_FLOAT_C(0.125), RON_FLOAT_C(0.158), RON_FLOAT_C(0.333), RON_FLOAT_C(0.333)};
 
-    unsigned idx   = (unsigned) at->cfg.tuning_rule;
+    uint32_t idx   = (uint32_t) at->cfg.tuning_rule;
     ron_float_t kp = at_rule_kp[idx] * at->state.Ku;
     ron_float_t ti = at_rule_ti[idx] * at->state.Tu;
     ron_float_t td = at_rule_td[idx] * at->state.Tu;
