@@ -13,6 +13,7 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod autotune;
 pub mod cascade;
 pub mod error;
 pub mod filter;
@@ -23,6 +24,7 @@ pub mod pid;
 pub mod platform;
 pub mod trajectory;
 
+pub use autotune::{AutotuneConfig, AutotunePhase, AutotuneResults, Autotuner, TuningRule};
 pub use cascade::{Cascade, CascadeStatus};
 pub use error::RonError;
 pub use filter::{

@@ -173,6 +173,14 @@ Added
   transient metrics on each setpoint step. Rise and settling time are
   ``Option`` rather than C's ``-1`` sentinel. RON-TC-MET-001 – MET-007 run
   in the Rust suite.
+- Rust: relay auto-tuner (``autotune``, RON-FR-800 – FR-807).
+  ``Autotuner`` measures ``Ku``/``Tu`` by relay feedback, derives gains by
+  Ziegler-Nichols, Tyreus-Luyben, some- or no-overshoot rules, and changes
+  the ``Pid`` only through ``apply``; ``abort`` restores the captured gains
+  and mode. Unlike C, aborting a run that never started leaves the
+  controller untouched, and ``start`` clears any previous run.
+  RON-TC-AT-001 – AT-008 run in the Rust suite, with a Kani harness for
+  RON-TC-AT-007-FV.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
