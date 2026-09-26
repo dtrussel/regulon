@@ -311,7 +311,14 @@ fn compute_integral_candidate(
     };
     let corrected_increment = increment - compensation_base;
     let summed = integral_base + corrected_increment;
-    let compensation = (summed - integral_base) - corrected_increment;
+    // The compensated-sum carry only means something for finite terms. An
+    // increment that overflowed would otherwise leave inf - inf = NaN in the
+    // carried state and fault the next, ordinary step.
+    let compensation = if is_finite(summed) && is_finite(corrected_increment) {
+        (summed - integral_base) - corrected_increment
+    } else {
+        0.0
+    };
     (
         clamp(summed, config.integral_min, config.integral_max),
         compensation,

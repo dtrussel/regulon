@@ -230,6 +230,12 @@ Fixed
   (the ISA form among them); they now name what each function satisfies.
 - ``verify.ps1`` measures and enforces MC/DC when clang 18+ is available, as
   CI does.
+- Rust PID: an integral increment that overflowed (finite error, extreme
+  ``ki * dt``) left ``inf - inf = NaN`` in the compensated-sum carry, so the
+  next ordinary step faulted with ``OUTPUT_NOT_FINITE``. The carry is now
+  dropped when a term is not finite (regression test under RON-TC-SAFE-012).
+  Found by the first Kani run of ``ron_tc_pid_015_fv``, whose input bounds
+  now also match RON-TC-PID-015-FV and the C harness.
 - Rust: the filter tests did not compile with the ``double_precision``
   feature (an ``f32`` literal in RON-TC-FILT-005).
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave

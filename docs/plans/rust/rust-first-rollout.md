@@ -141,12 +141,11 @@ Iteration 4 evidence (Linux host):
 - `cargo clippy -- -D warnings -D clippy::pedantic`: passes
 - `cargo build --target thumbv7em-none-eabihf`: passes
 - `python3 regulon-c/scripts/check_traceability.py`: passes
-- `cargo kani --workspace` (Kani 0.68): first run of the Rust proofs.
-  `ron_tc_at_007_fv` and `ron_tc_safe_011_fv` verify; `ron_tc_pid_015_fv`
-  fails, also on `main`, with a "NaN on subtraction" check in
-  `pid::core::compute_integral_candidate`: finite but extreme inputs make
-  `ki * dt * error` overflow, and the compensated-sum term becomes
-  `inf - inf`. That is a PID-core defect to fix separately.
+- `cargo kani --workspace` (Kani 0.68): first run of the Rust proofs; all
+  three harnesses verify. The first run failed `ron_tc_pid_015_fv` with a
+  "NaN on subtraction" in `pid::core::compute_integral_candidate` (an
+  overflowed increment left `inf - inf` in the compensated-sum carry); the
+  carry is now guarded, and the harness uses the RON-TC-PID-015-FV bounds.
 - `cargo audit` and `cargo llvm-cov` were not available on this host.
 
 Remaining for parity with C:

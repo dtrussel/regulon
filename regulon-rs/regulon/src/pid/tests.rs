@@ -492,6 +492,25 @@ fn ron_tc_safe_012() {
     assert!(relative_error < 0.001);
 }
 
+/// RON-TC-SAFE-012 | RON-SR-021
+#[test]
+fn ron_tc_safe_012_overflowed_increment_does_not_poison_state() {
+    let mut pid = Pid::new(PidConfig {
+        ki: 10.0,
+        ..base_config()
+    })
+    .unwrap();
+    // A finite error whose integral increment overflows: the integral clamps
+    // and the output stays finite, so the step itself succeeds.
+    let (output, _) = pid.step(RonFloat::MAX, 0.0, 1.0).unwrap();
+    approx_eq(output, 1_000.0, 4.0 * RonFloat::EPSILON);
+    // The compensated-sum carry must not hold inf - inf = NaN into the next,
+    // ordinary step.
+    let (output, _) = pid.step(0.0, 0.0, 0.01).unwrap();
+    assert!(output.is_finite());
+    approx_eq(pid.integral(), 1_000.0, 4.0 * RonFloat::EPSILON);
+}
+
 /// RON-TC-SAFE-013 | RON-SR-001-RON-SR-006
 #[test]
 fn ron_tc_safe_013() {

@@ -11,6 +11,11 @@
 use super::{AntiWindupMode, Pid, PidConfig, PidFault};
 use crate::RonError;
 
+/// Bound on `|r|` and `|y|` from RON-TC-PID-015-FV.
+const SIGNAL_BOUND: f32 = 1_000.0;
+/// Largest sample period from RON-TC-PID-015-FV.
+const DT_MAX: f32 = 1.0;
+
 /// RON-TC-PID-015-FV | RON-FR-020
 #[kani::proof]
 fn ron_tc_pid_015_fv() {
@@ -28,9 +33,11 @@ fn ron_tc_pid_015_fv() {
     let setpoint: f32 = kani::any();
     let measurement: f32 = kani::any();
     let dt: f32 = kani::any();
-    kani::assume(setpoint.is_finite());
-    kani::assume(measurement.is_finite());
-    kani::assume(dt.is_finite() && dt > 0.0);
+    // Harness bounds from RON-TC-PID-015-FV (RON-ASM-02 / RON-ASM-03), as in
+    // the C CBMC harness pid_saturation_proof.c.
+    kani::assume(setpoint.is_finite() && setpoint.abs() <= SIGNAL_BOUND);
+    kani::assume(measurement.is_finite() && measurement.abs() <= SIGNAL_BOUND);
+    kani::assume(dt.is_finite() && dt > 0.0 && dt <= DT_MAX);
     if let Ok((output, _status)) = pid.step(setpoint, measurement, dt) {
         assert!((-5.0..=5.0).contains(&output));
     }
