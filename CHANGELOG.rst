@@ -77,6 +77,11 @@ Fixed
   RISC-V compiler. The build section now includes the real option and
   toolchain files. RON-TC-CASC-008 – CASC-012 ran in the C suite but were
   missing from the test plan; they are now recorded there.
+- ``IS_ControlLib.rst`` API listings now match the headers: the cascade
+  section used a ``ron_cascade_t`` type, a one-value ``set_mode`` and a
+  16-bit status word that never shipped, and omitted ``get_state`` and
+  ``fault_clear``; ``ron_pid_set_config``, ``ron_at_phase_t`` and the
+  ``const`` on ``ron_gs_init`` were missing.
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
   PID-only lint/analysis/proof commands; it now mirrors the CI gates over
   the source manifests.

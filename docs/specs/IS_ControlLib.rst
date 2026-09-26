@@ -1344,6 +1344,24 @@ This is the **only** header that library consumers include. It provides the comp
    /* ================================================================== */
 
    /**
+    * @brief  Atomically replace the full PID configuration record.
+    *
+    * Validates the candidate first; only commits it if the whole record is
+    * internally consistent. Dynamic controller state is preserved.
+    *
+    * @param[in,out] inst  Pointer to an initialised instance.
+    * @param[in]     cfg   Pointer to the replacement configuration record.
+    *
+    * @return  RON_FAULT_NONE           on success.
+    * @return  RON_FAULT_NULL_POINTER   if inst or cfg is NULL.
+    * @return  RON_FAULT_CONFIG_INVALID if the candidate configuration is invalid.
+    *
+    * Satisfies: RON-FR-053.
+    */
+   ron_fault_t ron_pid_set_config(ron_pid_instance_t     *inst,
+                                  const ron_pid_config_t *cfg);
+
+   /**
     * @brief  Atomically update all three gain parameters.
     *
     * Validates the new gains first; only applies them if all are valid.
@@ -1799,7 +1817,7 @@ established for ``ron_pid.h`` apply equally to all headers.
        bool                 reset_integral_on_switch;
    } ron_gs_table_t;
 
-   ron_fault_t ron_gs_init   (ron_gs_table_t *tbl);
+   ron_fault_t ron_gs_init   (const ron_gs_table_t *tbl);
    ron_fault_t ron_gs_update (const ron_gs_table_t *tbl,
                                  ron_pid_instance_t   *pid,
                                  ron_float_t           sigma);
@@ -1821,25 +1839,40 @@ established for ``ron_pid.h`` apply equally to all headers.
    extern "C" {
    #endif
 
-   typedef struct {
-       ron_pid_instance_t outer;
-       ron_pid_instance_t inner;
-   } ron_cascade_t;
+   /* Unified status word: outer-loop bits in [15:0], inner-loop bits in [31:16]. */
+   typedef uint32_t ron_cascade_status_t;
 
-   ron_fault_t ron_cascade_init  (ron_cascade_t          *c,
-                                     const ron_pid_config_t *outer_cfg,
-                                     const ron_pid_config_t *inner_cfg);
-   ron_fault_t ron_cascade_reset (ron_cascade_t *c);
-   ron_fault_t ron_cascade_step  (ron_cascade_t *c,
-                                     ron_float_t    r_out,
-                                     ron_float_t    y_out,
-                                     ron_float_t    y_in,
-                                     ron_float_t    dt,
-                                     ron_float_t   *u_out,
-                                     ron_status_t  *status);
-   ron_fault_t ron_cascade_set_mode (ron_cascade_t *c,
-                                        ron_op_mode_t  mode,
-                                        ron_float_t    manual_out);
+   #define RON_CASCADE_STATUS_OUTER_SHIFT ((uint32_t) 0U)
+   #define RON_CASCADE_STATUS_INNER_SHIFT ((uint32_t) 16U)
+   #define RON_CASCADE_STATUS_OUTER_MASK  ((ron_cascade_status_t) 0x0000FFFFU)
+   #define RON_CASCADE_STATUS_INNER_MASK  ((ron_cascade_status_t) 0xFFFF0000U)
+   #define RON_CASCADE_STATUS_OUTER(cs)   ((ron_status_t) ((cs) & RON_CASCADE_STATUS_OUTER_MASK))
+   #define RON_CASCADE_STATUS_INNER(cs) \
+       ((ron_status_t) (((cs) & RON_CASCADE_STATUS_INNER_MASK) >> RON_CASCADE_STATUS_INNER_SHIFT))
+
+   typedef struct {
+       ron_pid_instance_t outer;   /* output becomes the inner setpoint */
+       ron_pid_instance_t inner;
+   } ron_cascade_instance_t;
+
+   ron_fault_t ron_cascade_init(ron_cascade_instance_t *casc,
+                                const ron_pid_config_t *outer_cfg,
+                                const ron_pid_config_t *inner_cfg);
+   ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc,
+                                ron_float_t r_out, ron_float_t y_out,
+                                ron_float_t y_in,  ron_float_t dt,
+                                ron_float_t *u_out,
+                                ron_cascade_status_t *status);
+   ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc,
+                                    ron_op_mode_t mode,
+                                    ron_float_t   manual_inner,
+                                    ron_float_t   manual_outer);
+   ron_fault_t ron_cascade_get_state(const ron_cascade_instance_t *casc,
+                                     ron_cascade_status_t *status,
+                                     ron_fault_t *outer_fault,
+                                     ron_fault_t *inner_fault);
+   ron_fault_t ron_cascade_fault_clear(ron_cascade_instance_t *casc);
+   ron_fault_t ron_cascade_reset(ron_cascade_instance_t *casc);
 
    #ifdef __cplusplus
    }
@@ -2385,6 +2418,16 @@ control and sensing.
        RON_AT_RULE_NO_OS     = 3
    } ron_at_rule_t;
 
+   /* Lifecycle phase, stored as uint8_t in ron_at_state_t.phase. */
+   typedef enum {
+       RON_AT_IDLE       = 0,
+       RON_AT_SETTLING   = 1,
+       RON_AT_RELAY      = 2,
+       RON_AT_ESTIMATING = 3,
+       RON_AT_DONE       = 4,
+       RON_AT_ABORTED    = 5
+   } ron_at_phase_t;
+
    typedef struct {
        ron_float_t  relay_amplitude;
        ron_float_t  hysteresis;
@@ -2397,7 +2440,7 @@ control and sensing.
    typedef struct {
        ron_float_t  Ku, Tu;
        ron_float_t  Kp_result, Ki_result, Kd_result;
-       uint8_t       phase;
+       uint8_t       phase;      /* ron_at_phase_t */
        bool          done;
        bool          aborted;
        bool          is_initialised;
