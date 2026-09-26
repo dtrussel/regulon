@@ -21,6 +21,7 @@ pub mod filter;
 pub mod gain_sched;
 pub mod health;
 pub mod kalman;
+pub mod lqg;
 pub mod lqr;
 pub mod matrix;
 pub mod metrics;
@@ -40,6 +41,7 @@ pub use filter::{
 pub use gain_sched::{GainSchedule, ScheduleMode, GS_MAX_BREAKPOINTS};
 pub use health::{HealthCallback, HealthConfig, HealthMonitor, HealthStatus};
 pub use kalman::{Kalman, KalmanConfig};
+pub use lqg::{Lqg, LqgConfig, LqgGain};
 pub use lqr::{solve_dare, DareConfig, DareSolution, Lqr, LqrConfig, LqrGain, LqrIntegral};
 pub use matrix::{Cholesky, Matrix, MATRIX_MAX_DIM};
 pub use metrics::{Metrics, MetricsConfig, MetricsMode, MetricsResults, StepFrame};

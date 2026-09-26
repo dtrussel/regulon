@@ -148,9 +148,17 @@ Iteration 4 evidence (Linux host):
   carry is now guarded, and the harness uses the RON-TC-PID-015-FV bounds.
 - `cargo audit` and `cargo llvm-cov` were not available on this host.
 
+Matrix and state-estimation modules (implemented after the scalar batch):
+- `matrix` (const-generic `Matrix<R, C>`, Cholesky), `observer`
+  (`RON-TC-SS-006` to `009`), `kalman` (`RON-TC-KF-001` to `008`),
+  `estimator` (`RON-TC-EST-001` to `003`), `statespace` (`RON-TC-SS-001` to
+  `005`, `009`), `lqr` (`RON-TC-LQR-001` to `009`) and `lqg`
+  (`RON-TC-LQG-001` to `009`).
+- 160 tests pass in both precisions; all three Kani harnesses verify.
+
 Remaining for parity with C:
-- `matrix`, `statespace`, `estimator`, `observer`, `kalman`, `lqr`, `lqg`
-  (const-generic dimensions).
+- `filter`: moving average (`RON-FR-115` to `117`) and biquad
+  (`RON-FR-120` to `123`); only LP1 and the rate limiter are ported.
 - `regulon-sys` C-ABI crate and the `ci_rust.yml` workflow.
 
 ## Notes

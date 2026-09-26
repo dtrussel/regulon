@@ -210,6 +210,11 @@ Added
   failures return ``RonError::Numerical``. ``A``/``B`` are only required
   for the DARE solve; C also requires them whenever an embedded estimator
   is used, although the estimator carries its own model.
+- Rust: LQG ``Lqg<N, U, Y>`` (RON-FR-750 – FR-759, RON-TC-LQG-001 –
+  LQG-009): an LQR law (pre-computed or DARE via ``solve_dare``) driven by
+  an embedded ``Kalman`` built from the noise model, designed independently
+  by the separation principle. Heap freedom (RON-TC-LQG-010-FV) holds by
+  construction in the ``no_std`` crate.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
