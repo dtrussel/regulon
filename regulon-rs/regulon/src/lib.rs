@@ -15,6 +15,7 @@ extern crate std;
 
 pub mod error;
 pub mod filter;
+pub mod gain_sched;
 pub mod pid;
 pub mod platform;
 
@@ -22,6 +23,7 @@ pub use error::RonError;
 pub use filter::{
     FilterFault, FilterSnapshot, FilterStatus, Lp1, Lp1Config, RateLimiter, RateLimiterConfig,
 };
+pub use gain_sched::{GainSchedule, ScheduleMode, GS_MAX_BREAKPOINTS};
 pub use pid::{
     AntiWindupMode, DerivativeMode, FeedForwardConfig, FeedForwardMode, IntegrationMethod,
     NormalizationConfig, NormalizationRange, Pid, PidConfig, PidFault, PidMode, PidSnapshot,

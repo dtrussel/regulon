@@ -143,6 +143,12 @@ Added
   ``Pid::last_feed_forward``. RON-TC-FF-001 – FF-009 run in the Rust suite.
   Breaking: ``FeedForwardConfig::static_gain`` is now the signed ``gain``
   (as in C) and ``FeedForwardMode::Reserved`` is gone.
+- Rust: gain scheduling (``gain_sched``, RON-FR-300 – FR-306). A
+  ``GainSchedule<N>`` holds up to ``GS_MAX_BREAKPOINTS`` (16) breakpoint/
+  ``PidConfig`` pairs, validated once at construction; ``apply`` updates a
+  ``Pid`` atomically by hard switching (optionally resetting the integrator)
+  or by interpolating the gains. RON-TC-GS-001 – GS-008 run in the Rust
+  suite.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 

@@ -113,8 +113,13 @@ Story FF-02 current status:
   `Pid::last_feed_forward`.
 - Traceable tests cover `RON-TC-FF-001` to `RON-TC-FF-009`.
 
-Remaining Iteration 3 scope:
-- Story GS-01 remains open.
+Story GS-01 current status:
+- Implemented as `gain_sched::GainSchedule<N>` with hard-switch and
+  linear-interpolation modes and optional integral reset on switch.
+- Traceable tests cover `RON-TC-GS-001` to `RON-TC-GS-008`.
+
+Iteration 3 is complete. Iteration 4 continues with cascade, trajectory,
+health, metrics and autotune, then the estimator/state-space modules.
 - Coverage is still below the spec target and needs additional branch/test closure work in later slices.
 
 ## Notes
