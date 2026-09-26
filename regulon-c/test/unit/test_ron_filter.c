@@ -335,6 +335,59 @@ void test_ron_tc_filt_004_defensive_api_branches(void)
     TEST_ASSERT_EQUAL_UINT16(RON_STATUS_OK, rate_state.status);
 }
 
+/*
+ * An output overflow latches RON_FAULT_OUTPUT_NAN without committing the
+ * rejected sample: the moving-average window (buffer, index, count, running
+ * sum) and every biquad section's delay line are exactly as before the step.
+ */
+/* Satisfies: RON-FR-103 | Test: RON-TC-FILT-004 */
+void test_ron_tc_filt_004_output_nan_leaves_state_unchanged(void)
+{
+    ron_ma_config_t ma_cfg = {3U};
+    ron_biquad_config_t cascade_cfg = {
+        {{RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)},
+         {RON_FLOAT_MAX, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)}},
+        2U};
+    ron_ma_t ma;
+    ron_biquad_t biquad;
+    ron_ma_state_t ma_before;
+    ron_ma_state_t ma_after;
+    ron_biquad_state_t bq_before;
+    ron_biquad_state_t bq_after;
+    ron_float_t y = RON_FLOAT_C(0.0);
+    uint8_t idx;
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ma_init(&ma, &ma_cfg));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ma_step(&ma, RON_FLOAT_C(1.0), &y));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ma_step(&ma, RON_FLOAT_C(2.0), &y));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ma_step(&ma, RON_FLOAT_MAX, &y));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ma_get_state(&ma, &ma_before));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_ma_step(&ma, RON_FLOAT_MAX, &y));
+    TEST_ASSERT_TRUE(y == ma_before.y_prev);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ma_get_state(&ma, &ma_after));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ma_after.fault_code);
+    TEST_ASSERT_TRUE(ma_after.sum == ma_before.sum);
+    TEST_ASSERT_EQUAL_UINT8(ma_before.idx, ma_after.idx);
+    TEST_ASSERT_EQUAL_UINT8(ma_before.count, ma_after.count);
+    for (idx = 0U; idx < ma_cfg.M; idx++) {
+        TEST_ASSERT_TRUE(ma_after.buf[idx] == ma_before.buf[idx]);
+    }
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_biquad_init(&biquad, &cascade_cfg));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_biquad_step(&biquad, RON_FLOAT_C(0.5), &y));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_biquad_get_state(&biquad, &bq_before));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_biquad_step(&biquad, RON_FLOAT_C(2.0), &y));
+    TEST_ASSERT_TRUE(y == bq_before.y_prev);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_biquad_get_state(&biquad, &bq_after));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, bq_after.fault_code);
+    for (idx = 0U; idx < cascade_cfg.n_sections; idx++) {
+        TEST_ASSERT_TRUE(bq_after.w1[idx] == bq_before.w1[idx]);
+        TEST_ASSERT_TRUE(bq_after.w2[idx] == bq_before.w2[idx]);
+    }
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.5), bq_after.w1[0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.5), bq_after.w1[1]);
+}
+
 /* Satisfies: RON-FR-110 | Test: RON-TC-FILT-005 */
 void test_ron_tc_filt_005_lp1_step_response(void)
 {
@@ -639,6 +692,7 @@ int main(void)
     RUN_TEST(test_ron_tc_filt_003_lifecycle_reset_and_get_state);
     RUN_TEST(test_ron_tc_filt_004_rejects_invalid_coefficients_and_inputs);
     RUN_TEST(test_ron_tc_filt_004_defensive_api_branches);
+    RUN_TEST(test_ron_tc_filt_004_output_nan_leaves_state_unchanged);
     RUN_TEST(test_ron_tc_filt_005_lp1_step_response);
     RUN_TEST(test_ron_tc_filt_006_lp1_frequency_configuration_matches_alpha);
     RUN_TEST(test_ron_tc_filt_007_lp1_cutoff_configuration_rejects_invalid_sample_time);

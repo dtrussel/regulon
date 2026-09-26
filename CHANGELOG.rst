@@ -326,6 +326,11 @@ Fixed
   leaves the state unchanged, and list ``dt`` rejection under
   ``RON_FAULT_INPUT_NAN`` (the code's actual return) rather than
   ``RON_FAULT_CONFIG_INVALID``.
+- ``ron_ma_step()`` and ``ron_biquad_step()`` stored the new sample in the
+  ring buffer / running sum and shifted each section's ``w1``/``w2`` before
+  the ``RON_FAULT_OUTPUT_NAN`` check, so the rejected sample was committed
+  (and the running sum could hold ``inf``). They now compute on locals and
+  commit only a finite output; the fault still latches as before.
 
 ------------------------------------------------------------------------
 

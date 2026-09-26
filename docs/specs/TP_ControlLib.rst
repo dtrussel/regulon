@@ -1697,10 +1697,15 @@ RON-TC-FILT-004 - Filter Coefficient and Input Validation
    * - **Stimulus**
      - Attempt invalid LP1 alpha, invalid moving-average window length,
        unstable biquad denominator, invalid rate limits, and non-finite runtime
-       input.
+       input. Feed a moving average (``M = 3``) and a two-section biquad
+       cascade (unity section, then ``b0`` at the float maximum) a finite
+       input whose output overflows.
    * - **Pass Criterion**
      - Invalid configurations return ``RON_FAULT_CONFIG_INVALID`` and
-       non-finite runtime input latches ``RON_FAULT_INPUT_NAN``.
+       non-finite runtime input latches ``RON_FAULT_INPUT_NAN``. The
+       overflowing step latches ``RON_FAULT_OUTPUT_NAN``, returns the previous
+       output, and leaves the moving-average buffer, index, count and running
+       sum, and every biquad section's ``w1`` / ``w2``, exactly as before.
 
 RON-TC-FILT-005 — First-Order LP Filter Step Response
 ------------------------------------------------------
