@@ -187,6 +187,12 @@ Added
   (RON-FR-720 – FR-723, RON-TC-SS-006 – SS-009). A step whose estimate would
   not be finite returns ``RonError::Numerical`` and keeps the previous
   estimate; C commits the non-finite estimate.
+- Rust: Kalman filter ``Kalman<N, M, P>`` (RON-FR-600 – FR-607,
+  RON-TC-KF-001 – KF-008): predict/update, scalar gain for one measurement
+  and Cholesky solve otherwise, Joseph form, steady-state gain, and dropout
+  as ``update(None)``. A non-positive-definite innovation covariance or a
+  non-finite result returns ``RonError::Numerical`` and keeps the previous
+  estimate and covariance; C commits the non-finite state.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
