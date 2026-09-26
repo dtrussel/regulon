@@ -76,7 +76,9 @@ Revision History
      - 2026-09-26
      - Added RON-TC-SS-010, RON-TC-LQR-011 and RON-TC-LQG-011: the
        state-space, LQR and LQG controllers latch runtime faults until
-       cleared (RON-SR-012, SR-013).
+       cleared (RON-SR-012, SR-013). RON-TC-LQG-006 now checks both gains
+       solved at init (``RON_LQG_GAIN_DARE_BOTH``) against reference values
+       and against the gain a time-varying filter converges to.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -3521,16 +3523,31 @@ RON-TC-LQG-006 — DARE at Init Time (Both Gains)
    * - **Level**
      - UT / ENV-HOST
    * - **Preconditions**
-     - Double-integrator system with noise covariances
-       ``Q_noise = diag(0.01, 0.01)``, ``R_noise = {{1.0}}``,
-       ``Q_cost = diag(1.0, 1.0)``, ``R_cost = {{1.0}}``.
-       Gain mode = DARE.
+     - Double-integrator system (``A = {{1, 1}, {0, 1}}``, ``B = {0, 1}^T``,
+       ``H = {1, 0}``) with noise covariances ``Q_noise = diag(0.01, 0.01)``,
+       ``R_noise = {{1.0}}`` and costs ``Q_cost = diag(1.0, 1.0)``,
+       ``R_cost = {{1.0}}``; ``dare_tol = 1e-6``. Reference values, from an
+       offline double-precision Riccati iteration: LQR gain
+       ``K = {0.422082, 1.243929}``; steady-state Kalman gain
+       ``K_f = {0.368686, 0.079455}^T``.
    * - **Stimulus**
-     - Call ``ron_lqg_init``.
+     - (a) Call ``ron_lqg_init`` in ``RON_LQG_GAIN_DARE_BOTH`` mode.
+       (b) Run a time-varying filter (``RON_LQG_GAIN_DARE``, no steady-state
+           gain) through 200 predict/update cycles and form its gain
+           ``P H^T (H P H^T + R_noise)^-1`` from the predicted covariance.
+       (c) In ``RON_LQG_GAIN_DARE`` mode with ``use_kf_steady_state = true``,
+           supply ``K_f_inf``.
+       (d) In ``RON_LQG_GAIN_DARE_BOTH`` mode, make ``H``, ``Q_noise`` or
+           ``R_noise`` non-finite; make ``R_noise + H Q_noise H^T``
+           indefinite; and, on a scalar plant with ``dare_tol = 10``, let the
+           estimator DARE stop on an iterate for which
+           ``H P H^T + R_noise`` is indefinite.
    * - **Pass Criterion**
-     - Returns ``RON_FAULT_NONE``. ``K_solved`` matches the known LQR gain
-       within ``1e-4``. Kalman filter is initialised with the converged
-       steady-state gain when ``use_kf_steady_state = true``.
+     - (a) Returns ``RON_FAULT_NONE``; ``K_solved`` and the filter's
+       ``K_inf`` match the reference values within ``1e-3``, and the filter
+       runs in steady-state mode. (b) The time-varying gain matches the
+       solved ``K_inf`` within ``1e-3``. (c) The supplied ``K_f_inf`` is used
+       unchanged. (d) Each case returns ``RON_FAULT_CONFIG_INVALID``.
 
 RON-TC-LQG-007 — Separation Principle
 --------------------------------------

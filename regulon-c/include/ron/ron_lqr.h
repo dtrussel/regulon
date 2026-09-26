@@ -174,11 +174,12 @@ typedef struct {
  * @retval RON_FAULT_NONE           Controller ready to step.
  * @retval RON_FAULT_NULL_POINTER   @p lqr or @p cfg was NULL.
  * @retval RON_FAULT_CONFIG_INVALID A dimension, matrix, cost or limit was
- *                                  invalid, or an embedded estimator's
- *                                  configuration was rejected.
- * @retval RON_FAULT_OUTPUT_NAN     The DARE iteration failed to converge
- *                                  within @c dare_max_iter, or produced a
- *                                  non-finite result.
+ *                                  invalid, an embedded estimator's
+ *                                  configuration was rejected, or the DARE
+ *                                  failed to converge within
+ *                                  @c dare_max_iter or met an
+ *                                  @c R + B^T P B that is not positive
+ *                                  definite.
  */
 /* Satisfies: RON-FR-730, RON-FR-733 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
 ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg);

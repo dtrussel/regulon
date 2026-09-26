@@ -75,6 +75,8 @@ Revision History
        ``faults`` register until ``_fault_clear()`` or ``_reset()``
        (RON-SR-012/013), holding the last output; a step commits integral and
        output history only after every output is finite.
+       ron_lqg: RON_LQG_GAIN_DARE_BOTH solves the steady-state Kalman gain
+       from the dual DARE at init (RON-FR-756), reusing the DD-19 solver.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -1955,7 +1957,7 @@ Data Structures
 .. code-block:: none
 
    ENUM LqgGainMode:
-     LQG_GAIN_PRECOMPUTED | LQG_GAIN_DARE
+     LQG_GAIN_PRECOMPUTED | LQG_GAIN_DARE | LQG_GAIN_DARE_BOTH
 
    STRUCTURE LqgConfig:
      n, m, p            : uint8_t     -- state, input, measurement dims
@@ -2002,9 +2004,14 @@ Initialisation Pseudocode
      -- 2. Solve LQR DARE(A, B, Q_cost, R_cost) → K_solved, P_lqr
      --    (or copy cfg.K when gain_mode = PRECOMPUTED)
      -- 3. Build ron_kf_config_t from (A, B, H, Q_noise, R_noise, x0, P0, ...)
-     --    then call ron_kf_init(&inst.kalman, &kf_cfg)
-     --    The Kalman gain is computed inside ron_kf_init via its own DARE
-     --    when steady_state = true, otherwise the filter runs adaptively.
+     --    IF gain_mode = DARE_BOTH:
+     --      P   ← DARE(Aᵀ, Hᵀ, Q_noise, R_noise)       -- dual (estimator) DARE
+     --      S   ← H P Hᵀ + R_noise                      -- Cholesky; else CONFIG_INVALID
+     --      K_f ← P Hᵀ S⁻¹                              -- filter-form gain
+     --      kf_cfg.steady_state ← true; kf_cfg.K_inf ← K_f
+     --    ELSE: steady_state / K_inf from use_kf_steady_state / K_f_inf,
+     --      otherwise the filter runs its time-varying gain.
+     --    Then call ron_kf_init(&inst.kalman, &kf_cfg)
      -- 4. Zero u_prev, clear faults, set is_initialised
 
 Combined Step Pseudocode (predict → update → control)

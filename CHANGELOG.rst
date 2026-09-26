@@ -245,6 +245,16 @@ Added
   also on beta), a ``thumbv7em-none-eabihf`` release build, Kani proofs,
   ``cargo audit``, a ``cargo-llvm-cov`` coverage report (not yet enforced)
   and the traceability check.
+- LQG: ``RON_LQG_GAIN_DARE_BOTH`` (Rust: ``LqgGain::DareBoth``) solves the
+  steady-state Kalman gain at init as well as the LQR gain, as RON-FR-756
+  requires: the dual DARE in ``(A^T, H^T, Q_noise, R_noise)`` gives the
+  a-priori covariance ``P``, and the filter runs on the fixed
+  ``K_f = P H^T (H P H^T + R_noise)^-1``. Previously no mode solved the
+  estimator gain; the existing modes are unchanged. The C DARE solver gains a
+  matrix-level entry point, ``ron_lqr_dare_solve_mat()`` (private), for the
+  dual problem's measurement-sized operands. RON-TC-LQG-006 checks both
+  gains against reference values and against the gain a time-varying filter
+  converges to.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
@@ -261,6 +271,8 @@ Fixed
 -----
 - Rust: the biquad design helpers failed pedantic clippy in
   ``double_precision`` builds (``useless_conversion`` on the ``f64`` widening).
+- ``ron_lqr_init`` / ``ron_lqg_init`` documented a failed DARE as
+  ``RON_FAULT_OUTPUT_NAN``; it returns ``RON_FAULT_CONFIG_INVALID``.
 - ``ron_lqg.h`` cited RON-TC-LQG-010, which does not exist; the case is
   RON-TC-LQG-010-FV.
 - ``regulon.pc`` still listed ``Libs.private: -lm`` after the libm removal,

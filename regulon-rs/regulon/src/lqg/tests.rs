@@ -109,18 +109,115 @@ fn ron_tc_lqg_005() {
     approx_eq(u[0], -(0.5 * x[0] + 0.25 * x[1]) + 2.0);
 }
 
+/// Both gains solved at construction, with a tight tolerance.
+const DARE_BOTH: LqgGain<2, 1> = LqgGain::DareBoth {
+    q_cost: Matrix::new([[1.0, 0.0], [0.0, 1.0]]),
+    r_cost: Matrix::new([[1.0]]),
+    max_iterations: 500,
+    tolerance: 1.0e-6,
+};
+
+fn near(lhs: RonFloat, rhs: RonFloat) {
+    assert!((lhs - rhs).abs() <= 1.0e-3, "{lhs} != {rhs}");
+}
+
 /// RON-TC-LQG-006 | RON-FR-756
 #[test]
 fn ron_tc_lqg_006() {
-    let steady = Matrix::new([[0.5], [0.2]]);
+    // (a) Both gains solved and matching the offline references.
     let lqg = Lqg::new(LqgConfig {
+        gain: DARE_BOTH,
+        ..base()
+    })
+    .unwrap();
+    near(lqg.gain().rows()[0][0], 0.422_082);
+    near(lqg.gain().rows()[0][1], 1.243_929);
+    let solved = lqg.kalman().config().steady_state_gain.unwrap();
+    near(solved.rows()[0][0], 0.368_686);
+    near(solved.rows()[1][0], 0.079_455);
+
+    // (b) A time-varying filter converges to the same gain.
+    let mut tv = Lqg::new(LqgConfig {
+        gain: DARE_GAIN,
+        ..base()
+    })
+    .unwrap();
+    let mut gain = [0.0; 2];
+    for _ in 0..200 {
+        tv.predict(&[0.0]).unwrap();
+        let p = tv.kalman().covariance();
+        let s = p.rows()[0][0] + 1.0;
+        gain = [p.rows()[0][0] / s, p.rows()[1][0] / s];
+        tv.update(Some(&[0.0])).unwrap();
+    }
+    near(gain[0], solved.rows()[0][0]);
+    near(gain[1], solved.rows()[1][0]);
+
+    // (c) The DARE mode still uses a supplied steady-state gain unchanged.
+    let steady = Matrix::new([[0.5], [0.2]]);
+    let supplied = Lqg::new(LqgConfig {
         gain: DARE_GAIN,
         kalman_steady_state_gain: Some(steady),
         ..base()
     })
     .unwrap();
-    assert!(lqg.dare_solution().is_some());
-    assert_eq!(lqg.kalman().config().steady_state_gain, Some(steady));
+    assert!(supplied.dare_solution().is_some());
+    assert_eq!(supplied.kalman().config().steady_state_gain, Some(steady));
+
+    // (d) Rejected estimator designs.
+    for config in [
+        LqgConfig {
+            h: Matrix::new([[1.0, RonFloat::NAN]]),
+            ..base()
+        },
+        LqgConfig {
+            q_noise: Matrix::diagonal([0.01, RonFloat::INFINITY]),
+            ..base()
+        },
+        LqgConfig {
+            r_noise: Matrix::new([[RonFloat::NAN]]),
+            ..base()
+        },
+        // R + H Q H^T = -1.
+        LqgConfig {
+            q_noise: Matrix::diagonal([-2.0, 0.01]),
+            ..base()
+        },
+    ] {
+        assert!(Lqg::new(LqgConfig {
+            gain: DARE_BOTH,
+            ..config
+        })
+        .is_err());
+    }
+
+    // Scalar plant, loose tolerance: the estimator DARE stops after one step
+    // on P = -2.1, so H P H^T + R_noise = -1.1 cannot be factored.
+    let scalar = Lqg::<1, 1, 1>::new(LqgConfig {
+        a: Matrix::new([[1.0]]),
+        b: Matrix::new([[1.0]]),
+        h: Matrix::new([[1.0]]),
+        q_noise: Matrix::new([[-0.6]]),
+        r_noise: Matrix::new([[1.0]]),
+        x0: [0.0],
+        p0: Matrix::new([[1.0]]),
+        joseph_form: false,
+        kalman_steady_state_gain: None,
+        gain: LqgGain::DareBoth {
+            q_cost: Matrix::new([[1.0]]),
+            r_cost: Matrix::new([[1.0]]),
+            max_iterations: 500,
+            tolerance: 10.0,
+        },
+        kr: [0.0],
+        limits: [WIDE],
+    });
+    assert!(matches!(
+        scalar,
+        Err(RonError::Numerical(
+            "H P H^T + R_noise is not positive definite"
+        ))
+    ));
 }
 
 /// RON-TC-LQG-007 | RON-FR-752

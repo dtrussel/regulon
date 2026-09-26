@@ -35,7 +35,8 @@ static bool lqg_dims_valid(const ron_lqg_config_t *cfg)
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 static bool lqg_gain_mode_valid(ron_lqg_gain_mode_t mode)
 {
-    return (mode == RON_LQG_GAIN_PRECOMPUTED) || (mode == RON_LQG_GAIN_DARE);
+    return (mode == RON_LQG_GAIN_PRECOMPUTED) || (mode == RON_LQG_GAIN_DARE) ||
+           (mode == RON_LQG_GAIN_DARE_BOTH);
 }
 
 /* A and B feed the DARE solver directly (RON-FR-756) and so must be
@@ -60,6 +61,18 @@ static bool lqg_dare_cost_valid(const ron_lqg_config_t *cfg)
     return ron_util_isfinite(cfg->dare_tol) && (cfg->dare_tol > RON_FLOAT_C(0.0));
 }
 
+/* The estimator DARE (RON_LQG_GAIN_DARE_BOTH) consumes H and the noise
+ * model before ron_kf_init() sees them, so they are checked here first. */
+/* Satisfies: RON-FR-751, RON-FR-756 | Test: RON-TC-LQG-006 */
+static bool lqg_noise_model_finite(const ron_lqg_config_t *cfg)
+{
+    return ron_mat_strided_finite(&cfg->H[0][0], (uint8_t) RON_LQR_MAX_STATES, cfg->p, cfg->n) &&
+           ron_mat_strided_finite(&cfg->Q_noise[0][0], (uint8_t) RON_LQR_MAX_STATES, cfg->n,
+                                  cfg->n) &&
+           ron_mat_strided_finite(&cfg->R_noise[0][0], (uint8_t) RON_KF_MAX_MEASUREMENTS, cfg->p,
+                                  cfg->p);
+}
+
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 static bool lqg_gain_valid(const ron_lqg_config_t *cfg)
 {
@@ -68,6 +81,9 @@ static bool lqg_gain_valid(const ron_lqg_config_t *cfg)
     }
     if (cfg->gain_mode == RON_LQG_GAIN_PRECOMPUTED) {
         return ron_mat_strided_finite(&cfg->K[0][0], (uint8_t) RON_LQR_MAX_STATES, cfg->m, cfg->n);
+    }
+    if ((cfg->gain_mode == RON_LQG_GAIN_DARE_BOTH) && !lqg_noise_model_finite(cfg)) {
+        return false;
     }
     return lqg_dare_cost_valid(cfg);
 }
@@ -180,12 +196,79 @@ static void lqg_populate_kf_config(const ron_lqg_config_t *cfg, ron_kf_config_t 
     }
 }
 
-/* Satisfies: RON-FR-752, RON-FR-756 | Test: RON-TC-LQG-001 */
+/*
+ * Steady-state Kalman gain from the dual (estimator) DARE: the a-priori
+ * covariance P solves the DARE in (A^T, H^T, Q_noise, R_noise), and
+ * K_f = P H^T (H P H^T + R_noise)^-1 is the gain the time-varying filter
+ * converges to.  The DARE's own gain is the predictor form A K_f and is not
+ * used.  Scratch matrices are reused once their last reader has run.
+ */
+/* Satisfies: RON-FR-752, RON-FR-756 | Test: RON-TC-LQG-006 */
+static ron_fault_t lqg_solve_kalman_gain(const ron_lqg_config_t *cfg, ron_float_t *k_f_out)
+{
+    ron_mat_t at;   /* A^T, then S = H P H^T + R_noise */
+    ron_mat_t ht;   /* H^T                             */
+    ron_mat_t q;    /* Q_noise, then H P               */
+    ron_mat_t r;    /* R_noise                         */
+    ron_mat_t gain; /* dual DARE gain, then K_f       */
+    ron_mat_t p;    /* DARE solution P                 */
+    ron_fault_t fault;
+    uint8_t i;
+    uint8_t j;
+
+    for (i = 0U; i < cfg->n; i++) {
+        for (j = 0U; j < cfg->n; j++) {
+            at[i][j] = cfg->A[j][i];
+        }
+        for (j = 0U; j < cfg->p; j++) {
+            ht[i][j] = cfg->H[j][i];
+        }
+    }
+    ron_mat_load(q, &cfg->Q_noise[0][0], (uint8_t) RON_LQR_MAX_STATES, cfg->n, cfg->n);
+    ron_mat_load(r, &cfg->R_noise[0][0], (uint8_t) RON_KF_MAX_MEASUREMENTS, cfg->p, cfg->p);
+
+    fault = ron_lqr_dare_solve_mat(at, ht, q, r, cfg->n, cfg->p, cfg->dare_max_iter, cfg->dare_tol,
+                                   gain, p);
+    if (fault != RON_FAULT_NONE) {
+        return fault;
+    }
+
+    ron_mat_mul_ta(q, ht, p, cfg->p, cfg->n, cfg->n); /* H P       (p x n) */
+    ron_mat_mul(at, q, ht, cfg->p, cfg->n, cfg->p);   /* H P H^T   (p x p) */
+    ron_mat_add(at, at, r, cfg->p, cfg->p);           /* S                 */
+    if (!ron_mat_cholesky(at, cfg->p)) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    for (i = 0U; i < cfg->n; i++) { /* row i of K_f solves S k = (H P)[:, i] */
+        ron_float_t rhs[RON_MAT_MAX_DIM];
+
+        for (j = 0U; j < cfg->p; j++) {
+            rhs[j] = q[j][i];
+        }
+        ron_mat_chol_solve(at, rhs, cfg->p);
+        for (j = 0U; j < cfg->p; j++) {
+            gain[i][j] = rhs[j];
+        }
+    }
+    ron_mat_store(k_f_out, (uint8_t) RON_KF_MAX_MEASUREMENTS, gain, cfg->n, cfg->p);
+
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-FR-752, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 static ron_fault_t lqg_init_kalman(ron_lqg_t *lqg)
 {
     ron_kf_config_t kf_cfg = {0};
 
     lqg_populate_kf_config(&lqg->cfg, &kf_cfg);
+    if (lqg->cfg.gain_mode == RON_LQG_GAIN_DARE_BOTH) {
+        ron_fault_t fault = lqg_solve_kalman_gain(&lqg->cfg, &kf_cfg.K_inf[0][0]);
+
+        if (fault != RON_FAULT_NONE) {
+            return fault;
+        }
+        kf_cfg.steady_state = true;
+    }
 
     return ron_kf_init(&lqg->kalman, &kf_cfg);
 }

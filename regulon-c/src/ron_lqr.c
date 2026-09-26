@@ -129,6 +129,39 @@ static void lqr_dare_update_p(ron_mat_t p, ron_mat_t a_work, ron_mat_t b_work, r
 }
 
 /* Satisfies: RON-FR-731, RON-FR-733, RON-FR-739, RON-FR-756 | Test: RON-TC-LQR-003, RON-TC-LQG-006 */
+ron_fault_t ron_lqr_dare_solve_mat(ron_mat_t a, ron_mat_t b, ron_mat_t q, ron_mat_t r, uint8_t n,
+                                   uint8_t m, uint16_t max_iter, ron_float_t tol, ron_mat_t k_out,
+                                   ron_mat_t p_out)
+{
+    ron_mat_t p;
+    uint16_t effective_max_iter = (max_iter == 0U) ? RON_LQR_DARE_DEFAULT_MAX_ITER : max_iter;
+    uint16_t iter;
+
+    lqr_mat_copy(p, q, n, n); /* P <- Q */
+
+    for (iter = 0U; iter < effective_max_iter; iter++) {
+        ron_mat_t k_i;
+        ron_mat_t p_new;
+
+        if (!lqr_dare_solve_gain(p, a, b, r, n, m, k_i)) {
+            return RON_FAULT_CONFIG_INVALID;
+        }
+
+        lqr_dare_update_p(p, a, b, q, k_i, n, m, p_new);
+
+        if (lqr_mat_max_abs_diff(p_new, p, n, n) < tol) {
+            lqr_mat_copy(k_out, k_i, m, n);
+            lqr_mat_copy(p_out, p_new, n, n);
+            return RON_FAULT_NONE;
+        }
+
+        lqr_mat_copy(p, p_new, n, n);
+    }
+
+    return RON_FAULT_CONFIG_INVALID; /* did not converge within max_iter */
+}
+
+/* Satisfies: RON-FR-731, RON-FR-733, RON-FR-739, RON-FR-756 | Test: RON-TC-LQR-003, RON-TC-LQG-006 */
 ron_fault_t ron_lqr_dare_solve(const ron_float_t *a, const ron_float_t *b, const ron_float_t *q,
                                const ron_float_t *r, uint8_t n, uint8_t m, uint16_t max_iter,
                                ron_float_t tol, ron_float_t *k_out, ron_float_t *p_out)
@@ -137,36 +170,23 @@ ron_fault_t ron_lqr_dare_solve(const ron_float_t *a, const ron_float_t *b, const
     ron_mat_t b_work;
     ron_mat_t q_work;
     ron_mat_t r_work;
-    ron_mat_t p;
-    uint16_t effective_max_iter = (max_iter == 0U) ? RON_LQR_DARE_DEFAULT_MAX_ITER : max_iter;
-    uint16_t iter;
+    ron_mat_t k_work;
+    ron_mat_t p_work;
+    ron_fault_t fault;
 
     ron_mat_load(a_work, a, (uint8_t) RON_LQR_MAX_STATES, n, n);
     ron_mat_load(b_work, b, (uint8_t) RON_LQR_MAX_INPUTS, n, m);
     ron_mat_load(q_work, q, (uint8_t) RON_LQR_MAX_STATES, n, n);
     ron_mat_load(r_work, r, (uint8_t) RON_LQR_MAX_INPUTS, m, m);
-    lqr_mat_copy(p, q_work, n, n); /* P <- Q */
 
-    for (iter = 0U; iter < effective_max_iter; iter++) {
-        ron_mat_t k_i;
-        ron_mat_t p_new;
-
-        if (!lqr_dare_solve_gain(p, a_work, b_work, r_work, n, m, k_i)) {
-            return RON_FAULT_CONFIG_INVALID;
-        }
-
-        lqr_dare_update_p(p, a_work, b_work, q_work, k_i, n, m, p_new);
-
-        if (lqr_mat_max_abs_diff(p_new, p, n, n) < tol) {
-            ron_mat_store(k_out, (uint8_t) RON_LQR_MAX_STATES, k_i, m, n);
-            ron_mat_store(p_out, (uint8_t) RON_LQR_MAX_STATES, p_new, n, n);
-            return RON_FAULT_NONE;
-        }
-
-        lqr_mat_copy(p, p_new, n, n);
+    fault =
+        ron_lqr_dare_solve_mat(a_work, b_work, q_work, r_work, n, m, max_iter, tol, k_work, p_work);
+    if (fault == RON_FAULT_NONE) {
+        ron_mat_store(k_out, (uint8_t) RON_LQR_MAX_STATES, k_work, m, n);
+        ron_mat_store(p_out, (uint8_t) RON_LQR_MAX_STATES, p_work, n, n);
     }
 
-    return RON_FAULT_CONFIG_INVALID; /* did not converge within max_iter */
+    return fault;
 }
 
 /* =========================================================================

@@ -196,27 +196,95 @@ void test_ron_tc_lqg_005(void)
 /* RON-TC-LQG-006 — DARE at Init Time (Both Gains)                         */
 /* ----------------------------------------------------------------------- */
 
+/* Double-integrator LQG with both gains to be solved at init. */
+/* Satisfies: RON-FR-756 | Test: RON-TC-LQG-006 */
+static ron_lqg_config_t make_dare_both_cfg(void)
+{
+    ron_lqg_config_t cfg = make_base_cfg();
+
+    cfg.gain_mode     = RON_LQG_GAIN_DARE_BOTH;
+    cfg.Q_cost[0][0]  = RON_FLOAT_C(1.0);
+    cfg.Q_cost[1][1]  = RON_FLOAT_C(1.0);
+    cfg.R_cost[0][0]  = RON_FLOAT_C(1.0);
+    cfg.dare_max_iter = 500U;
+    cfg.dare_tol      = RON_FLOAT_C(1e-6);
+
+    return cfg;
+}
+
 /* RON-TC-LQG-006 | RON-FR-756 */
 void test_ron_tc_lqg_006(void)
 {
     ron_lqg_t lqg;
-    ron_lqg_config_t cfg = make_base_cfg();
+    ron_lqg_config_t cfg = make_dare_both_cfg();
+    ron_float_t k_tv[2]  = {RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)};
+    uint16_t cycle;
 
+    /* (a) Both gains solved at init and matching the offline references. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(0.422082), lqg.K_solved[0][0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(1.243929), lqg.K_solved[0][1]);
+    TEST_ASSERT_TRUE(lqg.kalman.cfg.steady_state);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(0.368686), lqg.kalman.cfg.K_inf[0][0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(0.079455), lqg.kalman.cfg.K_inf[1][0]);
+
+    /* (b) A time-varying filter converges to the same gain. */
+    {
+        ron_lqg_t tv;
+        ron_lqg_config_t tv_cfg                 = make_dare_both_cfg();
+        ron_float_t u0[RON_LQR_MAX_INPUTS]      = {RON_FLOAT_C(0.0)};
+        ron_float_t z0[RON_KF_MAX_MEASUREMENTS] = {RON_FLOAT_C(0.0)};
+
+        tv_cfg.gain_mode = RON_LQG_GAIN_DARE;
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&tv, &tv_cfg));
+        TEST_ASSERT_FALSE(tv.kalman.cfg.steady_state);
+        for (cycle = 0U; cycle < 200U; cycle++) {
+            ron_float_t s;
+
+            TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_predict(&tv, u0));
+            s       = tv.kalman.state.P[0][0] + tv_cfg.R_noise[0][0];
+            k_tv[0] = tv.kalman.state.P[0][0] / s;
+            k_tv[1] = tv.kalman.state.P[1][0] / s;
+            TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_update(&tv, z0, true));
+        }
+    }
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), lqg.kalman.cfg.K_inf[0][0], k_tv[0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), lqg.kalman.cfg.K_inf[1][0], k_tv[1]);
+
+    /* (c) DARE mode still uses a supplied steady-state gain unchanged. */
+    cfg                     = make_dare_both_cfg();
     cfg.gain_mode           = RON_LQG_GAIN_DARE;
-    cfg.Q_cost[0][0]        = RON_FLOAT_C(1.0);
-    cfg.Q_cost[1][1]        = RON_FLOAT_C(1.0);
-    cfg.R_cost[0][0]        = RON_FLOAT_C(1.0);
-    cfg.dare_max_iter       = 200U;
-    cfg.dare_tol            = RON_FLOAT_C(1e-4);
     cfg.use_kf_steady_state = true;
     cfg.K_f_inf[0][0]       = RON_FLOAT_C(0.5);
     cfg.K_f_inf[1][0]       = RON_FLOAT_C(0.2);
-
     TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
-    TEST_ASSERT_TRUE(lqg.kalman.state.is_initialised);
     TEST_ASSERT_TRUE(lqg.kalman.cfg.steady_state);
     TEST_ASSERT_FLOAT_WITHIN(LQG_TOL, RON_FLOAT_C(0.5), lqg.kalman.cfg.K_inf[0][0]);
     TEST_ASSERT_FLOAT_WITHIN(LQG_TOL, RON_FLOAT_C(0.2), lqg.kalman.cfg.K_inf[1][0]);
+
+    /* (d) Rejected estimator designs. */
+    cfg         = make_dare_both_cfg();
+    cfg.H[0][1] = lqg_make_nan();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg               = make_dare_both_cfg();
+    cfg.Q_noise[1][1] = lqg_make_inf();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg               = make_dare_both_cfg();
+    cfg.R_noise[0][0] = lqg_make_nan();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg               = make_dare_both_cfg();
+    cfg.Q_noise[0][0] = RON_FLOAT_C(-2.0); /* R + H Q H^T = -1 */
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+
+    /* Scalar plant, loose tolerance: the estimator DARE stops after one
+     * step on P = -2.1, so H P H^T + R_noise = -1.1 cannot be factored. */
+    cfg               = make_dare_both_cfg();
+    cfg.n             = 1U;
+    cfg.A[0][0]       = RON_FLOAT_C(1.0);
+    cfg.B[0][0]       = RON_FLOAT_C(1.0);
+    cfg.Q_noise[0][0] = RON_FLOAT_C(-0.6);
+    cfg.dare_tol      = RON_FLOAT_C(10.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
 }
 
 /* ----------------------------------------------------------------------- */
@@ -249,8 +317,8 @@ void test_ron_tc_lqg_007(void)
 
         lqr_cfg.n             = 2U;
         lqr_cfg.m             = 1U;
-        lqr_cfg.est.source        = RON_ESTIMATOR_EXTERNAL;
-        lqr_cfg.est.x_ext         = x_ext;
+        lqr_cfg.est.source    = RON_ESTIMATOR_EXTERNAL;
+        lqr_cfg.est.x_ext     = x_ext;
         lqr_cfg.gain_mode     = RON_LQR_GAIN_DARE;
         lqr_cfg.A[0][0]       = RON_FLOAT_C(1.0);
         lqr_cfg.A[0][1]       = RON_FLOAT_C(1.0);

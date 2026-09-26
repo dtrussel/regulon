@@ -23,11 +23,13 @@
  *   - The Kalman gain is determined by Q_noise, R_noise, A, H.
  *   - The LQR gain K is determined by Q_cost, R_cost, A, B.
  *
- * The LQR gain K is solved via DARE once at init time (RON_LQG_GAIN_DARE)
- * or supplied pre-computed (RON_LQG_GAIN_PRECOMPUTED), and is not recomputed
- * per step.  No Riccati equation is solved for the estimator: the embedded
- * Kalman filter runs its normal time-varying gain, or the caller-supplied
- * steady-state gain K_f_inf when use_kf_steady_state is set.
+ * RON_LQG_GAIN_DARE_BOTH solves both gains once at init time (RON-FR-756):
+ * the LQR gain K from the control DARE, and the steady-state Kalman gain
+ * from the dual (estimator) DARE; neither is recomputed per step.  The other
+ * two modes resolve only K - solved via DARE (RON_LQG_GAIN_DARE) or supplied
+ * (RON_LQG_GAIN_PRECOMPUTED) - and leave the embedded Kalman filter on its
+ * time-varying gain, or on the caller-supplied steady-state gain K_f_inf
+ * when use_kf_steady_state is set.
  *
  * All storage resides in the caller-owned ron_lqg_t instance; no dynamic
  * allocation, recursion, or VLAs are used (RON-FR-759).
@@ -77,7 +79,10 @@ extern "C" {
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 typedef enum {
     RON_LQG_GAIN_PRECOMPUTED = 0, /**< LQR gain K supplied; DARE skipped.   */
-    RON_LQG_GAIN_DARE        = 1  /**< LQR gain K solved via DARE at init.  */
+    RON_LQG_GAIN_DARE        = 1, /**< LQR gain K solved via DARE at init.  */
+    /** K and the steady-state Kalman gain both solved via DARE at init;
+     *  @c use_kf_steady_state and @c K_f_inf are ignored. */
+    RON_LQG_GAIN_DARE_BOTH = 2
 } ron_lqg_gain_mode_t;
 
 /* =========================================================================
@@ -91,7 +96,7 @@ typedef struct {
     uint8_t n;                     /**< State dim  (1..RON_LQR_MAX_STATES).       */
     uint8_t m;                     /**< Input dim  (1..RON_LQR_MAX_INPUTS).       */
     uint8_t p;                     /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS).  */
-    ron_lqg_gain_mode_t gain_mode; /**< Pre-computed or DARE.                     */
+    ron_lqg_gain_mode_t gain_mode; /**< Pre-computed, DARE, or DARE for both.     */
 
     /* System matrices — shared by Kalman predictor and LQR law (RON-FR-751). */
     ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];      /**< State transition.   */
@@ -151,9 +156,11 @@ typedef struct {
  * therefore sets up two parts - the control gain (in RON_LQG_GAIN_DARE mode
  * the control Riccati equation is solved from @c A, @c B, @c Q_cost and
  * @c R_cost; otherwise @c K is copied), and the estimator, delegated to
- * ron_kf_init() with the noise model in @c Q_noise and @c R_noise. The
- * estimator's gain is not solved here: the filter uses its time-varying
- * gain, or @c K_f_inf when @c use_kf_steady_state is set.
+ * ron_kf_init() with the noise model in @c Q_noise and @c R_noise. In
+ * RON_LQG_GAIN_DARE_BOTH mode the estimator's steady-state gain is solved
+ * here too, from the dual Riccati equation in @c A, @c H, @c Q_noise and
+ * @c R_noise, and the filter runs on it; otherwise the filter uses its
+ * time-varying gain, or @c K_f_inf when @c use_kf_steady_state is set.
  *
  * The estimator is always the embedded Kalman filter; unlike
  * ron_lqr_init() there is no choice of estimate source, because
@@ -169,10 +176,10 @@ typedef struct {
  * @retval RON_FAULT_NONE           Controller ready to step.
  * @retval RON_FAULT_NULL_POINTER   @p lqg or @p cfg was NULL.
  * @retval RON_FAULT_CONFIG_INVALID A dimension, matrix, cost or limit was
- *                                  invalid, or ron_kf_init() rejected the
- *                                  estimator configuration.
- * @retval RON_FAULT_OUTPUT_NAN     The control DARE failed to converge or
- *                                  produced a non-finite result.
+ *                                  invalid, ron_kf_init() rejected the
+ *                                  estimator configuration, or a DARE failed
+ *                                  to converge or met a matrix that is not
+ *                                  positive definite.
  */
 /* Satisfies: RON-FR-750, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);

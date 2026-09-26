@@ -2383,8 +2383,9 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
 
    /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
    typedef enum {
-       RON_LQG_GAIN_PRECOMPUTED = 0,
-       RON_LQG_GAIN_DARE        = 1
+       RON_LQG_GAIN_PRECOMPUTED = 0,  /* K supplied                            */
+       RON_LQG_GAIN_DARE        = 1,  /* K solved at init                      */
+       RON_LQG_GAIN_DARE_BOTH   = 2   /* K and steady-state K_f solved at init */
    } ron_lqg_gain_mode_t;
 
    /* Satisfies: RON-FR-750..FR-759 | Test: RON-TC-LQG-001..RON-TC-LQG-010 */
@@ -2392,7 +2393,7 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
        uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES). */
        uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS). */
        uint8_t            p;          /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS). */
-       ron_lqg_gain_mode_t gain_mode; /**< Pre-computed or DARE.               */
+       ron_lqg_gain_mode_t gain_mode; /**< Pre-computed, DARE, or DARE for both. */
 
        ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];              /**< System.    */
        ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];               /**< Input.     */
@@ -2465,7 +2466,13 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
 
 ``ron_lqg_init`` solves the LQR DARE (or copies the pre-computed K) and
 initialises the embedded ``ron_kf_t`` from the system matrices and noise
-covariances.  The typical per-step call sequence is:
+covariances.  In ``RON_LQG_GAIN_DARE_BOTH`` mode it also solves the dual
+(estimator) DARE in ``(A^T, H^T, Q_noise, R_noise)`` for the steady-state
+a-priori covariance ``P`` and runs the filter on the fixed gain
+``K_f = P H^T (H P H^T + R_noise)^-1``, so neither gain is recomputed per
+step (``RON-FR-756``); ``use_kf_steady_state`` and ``K_f_inf`` are then
+ignored.  The other modes leave the filter on its time-varying gain, or on a
+supplied ``K_f_inf``.  The typical per-step call sequence is:
 ``ron_lqg_predict`` → ``ron_lqg_update`` → ``ron_lqg_step``.  The predict and
 update steps are separate to accommodate sample-rate mismatches between
 control and sensing.  Runtime faults in ``ron_lqg_step`` latch exactly as for

@@ -21,14 +21,15 @@ mod tests;
 use crate::{
     error::RonError,
     kalman::{Kalman, KalmanConfig},
-    lqr::{solve_dare, DareConfig},
+    lqr::{solve_dare, DareConfig, DareSolution},
     matrix::{dimension_valid, vector_is_finite, Matrix},
     pid::{PidFault, PidStatus},
     platform::{is_finite, RonFloat},
     statespace::OutputLimits,
 };
 
-/// LQR gain source; the DARE uses the shared `A` and `B`.
+/// Gain source. The control DARE uses the shared `A` and `B`; in
+/// [`LqgGain::DareBoth`] the estimator DARE uses `A`, `H` and the noise model.
 ///
 /// **Satisfies:** RON-FR-756
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -37,6 +38,19 @@ pub enum LqgGain<const N: usize, const U: usize> {
     Precomputed(Matrix<U, N>),
     /// Gain solved from the DARE at construction.
     Dare {
+        /// State cost (positive semi-definite).
+        q_cost: Matrix<N, N>,
+        /// Input cost (positive definite).
+        r_cost: Matrix<U, U>,
+        /// Iteration limit; 0 selects the default.
+        max_iterations: u16,
+        /// Convergence tolerance; positive.
+        tolerance: RonFloat,
+    },
+    /// LQR gain and steady-state Kalman gain both solved at construction;
+    /// [`LqgConfig::kalman_steady_state_gain`] is ignored. Both DAREs use the
+    /// same iteration limit and tolerance.
+    DareBoth {
         /// State cost (positive semi-definite).
         q_cost: Matrix<N, N>,
         /// Input cost (positive definite).
@@ -70,6 +84,7 @@ pub struct LqgConfig<const N: usize, const U: usize, const Y: usize> {
     /// Use the Joseph-form covariance update.
     pub joseph_form: bool,
     /// Fixed steady-state Kalman gain; `None` computes it every update.
+    /// Ignored (the gain is solved) with [`LqgGain::DareBoth`].
     pub kalman_steady_state_gain: Option<Matrix<N, Y>>,
     /// LQR gain source.
     pub gain: LqgGain<N, U>,
@@ -119,6 +134,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
         for limits in &config.limits {
             limits.validate()?;
         }
+        let mut steady_state_gain = config.kalman_steady_state_gain;
         let (k, dare_solution) = match config.gain {
             LqgGain::Precomputed(k) => {
                 if !k.is_finite() {
@@ -132,14 +148,19 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
                 max_iterations,
                 tolerance,
             } => {
-                let solution = solve_dare(&DareConfig {
-                    a: config.a,
-                    b: config.b,
-                    q: q_cost,
-                    r: r_cost,
-                    max_iterations,
-                    tolerance,
-                })?;
+                let solution =
+                    solve_control_dare(&config, q_cost, r_cost, max_iterations, tolerance)?;
+                (solution.k, Some(solution.p))
+            }
+            LqgGain::DareBoth {
+                q_cost,
+                r_cost,
+                max_iterations,
+                tolerance,
+            } => {
+                let solution =
+                    solve_control_dare(&config, q_cost, r_cost, max_iterations, tolerance)?;
+                steady_state_gain = Some(solve_kalman_gain(&config, max_iterations, tolerance)?);
                 (solution.k, Some(solution.p))
             }
         };
@@ -152,7 +173,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
             x0: config.x0,
             p0: config.p0,
             joseph_form: config.joseph_form,
-            steady_state_gain: config.kalman_steady_state_gain,
+            steady_state_gain,
         })?;
         Ok(Self {
             kalman,
@@ -318,4 +339,66 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
     pub const fn kalman(&self) -> &Kalman<N, Y, U> {
         &self.kalman
     }
+}
+
+/// Solves the control DARE in the shared `A` and `B`.
+///
+/// **Satisfies:** RON-FR-756
+fn solve_control_dare<const N: usize, const U: usize, const Y: usize>(
+    config: &LqgConfig<N, U, Y>,
+    q_cost: Matrix<N, N>,
+    r_cost: Matrix<U, U>,
+    max_iterations: u16,
+    tolerance: RonFloat,
+) -> Result<DareSolution<N, U>, RonError> {
+    solve_dare(&DareConfig {
+        a: config.a,
+        b: config.b,
+        q: q_cost,
+        r: r_cost,
+        max_iterations,
+        tolerance,
+    })
+}
+
+/// Steady-state Kalman gain from the dual (estimator) DARE: the a-priori
+/// covariance `P` solves the DARE in `(A^T, H^T, Q_noise, R_noise)`, and
+/// `K_f = P H^T (H P H^T + R_noise)^-1` is the gain the time-varying filter
+/// converges to. The DARE's own gain is the predictor form `A K_f` and is
+/// not used.
+///
+/// **Satisfies:** RON-FR-752, RON-FR-756
+///
+/// # Errors
+///
+/// Returns the solver's error, or [`RonError::Numerical`] when
+/// `H P H^T + R_noise` is not positive definite.
+fn solve_kalman_gain<const N: usize, const U: usize, const Y: usize>(
+    config: &LqgConfig<N, U, Y>,
+    max_iterations: u16,
+    tolerance: RonFloat,
+) -> Result<Matrix<N, Y>, RonError> {
+    let p = solve_dare(&DareConfig {
+        a: config.a.transpose(),
+        b: config.h.transpose(),
+        q: config.q_noise,
+        r: config.r_noise,
+        max_iterations,
+        tolerance,
+    })?
+    .p;
+    let hp = config.h.mul(&p);
+    let factor = hp
+        .mul(&config.h.transpose())
+        .add(&config.r_noise)
+        .cholesky()
+        .ok_or(RonError::Numerical(
+            "H P H^T + R_noise is not positive definite",
+        ))?;
+    // Row i of K_f solves S k = (H P)[:, i] (S and P are symmetric).
+    let mut rows = *hp.transpose().rows();
+    for row in &mut rows {
+        *row = factor.solve(row);
+    }
+    Ok(Matrix::new(rows))
 }
