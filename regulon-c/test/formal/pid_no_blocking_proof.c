@@ -20,7 +20,7 @@ void sleep(unsigned long seconds)
 /* Satisfies: RON-PR-004 | Test: RON-TC-PERF-004-FV */
 void pid_no_blocking_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg;
     ron_float_t u = RON_FLOAT_C(0.0);
     ron_status_t status = RON_STATUS_OK;

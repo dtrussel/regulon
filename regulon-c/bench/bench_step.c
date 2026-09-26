@@ -76,7 +76,7 @@ static int bench_report(const char *name, double (*step_once)(void *ctx), void *
 
 static double step_pid(void *ctx)
 {
-    ron_pid_instance_t *pid = (ron_pid_instance_t *) ctx;
+    ron_pid_t *pid = (ron_pid_t *) ctx;
     ron_float_t u;
     ron_status_t status;
     double t0 = now_ns();
@@ -135,7 +135,7 @@ static double step_lqg(void *ctx)
 
 int main(void)
 {
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_pid_config_t pid_cfg = {0};
     ron_kf_t kf;
     ron_kf_config_t kf_cfg = {0};

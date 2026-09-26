@@ -13,7 +13,7 @@
 
 int main(void)
 {
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_pid_config_t cfg = {0};
     ron_fault_t fault;
 

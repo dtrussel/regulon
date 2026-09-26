@@ -58,8 +58,8 @@ void free(void *ptr)
 /* Satisfies: RON-FR-806, RON-SR-003 | Test: RON-TC-AT-007-FV */
 void autotune_relay_bound_proof(void)
 {
-    ron_at_t at;
-    ron_at_config_t cfg;
+    ron_autotune_t at;
+    ron_autotune_config_t cfg;
     ron_float_t d    = nondet_ron_float_t();
     ron_float_t eps  = nondet_ron_float_t();
     ron_float_t bias = nondet_ron_float_t();
@@ -80,12 +80,12 @@ void autotune_relay_bound_proof(void)
     cfg.u_bias          = bias;
     cfg.min_cycles      = 5U;
     cfg.timeout_s       = AT_BOUND;
-    cfg.tuning_rule     = RON_AT_RULE_ZN;
+    cfg.tuning_rule     = RON_AUTOTUNE_RULE_ZN;
 
     __CPROVER_assert(ron_autotune_init(&at, &cfg) == RON_FAULT_NONE, "valid config initialises");
 
     /* Place the run in the relay phase with a primed (in-bounds) output. */
-    at.state.phase        = (uint8_t) RON_AT_RELAY;
+    at.state.phase        = (uint8_t) RON_AUTOTUNE_RELAY;
     at.state.u_relay_prev = bias + d;
 
     __CPROVER_assert(ron_autotune_step(&at, r, y, dt, &u) == RON_FAULT_NONE,

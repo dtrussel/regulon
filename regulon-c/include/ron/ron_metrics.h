@@ -117,7 +117,7 @@ typedef struct {
  * The caller allocates one of these (typically as a file-scope static).  The
  * library NEVER allocates memory.  All fields except cfg are internal
  * bookkeeping and SHALL be treated as opaque by callers; read the published
- * metrics only through ron_metrics_get().
+ * metrics only through ron_metrics_get_results().
  *
  * Satisfies: RON-FR-950, RON-FR-953.
  */
@@ -250,7 +250,7 @@ ron_fault_t ron_metrics_step(ron_metrics_t *m, ron_float_t r, ron_float_t y, ron
  * Satisfies: RON-FR-951.
  */
 /* Satisfies: RON-FR-951 | Test: RON-TC-MET-002 */
-ron_fault_t ron_metrics_get(const ron_metrics_t *m, ron_metrics_result_t *out);
+ron_fault_t ron_metrics_get_results(const ron_metrics_t *m, ron_metrics_result_t *out);
 
 #ifdef __cplusplus
 }

@@ -33,7 +33,7 @@
 #define LOOP_PRIORITY   5
 
 /* Controller state is caller-owned; the library never allocates. */
-static ron_pid_instance_t pid;
+static ron_pid_t pid;
 
 /* Simulated first-order plant, stands in for sensor and actuator. */
 static ron_float_t plant_state;

@@ -77,7 +77,7 @@ cmake --build build
 ```c
 #include "ron/ron.h"
 
-static ron_pid_instance_t pid;
+static ron_pid_t pid;
 
 void init(void) {
     ron_pid_config_t cfg = {

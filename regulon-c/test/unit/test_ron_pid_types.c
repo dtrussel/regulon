@@ -131,7 +131,7 @@ void test_ron_tc_safe_006_init_null_inst(void)
 /* RON-TC-SAFE-006 | RON-SR-006 */
 void test_ron_tc_safe_006_init_null_cfg(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_fault_t result = ron_pid_init(&inst, NULL);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, result);
@@ -151,7 +151,7 @@ void test_ron_tc_safe_006_step_null_inst(void)
 /* RON-TC-SAFE-006 | RON-SR-006 */
 void test_ron_tc_safe_006_step_null_output(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg = {.Kp                 = RON_FLOAT_C(1.0),
                             .Ki                 = RON_FLOAT_C(0.0),
                             .Kd                 = RON_FLOAT_C(0.0),
@@ -226,7 +226,7 @@ void test_ron_tc_qual_005_dimension_constants(void)
     TEST_ASSERT_TRUE(RON_SS_MAX_STATES >= 1U);
     TEST_ASSERT_TRUE(RON_SS_MAX_OUTPUTS >= 1U);
     TEST_ASSERT_TRUE(RON_SS_MAX_INPUTS >= 1U);
-    TEST_ASSERT_TRUE(RON_AT_MIN_CYCLES >= 1U);
+    TEST_ASSERT_TRUE(RON_AUTOTUNE_MIN_CYCLES >= 1U);
     TEST_ASSERT_TRUE(RON_HEALTH_OSC_WINDOW >= 4U);
 }
 

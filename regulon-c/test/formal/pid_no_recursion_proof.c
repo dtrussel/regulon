@@ -13,7 +13,7 @@
 /* Satisfies: RON-SR-004 | Test: RON-TC-SAFE-004-FV */
 void pid_no_recursion_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg;
     ron_float_t integral = RON_FLOAT_C(0.0);
     ron_float_t last_u = RON_FLOAT_C(0.0);

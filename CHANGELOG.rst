@@ -14,10 +14,50 @@ conventions.  Version numbers follow `Semantic Versioning <https://semver.org/>`
 `Unreleased`_
 =============
 
-Changes on ``main`` since the ``v0.1.0`` tag.
+Changes on ``main`` since the ``v0.1.0`` tag, to be released as **0.2.0**
+(``project(VERSION)`` and ``RON_VERSION_*`` already read 0.2.0). This release
+breaks source compatibility; see *Migrating from 0.1* below.
+
+Migrating from 0.1
+------------------
+Public names now follow one convention (IS "C Track — Naming Conventions"):
+one module token across header, types, constants and functions, and
+``_get_state`` / ``_get_results`` / ``_get_status`` / ``_validate`` for the
+read-back and validation roles. Behaviour is unchanged; a word-boundary
+search-and-replace of this table is the whole migration.
+
+.. list-table::
+   :header-rows: 1
+
+   * - 0.1
+     - 0.2
+   * - ``ron_pid_instance_t``
+     - ``ron_pid_t``
+   * - ``ron_cascade_instance_t``
+     - ``ron_cascade_t``
+   * - ``ron_at_t``, ``ron_at_config_t``, ``ron_at_state_t``,
+       ``ron_at_rule_t``, ``ron_at_phase_t``
+     - ``ron_autotune_t``, ``ron_autotune_config_t``,
+       ``ron_autotune_state_t``, ``ron_autotune_rule_t``,
+       ``ron_autotune_phase_t``
+   * - ``RON_AT_*`` (e.g. ``RON_AT_RULE_ZN``, ``RON_AT_DONE``)
+     - ``RON_AUTOTUNE_*`` (``RON_AUTOTUNE_RULE_ZN``, ``RON_AUTOTUNE_DONE``)
+   * - ``ron_autotune_results()``
+     - ``ron_autotune_get_results()``
+   * - ``ron_metrics_get()``
+     - ``ron_metrics_get_results()``
+   * - ``ron_health_get()``
+     - ``ron_health_get_status()``
+   * - ``ron_gs_init()`` (it only ever validated the table)
+     - ``ron_gs_table_validate()``
+
+The lowered default dimension bounds (below) are the other breaking change:
+plants with more than 4 states or 2 inputs/outputs must now set the
+``RON_*_MAX_*`` macros.
 
 Changed
 -------
+- **Breaking:** the public API renames in the migration table above.
 - **Breaking default:** the compile-time dimension bounds in
   ``ron_platform.h`` were lowered to cut estimator/optimal-control stack
   usage by 4.2x (largest frame 2448 B -> 576 B). State bounds
@@ -43,7 +83,9 @@ Changed
   covered the whole library) and its cppcheck suppressions synced with CI.
 - The CMake package declares ``SameMinorVersion`` until 1.0, so
   ``find_package(regulon 0.1)`` no longer accepts a 0.2 that may break it.
-- ``ron_autotune_apply`` takes ``const ron_at_t *`` (source-compatible).
+- ``check_manifest.sh`` also fails when ``RON_VERSION_*`` in
+  ``ron_platform.h`` and ``project(VERSION)`` disagree.
+- ``ron_autotune_apply`` takes ``const ron_autotune_t *`` (source-compatible).
 - The API reference moved from Doxygen HTML to a Sphinx + Breathe site that
   also renders the specifications and usage guides, with requirement/test
   IDs on API entries linking into the specs.
@@ -108,8 +150,8 @@ Fixed
 - ``IS_ControlLib.rst`` API listings now match the headers: the cascade
   section used a ``ron_cascade_t`` type, a one-value ``set_mode`` and a
   16-bit status word that never shipped, and omitted ``get_state`` and
-  ``fault_clear``; ``ron_pid_set_config``, ``ron_at_phase_t`` and the
-  ``const`` on ``ron_gs_init`` were missing.
+  ``fault_clear``; ``ron_pid_set_config``, ``ron_autotune_phase_t`` and the
+  ``const`` on ``ron_gs_table_validate`` were missing.
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
   PID-only lint/analysis/proof commands; it now mirrors the CI gates over
   the source manifests.

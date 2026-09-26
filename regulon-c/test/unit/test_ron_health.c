@@ -149,10 +149,10 @@ void test_ron_tc_hlth_001(void)
     cfg                         = test_health_default_cfg();
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_init(&h, &cfg));
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_health_get(NULL, &status));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_health_get(&h, NULL));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_health_get(&uninit, &status));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_get(&h, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_health_get_status(NULL, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_health_get_status(&h, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_health_get_status(&uninit, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_get_status(&h, &status));
     TEST_ASSERT_EQUAL_UINT8(RON_HEALTH_OK, status);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_health_clear(NULL));
@@ -378,7 +378,7 @@ void test_ron_tc_hlth_007(void)
 void test_ron_tc_hlth_008(void)
 {
     ron_health_t mon;
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_pid_config_t pcfg   = test_ron_make_pid_cfg();
     ron_health_config_t cfg = test_health_default_cfg();
     const ron_float_t dt    = RON_FLOAT_C(0.01);
@@ -515,7 +515,7 @@ void test_ron_tc_hlth_010(void)
 
     /* Explicit clear resets the status and the detector state. */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_clear(&h));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_get(&h, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_get_status(&h, &status));
     TEST_ASSERT_EQUAL_UINT8(RON_HEALTH_OK, status);
 
     /* The cleared monitor can detect the condition afresh. */

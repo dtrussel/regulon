@@ -22,7 +22,7 @@ scripts/           <- source manifests and CI helper scripts
 - **File header** (mandatory on every `.c`/`.h`): `@file`, `@brief`, `@doc`, `@req`, `SPDX-License-Identifier: MIT`.
 - **Production C headers/sources** use `@doc RON-IS-001`; formal harnesses and test sources may use `@doc RON-TP-001`.
 - **Every function** must have `/* Satisfies: RON-FR-xxx | Test: RON-TC-xxx-NNN */` above it.
-- **Naming**: public `ron_<module>_<verb>`, internal `static <module>_<verb>`, types `ron_<noun>_t`, macros `RON_<SCREAMING>`.
+- **Naming**: public `ron_<module>_<verb>`, internal `static <module>_<verb>`, types `ron_<noun>_t`, macros `RON_<SCREAMING>`. One module token everywhere (`ron_<module>_t`, `_config_t`, `_state_t`, `RON_<MODULE>_*`); read-back is `_get_state`/`_get_results`/`_get_status`, validation-only functions end in `_validate`. See IS "C Track — Naming Conventions".
 - **Permitted production headers**: `<stdint.h>`, `<stdbool.h>`, `<float.h>`, `<stddef.h>` — all freestanding, so the library builds with no libc at all. `<math.h>` is **not** permitted (RON-DC-002): the biquad coefficient helpers use an internal bounded sin/cos, and nothing else needs it.
 - **Error pattern**: null-check -> init-check -> fault-latch -> input validation -> computation (in that order, every public function).
 - **Coding standard**: MISRA C:2023, enforced by the cppcheck gate below; every suppression must have a record in `docs/deviations/MISRA_C_deviations.rst`.

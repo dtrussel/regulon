@@ -53,16 +53,16 @@ static ron_float_t test_at_make_neg_inf(void)
 }
 
 /* A valid baseline configuration (5 cycles, ZN rule). */
-static ron_at_config_t test_at_default_cfg(void)
+static ron_autotune_config_t test_at_default_cfg(void)
 {
-    ron_at_config_t cfg;
+    ron_autotune_config_t cfg;
 
     cfg.relay_amplitude = RON_FLOAT_C(0.5);
     cfg.hysteresis      = RON_FLOAT_C(0.05);
     cfg.u_bias          = RON_FLOAT_C(0.0);
     cfg.min_cycles      = 5U;
     cfg.timeout_s       = RON_FLOAT_C(30.0);
-    cfg.tuning_rule     = RON_AT_RULE_ZN;
+    cfg.tuning_rule     = RON_AUTOTUNE_RULE_ZN;
     return cfg;
 }
 
@@ -74,7 +74,7 @@ static ron_at_config_t test_at_default_cfg(void)
  * With amplitude A = 0.5/pi and period 0.5 s the estimator yields
  * Ku = 4d/(pi*A) = 4.0 and Tu = 0.5 (d = 0.5), per RON-TC-AT-003.
  */
-static bool test_at_run_sine(ron_at_t *at, ron_float_t amp, ron_float_t period, ron_float_t dt)
+static bool test_at_run_sine(ron_autotune_t *at, ron_float_t amp, ron_float_t period, ron_float_t dt)
 {
     unsigned k;
     ron_float_t u = RON_FLOAT_C(0.0);
@@ -104,10 +104,10 @@ static ron_float_t test_at_plant_step(ron_float_t y, ron_float_t u, ron_float_t 
  * ========================================================================= */
 void test_ron_tc_at_001(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t u         = RON_FLOAT_C(0.0);
     ron_float_t y         = RON_FLOAT_C(0.0);
     unsigned k;
@@ -125,8 +125,8 @@ void test_ron_tc_at_001(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_autotune_start(NULL, &pid));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_autotune_start(&at, NULL));
     {
-        ron_at_t un           = {0};
-        ron_pid_instance_t up = {0};
+        ron_autotune_t un           = {0};
+        ron_pid_t up = {0};
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_autotune_start(&un, &pid));
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_autotune_start(&at, &up));
     }
@@ -147,8 +147,8 @@ void test_ron_tc_at_001(void)
     }
 
     TEST_ASSERT_TRUE(at.state.done);
-    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AT_DONE, at.state.phase);
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_results(&at, &Ku, &Tu, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_DONE, at.state.phase);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_get_results(&at, &Ku, &Tu, NULL, NULL, NULL));
     TEST_ASSERT_TRUE(Ku > RON_FLOAT_C(0.0));
     TEST_ASSERT_TRUE(Tu > RON_FLOAT_C(0.0));
 }
@@ -158,8 +158,8 @@ void test_ron_tc_at_001(void)
  * ========================================================================= */
 void test_ron_tc_at_002(void)
 {
-    ron_at_t at;
-    ron_at_config_t cfg = test_at_default_cfg();
+    ron_autotune_t at;
+    ron_autotune_config_t cfg = test_at_default_cfg();
 
     /* NULL pointers */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_autotune_init(NULL, &cfg));
@@ -198,14 +198,14 @@ void test_ron_tc_at_002(void)
 
     /* tuning_rule out of range */
     cfg             = test_at_default_cfg();
-    cfg.tuning_rule = (ron_at_rule_t) 7;
+    cfg.tuning_rule = (ron_autotune_rule_t) 7;
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_autotune_init(&at, &cfg));
 
     /* Valid configuration initialises to IDLE */
     cfg = test_at_default_cfg();
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_init(&at, &cfg));
     TEST_ASSERT_TRUE(at.state.is_initialised);
-    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AT_IDLE, at.state.phase);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_IDLE, at.state.phase);
     TEST_ASSERT_FALSE(at.state.done);
 }
 
@@ -214,10 +214,10 @@ void test_ron_tc_at_002(void)
  * ========================================================================= */
 void test_ron_tc_at_003(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t amp       = (ron_float_t) (0.5 / AT_PI); /* -> Ku = 4.0 */
     ron_float_t Ku        = RON_FLOAT_C(0.0);
     ron_float_t Tu        = RON_FLOAT_C(0.0);
@@ -227,7 +227,7 @@ void test_ron_tc_at_003(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_start(&at, &pid));
 
     TEST_ASSERT_TRUE(test_at_run_sine(&at, amp, RON_FLOAT_C(0.5), RON_FLOAT_C(0.001)));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_results(&at, &Ku, &Tu, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_get_results(&at, &Ku, &Tu, NULL, NULL, NULL));
 
     /* Within 10% of the true values Ku = 4.0, Tu = 0.5 s */
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.40), RON_FLOAT_C(4.0), Ku);
@@ -239,10 +239,10 @@ void test_ron_tc_at_003(void)
  * ========================================================================= */
 void test_ron_tc_at_003b(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t u         = RON_FLOAT_C(0.0);
     unsigned k;
 
@@ -263,7 +263,7 @@ void test_ron_tc_at_003b(void)
 
     TEST_ASSERT_TRUE(at.state.aborted);
     TEST_ASSERT_FALSE(at.state.done);
-    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AT_ABORTED, at.state.phase);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_ABORTED, at.state.phase);
 }
 
 /* =========================================================================
@@ -271,8 +271,8 @@ void test_ron_tc_at_003b(void)
  * ========================================================================= */
 void test_ron_tc_at_004(void)
 {
-    const ron_at_rule_t rules[4] = {RON_AT_RULE_ZN, RON_AT_RULE_TL, RON_AT_RULE_SOME_OS,
-                                    RON_AT_RULE_NO_OS};
+    const ron_autotune_rule_t rules[4] = {RON_AUTOTUNE_RULE_ZN, RON_AUTOTUNE_RULE_TL, RON_AUTOTUNE_RULE_SOME_OS,
+                                    RON_AUTOTUNE_RULE_NO_OS};
     const ron_float_t kp_f[4]    = {RON_FLOAT_C(0.60), RON_FLOAT_C(0.45), RON_FLOAT_C(0.33),
                                     RON_FLOAT_C(0.20)};
     const ron_float_t ti_f[4]    = {RON_FLOAT_C(0.50), RON_FLOAT_C(2.20), RON_FLOAT_C(0.50),
@@ -283,10 +283,10 @@ void test_ron_tc_at_004(void)
     unsigned r;
 
     for (r = 0U; r < 4U; ++r) {
-        ron_at_t at;
-        ron_pid_instance_t pid;
+        ron_autotune_t at;
+        ron_pid_t pid;
         ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-        ron_at_config_t cfg   = test_at_default_cfg();
+        ron_autotune_config_t cfg   = test_at_default_cfg();
         ron_float_t Ku        = RON_FLOAT_C(0.0);
         ron_float_t Tu        = RON_FLOAT_C(0.0);
         ron_float_t Kp        = RON_FLOAT_C(0.0);
@@ -302,7 +302,7 @@ void test_ron_tc_at_004(void)
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_start(&at, &pid));
         TEST_ASSERT_TRUE(test_at_run_sine(&at, amp, RON_FLOAT_C(0.5), RON_FLOAT_C(0.001)));
 
-        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_results(&at, &Ku, &Tu, &Kp, &Ki, &Kd));
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_get_results(&at, &Ku, &Tu, &Kp, &Ki, &Kd));
 
         exp_kp = kp_f[r] * Ku;
         exp_ki = exp_kp / (ti_f[r] * Tu);
@@ -319,10 +319,10 @@ void test_ron_tc_at_004(void)
  * ========================================================================= */
 void test_ron_tc_at_005(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t amp       = (ron_float_t) (0.5 / AT_PI);
     ron_float_t u         = RON_FLOAT_C(0.0);
 
@@ -366,10 +366,10 @@ void test_ron_tc_at_005(void)
  * ========================================================================= */
 void test_ron_tc_at_006(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t amp       = (ron_float_t) (0.5 / AT_PI);
     ron_float_t Ku        = RON_FLOAT_C(0.0);
     ron_float_t Tu        = RON_FLOAT_C(0.0);
@@ -380,18 +380,18 @@ void test_ron_tc_at_006(void)
 
     /* results before done / NULL instance are rejected */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
-                            ron_autotune_results(&at, &Ku, &Tu, NULL, NULL, NULL));
+                            ron_autotune_get_results(&at, &Ku, &Tu, NULL, NULL, NULL));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
-                            ron_autotune_results(NULL, &Ku, &Tu, NULL, NULL, NULL));
+                            ron_autotune_get_results(NULL, &Ku, &Tu, NULL, NULL, NULL));
 
     TEST_ASSERT_TRUE(test_at_run_sine(&at, amp, RON_FLOAT_C(0.5), RON_FLOAT_C(0.001)));
 
     /* Raw Ku/Tu match the stored state; NULL outputs are skipped */
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_results(&at, &Ku, &Tu, NULL, NULL, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_get_results(&at, &Ku, &Tu, NULL, NULL, NULL));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-4), at.state.Ku, Ku);
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-4), at.state.Tu, Tu);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
-                            ron_autotune_results(&at, NULL, NULL, NULL, NULL, NULL));
+                            ron_autotune_get_results(&at, NULL, NULL, NULL, NULL, NULL));
 }
 
 /* =========================================================================
@@ -399,10 +399,10 @@ void test_ron_tc_at_006(void)
  * ========================================================================= */
 void test_ron_tc_at_007(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t u         = RON_FLOAT_C(0.0);
     int i;
 
@@ -428,7 +428,7 @@ void test_ron_tc_at_007(void)
         RON_FAULT_NULL_POINTER,
         ron_autotune_step(&at, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.001), NULL));
     {
-        ron_at_t un = {0};
+        ron_autotune_t un = {0};
         TEST_ASSERT_EQUAL_UINT8(
             RON_FAULT_CONFIG_INVALID,
             ron_autotune_step(&un, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.001), &u));
@@ -466,10 +466,10 @@ void test_ron_tc_at_007(void)
  * ========================================================================= */
 void test_ron_tc_at_008(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
-    ron_at_config_t cfg   = test_at_default_cfg();
+    ron_autotune_config_t cfg   = test_at_default_cfg();
     ron_float_t u         = RON_FLOAT_C(0.0);
     unsigned k;
 
@@ -484,7 +484,7 @@ void test_ron_tc_at_008(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_autotune_abort(NULL, &pid));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_autotune_abort(&at, NULL));
     {
-        ron_at_t un = {0};
+        ron_autotune_t un = {0};
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_autotune_abort(&un, &pid));
     }
 
@@ -494,7 +494,7 @@ void test_ron_tc_at_008(void)
     /* Explicit abort restores gains and operating mode */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_abort(&at, &pid));
     TEST_ASSERT_TRUE(at.state.aborted);
-    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AT_ABORTED, at.state.phase);
+    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_ABORTED, at.state.phase);
     TEST_ASSERT_EQUAL_INT(RON_MODE_AUTOMATIC, (int) pid.state.mode);
     TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(7.0), pid.config.Kp);
     TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(3.0), pid.config.Ki);
@@ -506,9 +506,9 @@ void test_ron_tc_at_008(void)
 
     /* Timeout abort: constant PV never crosses, run exceeds the budget */
     {
-        ron_at_t at2;
-        ron_pid_instance_t pid2;
-        ron_at_config_t cfg2 = test_at_default_cfg();
+        ron_autotune_t at2;
+        ron_pid_t pid2;
+        ron_autotune_config_t cfg2 = test_at_default_cfg();
 
         cfg2.timeout_s = RON_FLOAT_C(0.05);
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_init(&pid2, &pcfg));
@@ -523,7 +523,7 @@ void test_ron_tc_at_008(void)
             }
         }
         TEST_ASSERT_TRUE(at2.state.aborted);
-        TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AT_ABORTED, at2.state.phase);
+        TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_ABORTED, at2.state.phase);
         TEST_ASSERT_FALSE(at2.state.done);
     }
 }

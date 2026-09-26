@@ -23,9 +23,9 @@ void tearDown(void)
 }
 
 /* Satisfies: RON-FR-001 | Test: RON-TC-PID-001 */
-static ron_pid_instance_t test_ron_init_pid(const ron_pid_config_t *cfg)
+static ron_pid_t test_ron_init_pid(const ron_pid_config_t *cfg)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_init(&inst, cfg));
     return inst;
 }
@@ -34,7 +34,7 @@ static ron_pid_instance_t test_ron_init_pid(const ron_pid_config_t *cfg)
 void test_ron_tc_pid_001(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -78,8 +78,8 @@ void test_ron_tc_pid_002(void)
 {
     ron_pid_config_t   cfg_parallel = test_ron_make_pid_cfg();
     ron_pid_config_t   cfg_isa = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid_parallel;
-    ron_pid_instance_t pid_isa;
+    ron_pid_t pid_parallel;
+    ron_pid_t pid_isa;
     ron_float_t        u_parallel = RON_FLOAT_C(0.0);
     ron_float_t        u_isa = RON_FLOAT_C(0.0);
     ron_status_t       status_parallel = RON_STATUS_OK;
@@ -143,7 +143,7 @@ void test_ron_tc_pid_002(void)
 void test_ron_tc_pid_003(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -159,7 +159,7 @@ void test_ron_tc_pid_003(void)
 void test_ron_tc_pid_004(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -177,7 +177,7 @@ void test_ron_tc_pid_004(void)
 void test_ron_tc_pid_005(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -195,7 +195,7 @@ void test_ron_tc_pid_005(void)
 void test_ron_tc_pid_006(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -214,7 +214,7 @@ void test_ron_tc_pid_006(void)
 void test_ron_tc_pid_007(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -234,7 +234,7 @@ void test_ron_tc_pid_007(void)
 void test_ron_tc_pid_008(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -253,7 +253,7 @@ void test_ron_tc_pid_008(void)
 void test_ron_tc_pid_009(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -272,7 +272,7 @@ void test_ron_tc_pid_009(void)
 void test_ron_tc_pid_010(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -290,7 +290,7 @@ void test_ron_tc_pid_010(void)
 void test_ron_tc_pid_011(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -311,7 +311,7 @@ void test_ron_tc_pid_011(void)
 void test_ron_tc_pid_012(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -331,7 +331,7 @@ void test_ron_tc_pid_012(void)
 void test_ron_tc_pid_013(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 
@@ -351,7 +351,7 @@ void test_ron_tc_pid_013(void)
 void test_ron_tc_pid_014(void)
 {
     ron_pid_config_t   cfg = test_ron_make_pid_cfg();
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t        u = RON_FLOAT_C(0.0);
     ron_status_t       status = RON_STATUS_OK;
 

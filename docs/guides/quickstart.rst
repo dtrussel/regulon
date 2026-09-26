@@ -49,7 +49,7 @@ yours. At file scope, so it outlives the loop:
 
    #include "ron/ron.h"
 
-   static ron_pid_instance_t pid;
+   static ron_pid_t pid;
 
 **2. Configure and initialise.** Every field is explicit — there are no
 hidden defaults to discover later:

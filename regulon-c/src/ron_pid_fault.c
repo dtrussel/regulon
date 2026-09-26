@@ -14,7 +14,7 @@
 #include "ron_pid_internal.h"
 
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007 */
-static void pid_fault_notify(const ron_pid_instance_t *inst, ron_fault_t new_bits)
+static void pid_fault_notify(const ron_pid_t *inst, ron_fault_t new_bits)
 {
     ron_fault_t remaining = new_bits;
 
@@ -44,7 +44,7 @@ static void pid_fault_notify(const ron_pid_instance_t *inst, ron_fault_t new_bit
 }
 
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007 */
-void ron_pid_fault_set(ron_pid_instance_t *inst, ron_fault_t code)
+void ron_pid_fault_set(ron_pid_t *inst, ron_fault_t code)
 {
     ron_fault_t new_bits;
 
@@ -56,7 +56,7 @@ void ron_pid_fault_set(ron_pid_instance_t *inst, ron_fault_t code)
 }
 
 /* Satisfies: RON-SR-011 | Test: RON-TC-SAFE-008 */
-ron_float_t ron_pid_fault_safe_output(const ron_pid_instance_t *inst)
+ron_float_t ron_pid_fault_safe_output(const ron_pid_t *inst)
 {
     ron_float_t output;
 

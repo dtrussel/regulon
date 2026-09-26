@@ -195,7 +195,7 @@ static inline ron_float_t ron_fabs(ron_float_t x)
  * ========================================================================= */
 
 #define RON_VERSION_MAJOR 0U
-#define RON_VERSION_MINOR 1U
+#define RON_VERSION_MINOR 2U
 #define RON_VERSION_PATCH 0U
 
 /* =========================================================================
@@ -288,8 +288,8 @@ static inline ron_float_t ron_fabs(ron_float_t x)
 #endif
 
 /** Minimum relay oscillation cycles before Ku/Tu estimate is valid (RON-FR-802). */
-#ifndef RON_AT_MIN_CYCLES
-#define RON_AT_MIN_CYCLES 3U
+#ifndef RON_AUTOTUNE_MIN_CYCLES
+#define RON_AUTOTUNE_MIN_CYCLES 3U
 #endif
 
 /** Oscillation detection window length (RON-FR-901). */
@@ -318,7 +318,7 @@ RON_STATIC_ASSERT(RON_LQR_MAX_STATES >= 1U, "RON_LQR_MAX_STATES must be at least
 RON_STATIC_ASSERT(RON_LQR_MAX_INPUTS >= 1U, "RON_LQR_MAX_INPUTS must be at least 1");
 RON_STATIC_ASSERT(RON_MAT_MAX_DIM >= RON_LQR_MAX_STATES,
                   "RON_MAT_MAX_DIM must cover RON_LQR_MAX_STATES");
-RON_STATIC_ASSERT(RON_AT_MIN_CYCLES >= 1U, "RON_AT_MIN_CYCLES must be at least 1");
+RON_STATIC_ASSERT(RON_AUTOTUNE_MIN_CYCLES >= 1U, "RON_AUTOTUNE_MIN_CYCLES must be at least 1");
 RON_STATIC_ASSERT(RON_HEALTH_OSC_WINDOW >= 4U, "RON_HEALTH_OSC_WINDOW must be at least 4");
 
 #endif /* RON_PLATFORM_H */

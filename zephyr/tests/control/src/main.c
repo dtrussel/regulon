@@ -58,7 +58,7 @@ static void pid_default_config(ron_pid_config_t *cfg)
 ZTEST(regulon_module, test_pid_converges_on_target)
 {
     ron_pid_config_t cfg;
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t y = RON_FLOAT_C(0.0);
 
     pid_default_config(&cfg);
@@ -79,7 +79,7 @@ ZTEST(regulon_module, test_pid_converges_on_target)
 ZTEST(regulon_module, test_pid_output_respects_saturation)
 {
     ron_pid_config_t cfg;
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
 
     pid_default_config(&cfg);
     cfg.u_min = -RON_FLOAT_C(1.0);
@@ -102,7 +102,7 @@ ZTEST(regulon_module, test_pid_output_respects_saturation)
 ZTEST(regulon_module, test_pid_fault_latches_and_clears)
 {
     ron_pid_config_t cfg;
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t u;
     ron_status_t status;
 

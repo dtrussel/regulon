@@ -121,7 +121,7 @@ Deviation Table
    * - DEV-006
      - Rule 2.3 (Unused type declaration), Rule 2.4 (Unused tag declaration)
      - ``regulon-c/include/ron/ron_autotune.h``.
-     - ``ron_at_phase_t`` names the values stored in ``ron_at_state_t.phase``
+     - ``ron_autotune_phase_t`` names the values stored in ``ron_autotune_state_t.phase``
        (held as ``uint8_t`` to keep the struct layout fixed).  The library
        itself only ever uses the enumerators, never the typedef name, so a
        single-translation-unit analysis sees the type as unused — but it is
@@ -211,5 +211,5 @@ Revision History
      - Made the cppcheck CI gate enforcing (``set -o pipefail``) and
        resolved the findings it had hidden: added DEV-005 (Rule 20.9,
        ``__has_include``) and DEV-006 (Rules 2.3/2.4, public
-       ``ron_at_phase_t``).
+       ``ron_autotune_phase_t``).
      - TBD

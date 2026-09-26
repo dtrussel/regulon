@@ -110,7 +110,7 @@ Then include the aggregate header and use the API exactly as anywhere else:
    #include <zephyr/kernel.h>
    #include <ron/ron.h>
 
-   static ron_pid_instance_t pid;
+   static ron_pid_t pid;
 
 .. _zephyr-trimming:
 

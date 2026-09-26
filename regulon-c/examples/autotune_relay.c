@@ -24,10 +24,10 @@
 
 int main(void)
 {
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_pid_config_t pid_cfg = {0};
-    ron_at_t at;
-    ron_at_config_t at_cfg = {0};
+    ron_autotune_t at;
+    ron_autotune_config_t at_cfg = {0};
     const ron_float_t dt   = RON_FLOAT_C(0.02);
     const ron_float_t tau  = RON_FLOAT_C(0.3); /* plant time constant */
     ron_float_t y          = RON_FLOAT_C(0.0);
@@ -45,7 +45,7 @@ int main(void)
     at_cfg.u_bias          = RON_FLOAT_C(0.0);
     at_cfg.min_cycles      = 5U;
     at_cfg.timeout_s       = RON_FLOAT_C(30.0);
-    at_cfg.tuning_rule     = RON_AT_RULE_ZN;
+    at_cfg.tuning_rule     = RON_AUTOTUNE_RULE_ZN;
 
     if ((ron_pid_init(&pid, &pid_cfg) != RON_FAULT_NONE) ||
         (ron_autotune_init(&at, &at_cfg) != RON_FAULT_NONE) ||

@@ -13,7 +13,7 @@
 /* Satisfies: RON-SR-001, RON-SR-002 | Test: RON-TC-SAFE-001-FV */
 void pid_api_validation_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg;
     ron_pid_config_t invalid_cfg;
 

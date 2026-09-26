@@ -331,7 +331,7 @@ ron_fault_t ron_metrics_step(ron_metrics_t *m, ron_float_t r, ron_float_t y, ron
 }
 
 /* Satisfies: RON-FR-951 | Test: RON-TC-MET-002 */
-ron_fault_t ron_metrics_get(const ron_metrics_t *m, ron_metrics_result_t *out)
+ron_fault_t ron_metrics_get_results(const ron_metrics_t *m, ron_metrics_result_t *out)
 {
     if ((m == NULL) || (out == NULL)) {
         return RON_FAULT_NULL_POINTER;

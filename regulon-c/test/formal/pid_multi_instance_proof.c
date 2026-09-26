@@ -15,9 +15,9 @@ extern void __CPROVER_assert(int condition, const char *description);
 /* Satisfies: RON-FR-060, RON-FR-061, RON-FR-062 | Test: RON-TC-PID-036-FV */
 void pid_multi_instance_proof(void)
 {
-    ron_pid_instance_t a_interleaved;
-    ron_pid_instance_t b_interleaved;
-    ron_pid_instance_t a_alone;
+    ron_pid_t a_interleaved;
+    ron_pid_t b_interleaved;
+    ron_pid_t a_alone;
     ron_pid_config_t   cfg = {
         RON_FLOAT_C(2.0), RON_FLOAT_C(0.5), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
         RON_FLOAT_C(1.0), RON_FLOAT_C(1.0), RON_FLOAT_C(-100.0), RON_FLOAT_C(100.0),

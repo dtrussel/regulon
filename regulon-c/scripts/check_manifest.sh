@@ -53,6 +53,17 @@ for f in $manifest_sources $fmt_set; do
     fi
 done
 
+# 4. The version in ron_platform.h must match project(VERSION) in CMakeLists.
+cmake_version="$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' \
+    regulon-c/CMakeLists.txt | head -n 1)"
+header_version="$(for part in MAJOR MINOR PATCH; do
+    sed -nE "s/^#define RON_VERSION_${part} ([0-9]+)U$/\1/p" regulon-c/include/ron/ron_platform.h
+done | paste -sd. -)"
+if [ "$cmake_version" != "$header_version" ]; then
+    echo "ERROR: CMakeLists.txt version $cmake_version != ron_platform.h RON_VERSION_* $header_version"
+    status=1
+fi
+
 if [ "$status" -eq 0 ]; then
     echo "Manifests are in sync."
 fi

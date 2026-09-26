@@ -1055,7 +1055,7 @@ Defines all public enumeration and structure types. This header has no dependenc
    /**
     * @brief  Complete configuration record for one PID controller instance.
     *
-    * This structure is copied by value into ron_pid_instance_t at
+    * This structure is copied by value into ron_pid_t at
     * initialisation. The caller does not need to keep it alive afterwards.
     *
     * All fields are validated by ron_pid_config_validate() before use.
@@ -1178,7 +1178,7 @@ Defines all public enumeration and structure types. This header has no dependenc
     *
     * @example
     * @code
-    *   static ron_pid_instance_t  my_speed_pid;
+    *   static ron_pid_t  my_speed_pid;
     *   ron_pid_config_t cfg = { .Kp = 1.5F, .Ki = 0.3F, ... };
     *   (void)ron_pid_init(&my_speed_pid, &cfg);
     * @endcode
@@ -1187,7 +1187,7 @@ Defines all public enumeration and structure types. This header has no dependenc
    {
        ron_pid_config_t  config;   /**< Configuration (copied at init, read-only during step). */
        ron_pid_state_t   state;    /**< Dynamic computation state.                             */
-   } ron_pid_instance_t;
+   } ron_pid_t;
 
    /* ------------------------------------------------------------------ */
    /* Compile-time size assertions (RON-PR-021, RON-SR-022)            */
@@ -1217,7 +1217,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Usage pattern (bare-metal, single controller, 1 kHz sample rate):
     *
-    *   static ron_pid_instance_t pid;
+    *   static ron_pid_t pid;
     *
     *   void control_init(void) {
     *       ron_pid_config_t cfg = {
@@ -1275,12 +1275,12 @@ This is the **only** header that library consumers include. It provides the comp
     * @return  RON_FAULT_CONFIG_INVALID if any configuration field is out of range
     *          or logically inconsistent.
     *
-    * @pre     inst points to writable storage of sizeof(ron_pid_instance_t) bytes.
+    * @pre     inst points to writable storage of sizeof(ron_pid_t) bytes.
     * @post    inst->state.is_initialised == true  iff return == RON_FAULT_NONE.
     *
     * Satisfies: RON-FR-050, RON-SR-001, RON-SR-002.
     */
-   ron_fault_t ron_pid_init(ron_pid_instance_t       *inst,
+   ron_fault_t ron_pid_init(ron_pid_t       *inst,
                                const ron_pid_config_t   *cfg);
 
    /**
@@ -1298,7 +1298,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-051.
     */
-   ron_fault_t ron_pid_reset(ron_pid_instance_t *inst);
+   ron_fault_t ron_pid_reset(ron_pid_t *inst);
 
    /* ================================================================== */
    /* Runtime                                                             */
@@ -1333,7 +1333,7 @@ This is the **only** header that library consumers include. It provides the comp
     * Satisfies: RON-FR-001 – FR-007, RON-FR-020 – FR-035,
     *            RON-FR-070, RON-SR-010 – SR-013, RON-PR-001 – PR-002.
     */
-   ron_fault_t ron_pid_step(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_step(ron_pid_t *inst,
                                ron_float_t         r,
                                ron_float_t         y,
                                ron_float_t         dt,
@@ -1359,7 +1359,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-053.
     */
-   ron_fault_t ron_pid_set_config(ron_pid_instance_t     *inst,
+   ron_fault_t ron_pid_set_config(ron_pid_t     *inst,
                                   const ron_pid_config_t *cfg);
 
    /**
@@ -1378,7 +1378,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-053.
     */
-   ron_fault_t ron_pid_set_gains(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_gains(ron_pid_t *inst,
                                     ron_float_t         Kp,
                                     ron_float_t         Ki,
                                     ron_float_t         Kd);
@@ -1395,7 +1395,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-021, RON-FR-053.
     */
-   ron_fault_t ron_pid_set_limits(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_limits(ron_pid_t *inst,
                                      ron_float_t         u_min,
                                      ron_float_t         u_max);
 
@@ -1411,7 +1411,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-006, RON-FR-053.
     */
-   ron_fault_t ron_pid_set_filter(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_filter(ron_pid_t *inst,
                                      ron_float_t         N);
 
    /**
@@ -1427,7 +1427,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-033, RON-FR-053.
     */
-   ron_fault_t ron_pid_set_antiwindup(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_antiwindup(ron_pid_t *inst,
                                          ron_aw_mode_t       mode,
                                          ron_float_t         T_aw);
 
@@ -1454,7 +1454,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-040 – FR-042.
     */
-   ron_fault_t ron_pid_set_mode(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_mode(ron_pid_t *inst,
                                    ron_op_mode_t       mode,
                                    ron_float_t         manual_out);
 
@@ -1472,7 +1472,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-052.
     */
-   ron_fault_t ron_pid_set_integral(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_integral(ron_pid_t *inst,
                                        ron_float_t         value);
 
    /* ================================================================== */
@@ -1497,7 +1497,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-071, RON-QR-021.
     */
-   ron_fault_t ron_pid_get_state(const ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_get_state(const ron_pid_t *inst,
                                     ron_float_t              *integral,
                                     ron_float_t              *last_u,
                                     ron_float_t              *last_D,
@@ -1523,7 +1523,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-SR-012.
     */
-   ron_fault_t ron_pid_fault_clear(ron_pid_instance_t *inst);
+   ron_fault_t ron_pid_fault_clear(ron_pid_t *inst);
 
    /* ================================================================== */
    /* Configuration validation (standalone utility)                      */
@@ -1593,10 +1593,10 @@ This header exposes the optional PID feed-forward extension. It includes
 
    ron_fault_t ron_feedforward_config_validate(const ron_feedforward_config_t *cfg);
 
-   ron_fault_t ron_pid_set_feedforward(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_feedforward(ron_pid_t *inst,
                                        const ron_feedforward_config_t *cfg);
 
-   ron_fault_t ron_pid_step_feedforward(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_step_feedforward(ron_pid_t *inst,
                                         ron_float_t         r,
                                         ron_float_t         y,
                                         ron_float_t         dt,
@@ -1604,7 +1604,7 @@ This header exposes the optional PID feed-forward extension. It includes
                                         ron_float_t        *u_out,
                                         ron_status_t       *status);
 
-   ron_fault_t ron_pid_get_feedforward(const ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_get_feedforward(const ron_pid_t *inst,
                                        ron_float_t *u_ff);
 
    #endif /* RON_FEEDFORWARD_H */
@@ -1677,8 +1677,8 @@ is defined). They bound the static allocation of all fixed-size arrays in the li
    #endif
 
    /* Auto-tuning */
-   #ifndef RON_AT_MIN_CYCLES
-   #define RON_AT_MIN_CYCLES         3U   /* minimum relay oscillation cycles    */
+   #ifndef RON_AUTOTUNE_MIN_CYCLES
+   #define RON_AUTOTUNE_MIN_CYCLES         3U   /* minimum relay oscillation cycles    */
    #endif
 
    /* Health monitor */
@@ -1843,9 +1843,9 @@ established for ``ron_pid.h`` apply equally to all headers.
        bool                 reset_integral_on_switch;
    } ron_gs_table_t;
 
-   ron_fault_t ron_gs_init   (const ron_gs_table_t *tbl);
+   ron_fault_t ron_gs_table_validate   (const ron_gs_table_t *tbl);
    ron_fault_t ron_gs_update (const ron_gs_table_t *tbl,
-                                 ron_pid_instance_t   *pid,
+                                 ron_pid_t   *pid,
                                  ron_float_t           sigma);
 
    #ifdef __cplusplus
@@ -1877,28 +1877,28 @@ established for ``ron_pid.h`` apply equally to all headers.
        ((ron_status_t) (((cs) & RON_CASCADE_STATUS_INNER_MASK) >> RON_CASCADE_STATUS_INNER_SHIFT))
 
    typedef struct {
-       ron_pid_instance_t outer;   /* output becomes the inner setpoint */
-       ron_pid_instance_t inner;
-   } ron_cascade_instance_t;
+       ron_pid_t outer;   /* output becomes the inner setpoint */
+       ron_pid_t inner;
+   } ron_cascade_t;
 
-   ron_fault_t ron_cascade_init(ron_cascade_instance_t *casc,
+   ron_fault_t ron_cascade_init(ron_cascade_t *casc,
                                 const ron_pid_config_t *outer_cfg,
                                 const ron_pid_config_t *inner_cfg);
-   ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc,
+   ron_fault_t ron_cascade_step(ron_cascade_t *casc,
                                 ron_float_t r_out, ron_float_t y_out,
                                 ron_float_t y_in,  ron_float_t dt,
                                 ron_float_t *u_out,
                                 ron_cascade_status_t *status);
-   ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc,
+   ron_fault_t ron_cascade_set_mode(ron_cascade_t *casc,
                                     ron_op_mode_t mode,
                                     ron_float_t   manual_inner,
                                     ron_float_t   manual_outer);
-   ron_fault_t ron_cascade_get_state(const ron_cascade_instance_t *casc,
+   ron_fault_t ron_cascade_get_state(const ron_cascade_t *casc,
                                      ron_cascade_status_t *status,
                                      ron_fault_t *outer_fault,
                                      ron_fault_t *inner_fault);
-   ron_fault_t ron_cascade_fault_clear(ron_cascade_instance_t *casc);
-   ron_fault_t ron_cascade_reset(ron_cascade_instance_t *casc);
+   ron_fault_t ron_cascade_fault_clear(ron_cascade_t *casc);
+   ron_fault_t ron_cascade_reset(ron_cascade_t *casc);
 
    #ifdef __cplusplus
    }
@@ -2442,21 +2442,21 @@ control and sensing.
    #endif
 
    typedef enum {
-       RON_AT_RULE_ZN        = 0,
-       RON_AT_RULE_TL        = 1,
-       RON_AT_RULE_SOME_OS   = 2,
-       RON_AT_RULE_NO_OS     = 3
-   } ron_at_rule_t;
+       RON_AUTOTUNE_RULE_ZN        = 0,
+       RON_AUTOTUNE_RULE_TL        = 1,
+       RON_AUTOTUNE_RULE_SOME_OS   = 2,
+       RON_AUTOTUNE_RULE_NO_OS     = 3
+   } ron_autotune_rule_t;
 
-   /* Lifecycle phase, stored as uint8_t in ron_at_state_t.phase. */
+   /* Lifecycle phase, stored as uint8_t in ron_autotune_state_t.phase. */
    typedef enum {
-       RON_AT_IDLE       = 0,
-       RON_AT_SETTLING   = 1,
-       RON_AT_RELAY      = 2,
-       RON_AT_ESTIMATING = 3,
-       RON_AT_DONE       = 4,
-       RON_AT_ABORTED    = 5
-   } ron_at_phase_t;
+       RON_AUTOTUNE_IDLE       = 0,
+       RON_AUTOTUNE_SETTLING   = 1,
+       RON_AUTOTUNE_RELAY      = 2,
+       RON_AUTOTUNE_ESTIMATING = 3,
+       RON_AUTOTUNE_DONE       = 4,
+       RON_AUTOTUNE_ABORTED    = 5
+   } ron_autotune_phase_t;
 
    typedef struct {
        ron_float_t  relay_amplitude;
@@ -2464,30 +2464,30 @@ control and sensing.
        ron_float_t  u_bias;
        uint8_t       min_cycles;
        ron_float_t  timeout_s;
-       ron_at_rule_t tuning_rule;
-   } ron_at_config_t;
+       ron_autotune_rule_t tuning_rule;
+   } ron_autotune_config_t;
 
    typedef struct {
        ron_float_t  Ku, Tu;
        ron_float_t  Kp_result, Ki_result, Kd_result;
-       uint8_t       phase;      /* ron_at_phase_t */
+       uint8_t       phase;      /* ron_autotune_phase_t */
        bool          done;
        bool          aborted;
        bool          is_initialised;
        /* internal oscillation tracking fields omitted for brevity */
-   } ron_at_state_t;
+   } ron_autotune_state_t;
 
-   typedef struct { ron_at_config_t cfg;
-                    ron_at_state_t  state; } ron_at_t;
+   typedef struct { ron_autotune_config_t cfg;
+                    ron_autotune_state_t  state; } ron_autotune_t;
 
-   ron_fault_t ron_autotune_init    (ron_at_t *at, const ron_at_config_t *cfg);
-   ron_fault_t ron_autotune_start   (ron_at_t *at, ron_pid_instance_t *pid);
-   ron_fault_t ron_autotune_step    (ron_at_t *at, ron_float_t r,
+   ron_fault_t ron_autotune_init    (ron_autotune_t *at, const ron_autotune_config_t *cfg);
+   ron_fault_t ron_autotune_start   (ron_autotune_t *at, ron_pid_t *pid);
+   ron_fault_t ron_autotune_step    (ron_autotune_t *at, ron_float_t r,
                                         ron_float_t y, ron_float_t dt,
                                         ron_float_t *u_out);
-   ron_fault_t ron_autotune_apply   (const ron_at_t *at, ron_pid_instance_t *pid);
-   ron_fault_t ron_autotune_abort   (ron_at_t *at, ron_pid_instance_t *pid);
-   ron_fault_t ron_autotune_results (const ron_at_t *at,
+   ron_fault_t ron_autotune_apply   (const ron_autotune_t *at, ron_pid_t *pid);
+   ron_fault_t ron_autotune_abort   (ron_autotune_t *at, ron_pid_t *pid);
+   ron_fault_t ron_autotune_get_results (const ron_autotune_t *at,
                                         ron_float_t *Ku, ron_float_t *Tu,
                                         ron_float_t *Kp, ron_float_t *Ki,
                                         ron_float_t *Kd);
@@ -2551,7 +2551,7 @@ control and sensing.
                                      ron_float_t y, ron_float_t u,
                                      ron_float_t dt);
    ron_fault_t ron_health_clear  (ron_health_t *h);
-   ron_fault_t ron_health_get    (const ron_health_t *h,
+   ron_fault_t ron_health_get_status    (const ron_health_t *h,
                                      ron_health_status_t *status);
 
    #ifdef __cplusplus
@@ -2604,7 +2604,7 @@ control and sensing.
    ron_fault_t ron_metrics_enable  (ron_metrics_t *m, bool enable);
    ron_fault_t ron_metrics_step    (ron_metrics_t *m, ron_float_t r,
                                        ron_float_t y, ron_float_t dt);
-   ron_fault_t ron_metrics_get     (const ron_metrics_t *m,
+   ron_fault_t ron_metrics_get_results     (const ron_metrics_t *m,
                                        ron_metrics_result_t *out);
 
    #ifdef __cplusplus
@@ -2815,6 +2815,34 @@ C Track — Naming Conventions
      - ``RON_<SCREAMING_SNAKE>``
      - ``RON_VERSION_MAJOR``, ``RON_MA_MAX_WINDOW``
 
+One ``<module>`` token names a module everywhere: header, types, enum
+constants and functions (``ron_autotune.h`` → ``ron_autotune_t``,
+``RON_AUTOTUNE_IDLE``, ``ron_autotune_step``). Within a module:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 40 30
+
+   * - Role
+     - Name
+     - Example
+   * - Instance, configuration, state
+     - ``ron_<module>_t``, ``ron_<module>_config_t``, ``ron_<module>_state_t``
+     - ``ron_kf_t``, ``ron_pid_config_t``
+   * - Lifecycle
+     - ``ron_<module>_init``, ``_reset``, ``_step``
+     - ``ron_trap_reset``
+   * - Read-back
+     - ``_get_state`` (internal state), ``_get_results`` (computed results),
+       ``_get_status`` (detection flags)
+     - ``ron_metrics_get_results``
+   * - Faults
+     - ``_fault_clear`` clears the latched fault register
+     - ``ron_cascade_fault_clear``
+   * - Validation without side effects
+     - ``ron_<module>_[<noun>_]validate``
+     - ``ron_gs_table_validate``
+
 C Track — Comment Style
 ------------------------
 
@@ -2892,7 +2920,7 @@ C Track — Minimal Integration Steps
 
    .. code-block:: c
 
-      static ron_pid_instance_t  position_pid;
+      static ron_pid_t  position_pid;
 
 2. **Populate a configuration record** and call ``ron_pid_init()``.
 
@@ -3131,7 +3159,7 @@ denote track-specific deliverables.
      - RON-FR-001 – FR-007, RON-FR-010 – FR-013, RON-FR-020 – FR-035
    * - ``ron_pid_state_t`` / ``PidState`` (both)
      - RON-FR-050 – FR-054, RON-FR-060 – FR-062
-   * - ``ron_pid_instance_t`` / ``Pid<State>`` typestate (both)
+   * - ``ron_pid_t`` / ``Pid<State>`` typestate (both)
      - RON-SR-003, RON-FR-060 – FR-062, RON-PR-022
    * - Compile-time size assertions (both)
      - RON-PR-021

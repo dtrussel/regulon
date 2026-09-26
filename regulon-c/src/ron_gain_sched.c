@@ -220,13 +220,13 @@ static void gs_build_candidate(const ron_gs_table_t *tbl, uint8_t lower_idx,
 }
 
 /* Satisfies: RON-FR-300, RON-FR-301, RON-FR-306 | Test: RON-TC-GS-001, RON-TC-GS-002, RON-TC-GS-008 */
-ron_fault_t ron_gs_init(const ron_gs_table_t *tbl)
+ron_fault_t ron_gs_table_validate(const ron_gs_table_t *tbl)
 {
     return gs_validate_table(tbl);
 }
 
 /* Satisfies: RON-FR-302, RON-FR-303, RON-FR-304, RON-FR-305 | Test: RON-TC-GS-003 - RON-TC-GS-007 */
-ron_fault_t ron_gs_update(const ron_gs_table_t *tbl, ron_pid_instance_t *pid, ron_float_t sigma)
+ron_fault_t ron_gs_update(const ron_gs_table_t *tbl, ron_pid_t *pid, ron_float_t sigma)
 {
     ron_fault_t fault;
     ron_pid_config_t candidate;

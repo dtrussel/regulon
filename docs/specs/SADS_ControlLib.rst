@@ -1560,8 +1560,8 @@ Data Structure
 .. code-block:: none
 
    STRUCTURE CascadeInstance:
-     outer : ron_pid_instance_t
-     inner : ron_pid_instance_t
+     outer : ron_pid_t
+     inner : ron_pid_t
 
 Operation: ``ron_cascade_step``
 ---------------------------------

@@ -13,7 +13,7 @@
 /* Satisfies: RON-SR-005 | Test: RON-TC-SAFE-005-FV */
 void pid_array_bounds_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg;
     ron_float_t u = RON_FLOAT_C(0.0);
     ron_status_t status = RON_STATUS_OK;

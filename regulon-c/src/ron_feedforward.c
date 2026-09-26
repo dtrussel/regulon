@@ -31,7 +31,7 @@ static void feedforward_reset_state(ron_pid_state_t *state)
 }
 
 /* Satisfies: RON-SR-006 | Test: RON-TC-FF-009 */
-static ron_fault_t feedforward_check_inst(const ron_pid_instance_t *inst)
+static ron_fault_t feedforward_check_inst(const ron_pid_t *inst)
 {
     ron_fault_t fault;
 
@@ -65,7 +65,7 @@ ron_fault_t ron_feedforward_config_validate(const ron_feedforward_config_t *cfg)
 }
 
 /* Satisfies: RON-FR-201, RON-FR-202, RON-FR-204 | Test: RON-TC-FF-002 - RON-TC-FF-008 */
-ron_fault_t ron_pid_set_feedforward(ron_pid_instance_t *inst, const ron_feedforward_config_t *cfg)
+ron_fault_t ron_pid_set_feedforward(ron_pid_t *inst, const ron_feedforward_config_t *cfg)
 {
     ron_fault_t fault;
 
@@ -84,8 +84,8 @@ ron_fault_t ron_pid_set_feedforward(ron_pid_instance_t *inst, const ron_feedforw
 }
 
 /* Satisfies: RON-FR-200 - RON-FR-205 | Test: RON-TC-FF-001 - RON-TC-FF-009 */
-ron_fault_t ron_pid_step_feedforward(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
-                                     ron_float_t dt, ron_float_t external_ff, ron_float_t *u_out,
+ron_fault_t ron_pid_step_feedforward(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
+                                     ron_float_t external_ff, ron_float_t *u_out,
                                      ron_status_t *status)
 {
     ron_fault_t fault;
@@ -113,7 +113,7 @@ ron_fault_t ron_pid_step_feedforward(ron_pid_instance_t *inst, ron_float_t r, ro
 }
 
 /* Satisfies: RON-FR-205 | Test: RON-TC-FF-001, RON-TC-FF-009 */
-ron_fault_t ron_pid_get_feedforward(const ron_pid_instance_t *inst, ron_float_t *u_ff)
+ron_fault_t ron_pid_get_feedforward(const ron_pid_t *inst, ron_float_t *u_ff)
 {
     ron_fault_t fault;
 

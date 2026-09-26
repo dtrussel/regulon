@@ -1156,7 +1156,7 @@ Cascade Controller
      - Requirement
    * - RON-FR-400
      - The library **shall** provide a cascade controller structure that
-       encapsulates two ``ron_pid_instance_t`` objects (outer and inner) and
+       encapsulates two ``ron_pid_t`` objects (outer and inner) and
        manages their interconnection.
    * - RON-FR-401
      - The cascade ``step`` operation **shall** accept the outer setpoint

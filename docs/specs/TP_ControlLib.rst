@@ -303,7 +303,7 @@ underscores) and preceded by a ``/* RON-TC-xxx-NNN */`` comment:
    void test_ron_tc_pid_001(void)
    {
        /* Verify parallel PID form: known step response of a first-order plant */
-       ron_pid_instance_t pid;
+       ron_pid_t pid;
        ron_pid_config_t   cfg = make_default_pid_config();
        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_pid_init(&pid, &cfg));
 
@@ -1386,7 +1386,7 @@ RON-TC-PID-001 — Parallel PID Form Output Correctness
 
    /* RON-TC-PID-001 | RON-FR-001 */
    void test_ron_tc_pid_001(void) {
-       ron_pid_instance_t pid;
+       ron_pid_t pid;
        ron_pid_config_t cfg = make_pid_cfg_kp_only(2.0F);
        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_pid_init(&pid, &cfg));
        ron_float_t u; ron_status_t s;

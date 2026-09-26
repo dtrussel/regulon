@@ -166,7 +166,7 @@ static ron_float_t pid_integral(const ron_pid_config_t *cfg, const ron_pid_state
 }
 
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007, RON-TC-SAFE-010 */
-static ron_fault_t pid_fail_step(ron_pid_instance_t *inst, ron_fault_t code, ron_float_t *u_out,
+static ron_fault_t pid_fail_step(ron_pid_t *inst, ron_fault_t code, ron_float_t *u_out,
                                  ron_status_t *status)
 {
     ron_fault_t fault;
@@ -219,10 +219,10 @@ static void pid_prepare_inputs(const ron_pid_config_t *cfg, ron_pid_state_t *sta
 }
 
 /* Satisfies: RON-FR-020 – RON-FR-035, RON-SR-010 | Test: RON-TC-PID-015 – RON-TC-PID-026, RON-TC-SAFE-010 */
-static ron_fault_t pid_apply_output_limits(ron_pid_instance_t *inst, ron_float_t dt,
-                                           ron_float_t i_term, ron_float_t u_raw,
-                                           ron_float_t *u_final, ron_status_t *step_status,
-                                           ron_float_t *u_out, ron_status_t *status)
+static ron_fault_t pid_apply_output_limits(ron_pid_t *inst, ron_float_t dt, ron_float_t i_term,
+                                           ron_float_t u_raw, ron_float_t *u_final,
+                                           ron_status_t *step_status, ron_float_t *u_out,
+                                           ron_status_t *status)
 {
     const ron_pid_config_t *cfg;
     ron_fault_t fault;
@@ -279,9 +279,8 @@ static void pid_store_step(ron_pid_state_t *state, ron_float_t y_n, ron_float_t 
 }
 
 /* Satisfies: RON-FR-001 – RON-FR-071 | Test: RON-TC-PID-001 – RON-TC-PID-039 */
-ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
-                              ron_float_t dt, ron_float_t external_ff, ron_float_t *u_out,
-                              ron_status_t *status)
+ron_fault_t ron_pid_core_step(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
+                              ron_float_t external_ff, ron_float_t *u_out, ron_status_t *status)
 {
     const ron_pid_config_t *cfg;
     ron_pid_state_t *state;

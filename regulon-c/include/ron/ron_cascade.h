@@ -8,14 +8,14 @@
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  *
- * A cascade controller composes two independent ron_pid_instance_t loops:
+ * A cascade controller composes two independent ron_pid_t loops:
  * the outer (master) loop computes a setpoint that drives the inner (slave)
  * loop.  The cascade layer adds coordinated anti-windup propagation, mode
  * transitions, and a unified status word.
  *
  * Typical usage:
  *
- *   static ron_cascade_instance_t casc;
+ *   static ron_cascade_t casc;
  *
  *   void init(void) {
  *       ron_pid_config_t outer = { .Kp = 1.0F, .Ki = 0.5F,
@@ -91,7 +91,7 @@ typedef uint32_t ron_cascade_status_t;
  *
  * @example
  * @code
- *   static ron_cascade_instance_t cascade;
+ *   static ron_cascade_t cascade;
  *   ron_fault_t f = ron_cascade_init(&cascade, &outer_cfg, &inner_cfg);
  * @endcode
  *
@@ -99,9 +99,9 @@ typedef uint32_t ron_cascade_status_t;
  */
 /* Satisfies: RON-FR-400 | Test: RON-TC-CASC-001 */
 typedef struct {
-    ron_pid_instance_t outer; /**< Outer (master) loop.  Output becomes inner setpoint. */
-    ron_pid_instance_t inner; /**< Inner (slave) loop.   Receives outer output as r.    */
-} ron_cascade_instance_t;
+    ron_pid_t outer; /**< Outer (master) loop.  Output becomes inner setpoint. */
+    ron_pid_t inner; /**< Inner (slave) loop.   Receives outer output as r.    */
+} ron_cascade_t;
 
 /* =========================================================================
  * Lifecycle
@@ -129,7 +129,7 @@ typedef struct {
  * Satisfies: RON-FR-400, RON-FR-402, RON-FR-405.
  */
 /* Satisfies: RON-FR-400, RON-FR-402, RON-FR-405 | Test: RON-TC-CASC-001, RON-TC-CASC-002 */
-ron_fault_t ron_cascade_init(ron_cascade_instance_t *casc, const ron_pid_config_t *outer_cfg,
+ron_fault_t ron_cascade_init(ron_cascade_t *casc, const ron_pid_config_t *outer_cfg,
                              const ron_pid_config_t *inner_cfg);
 
 /* =========================================================================
@@ -166,7 +166,7 @@ ron_fault_t ron_cascade_init(ron_cascade_instance_t *casc, const ron_pid_config_
  * Satisfies: RON-FR-401, RON-FR-402, RON-FR-403, RON-FR-405, RON-FR-406.
  */
 /* Satisfies: RON-FR-401 – RON-FR-403, RON-FR-406 | Test: RON-TC-CASC-003 – RON-TC-CASC-009 */
-ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ron_float_t y_out,
+ron_fault_t ron_cascade_step(ron_cascade_t *casc, ron_float_t r_out, ron_float_t y_out,
                              ron_float_t y_in, ron_float_t dt, ron_float_t *u_out,
                              ron_cascade_status_t *status);
 
@@ -201,8 +201,8 @@ ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ro
  * Satisfies: RON-FR-404.
  */
 /* Satisfies: RON-FR-404 | Test: RON-TC-CASC-007, RON-TC-CASC-008 */
-ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mode,
-                                 ron_float_t manual_inner, ron_float_t manual_outer);
+ron_fault_t ron_cascade_set_mode(ron_cascade_t *casc, ron_op_mode_t mode, ron_float_t manual_inner,
+                                 ron_float_t manual_outer);
 
 /* =========================================================================
  * State inspection
@@ -225,7 +225,7 @@ ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mod
  * Satisfies: RON-FR-406.
  */
 /* Satisfies: RON-FR-406 | Test: RON-TC-CASC-010 */
-ron_fault_t ron_cascade_get_state(const ron_cascade_instance_t *casc, ron_cascade_status_t *status,
+ron_fault_t ron_cascade_get_state(const ron_cascade_t *casc, ron_cascade_status_t *status,
                                   ron_fault_t *outer_fault, ron_fault_t *inner_fault);
 
 /* =========================================================================
@@ -248,7 +248,7 @@ ron_fault_t ron_cascade_get_state(const ron_cascade_instance_t *casc, ron_cascad
  * Satisfies: RON-FR-405.
  */
 /* Satisfies: RON-FR-405 | Test: RON-TC-CASC-011 */
-ron_fault_t ron_cascade_fault_clear(ron_cascade_instance_t *casc);
+ron_fault_t ron_cascade_fault_clear(ron_cascade_t *casc);
 
 /**
  * @brief Reset the dynamic state on both loops.
@@ -266,7 +266,7 @@ ron_fault_t ron_cascade_fault_clear(ron_cascade_instance_t *casc);
  * Satisfies: RON-FR-405.
  */
 /* Satisfies: RON-FR-405 | Test: RON-TC-CASC-012 */
-ron_fault_t ron_cascade_reset(ron_cascade_instance_t *casc);
+ron_fault_t ron_cascade_reset(ron_cascade_t *casc);
 
 #ifdef __cplusplus
 }
