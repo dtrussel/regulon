@@ -3660,7 +3660,10 @@ RON-TC-QUAL-015 — MC/DC on Safety-Critical Conditions
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - ``llvm-cov --mcdc`` (LLVM 18+) on the production source set. Targets: all
+     - C: the coverage build adds ``-fcoverage-mcdc`` (LLVM 18+) and the CI
+       coverage job requires 100% of the MC/DC conditions ``llvm-cov`` reports
+       over the production source set, a superset of the designated targets:
+       all
        ``if`` conditions inside RON-SR-010 – SR-013 fault detection paths,
        all AW clamping conditions, and all saturation / safe-output branches.
    * - **Pass Criterion**

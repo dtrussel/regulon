@@ -33,6 +33,8 @@ Changed
   freestanding headers and needs **no C library at all** (RON-DC-002).
 - ``regulon-c/scripts/verify_pid.ps1`` renamed to ``verify.ps1`` (it already
   covered the whole library) and its cppcheck suppressions synced with CI.
+- The CMake package declares ``SameMinorVersion`` until 1.0, so
+  ``find_package(regulon 0.1)`` no longer accepts a 0.2 that may break it.
 - ``ron_autotune_apply`` takes ``const ron_at_t *`` (source-compatible).
 - The API reference moved from Doxygen HTML to a Sphinx + Breathe site that
   also renders the specifications and usage guides, with requirement/test
@@ -46,6 +48,9 @@ Added
   under QEMU (Cortex-M3/M33) plus cross-builds for Cortex-M4F/M7/nRF52840.
 - Optional user ``ron_config.h`` (or ``-DRON_CONFIG_HEADER``) to override
   platform defaults.
+- CI enforces 100% MC/DC (``-fcoverage-mcdc``, RON-TC-QUAL-015), which the
+  test plan specified but no job measured. The one uncovered condition,
+  clamping anti-windup at exactly zero error, gained a test.
 - CI gates: per-frame stack budget (``check_stack_usage.sh``, 768 B), no-libm
   symbol check on every cross build (``check_no_libm.sh``), and a
   ``sphinx-build -W`` documentation build.
@@ -63,6 +68,9 @@ Removed
 
 Fixed
 -----
+- ``regulon.pc`` still listed ``Libs.private: -lm`` after the libm removal,
+  so static pkg-config consumers linked a math library the archive never
+  uses.
 - The cppcheck/MISRA CI step discarded cppcheck's exit status (missing
   ``pipefail``), so no finding could fail the build. The gate is now
   enforced and the findings it hid are resolved.

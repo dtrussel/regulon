@@ -395,6 +395,36 @@ void test_ron_tc_pid_023(void)
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), before, after);
 }
 
+/* RON-TC-PID-023 | RON-FR-032 */
+void test_ron_tc_pid_023_zero_error_while_saturated(void)
+{
+    ron_pid_config_t   cfg = test_ron_make_pid_cfg();
+    ron_pid_instance_t pid;
+    ron_float_t        u = RON_FLOAT_C(0.0);
+    ron_float_t        integral = RON_FLOAT_C(0.0);
+    ron_status_t       status = RON_STATUS_OK;
+
+    cfg.Kp = RON_FLOAT_C(50.0);
+    cfg.Ki = RON_FLOAT_C(10.0);
+    cfg.u_min = RON_FLOAT_C(-0.5);
+    cfg.u_max = RON_FLOAT_C(0.5);
+    cfg.aw_mode = RON_AW_CLAMPING;
+    pid = test_ron_init_pid_api(&cfg);
+
+    /* Saturate low with a negative integral. */
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(-1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+
+    /* Zero error neither pushes further into saturation nor releases it: the
+     * integral holds and the output stays at the lower limit. */
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_step(&pid, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+        ron_pid_get_state(&pid, &integral, NULL, NULL, NULL, NULL));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(-1.0), integral);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-6), RON_FLOAT_C(-0.5), u);
+}
+
 /* RON-TC-PID-024 | RON-FR-033 */
 void test_ron_tc_pid_024(void)
 {
@@ -1379,6 +1409,7 @@ int main(void)
     RUN_TEST(test_ron_tc_pid_021);
     RUN_TEST(test_ron_tc_pid_022);
     RUN_TEST(test_ron_tc_pid_023);
+    RUN_TEST(test_ron_tc_pid_023_zero_error_while_saturated);
     RUN_TEST(test_ron_tc_pid_024);
     RUN_TEST(test_ron_tc_pid_025);
     RUN_TEST(test_ron_tc_pid_026);

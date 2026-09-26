@@ -45,7 +45,9 @@ What each gate proves
    * - Coverage
      - 100% of statements **and branches** are exercised. Branch coverage
        is the meaningful figure: it is what forces every guard clause and
-       error path to be tested, not merely compiled.
+       error path to be tested, not merely compiled. MC/DC is also 100%:
+       every condition in a compound decision is shown to change the
+       outcome on its own.
    * - CBMC formal proofs
      - Selected properties hold for *all* inputs in the bounded model, not
        only tested ones — chiefly that outputs stay within configured

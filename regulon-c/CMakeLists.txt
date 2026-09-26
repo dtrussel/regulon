@@ -205,10 +205,13 @@ configure_package_config_file(
     ${CMAKE_CURRENT_BINARY_DIR}/regulonConfig.cmake
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/regulon
 )
+# Semantic Versioning allows breaking changes between 0.y minor releases, so
+# until 1.0 a request for 0.1 must not accept 0.2. Switch to SameMajorVersion
+# at 1.0.0.
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/regulonConfigVersion.cmake
     VERSION       ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
+    COMPATIBILITY SameMinorVersion
 )
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/regulonConfig.cmake

@@ -161,7 +161,7 @@ cmake --build build_arm
 Every push and pull request runs the full [`ci_c.yml`](.github/workflows/ci_c.yml)
 matrix: GCC + ASan/UBSan, GCC double-precision, Clang, `clang-format`,
 `cppcheck`/MISRA C:2023, complexity (`lizard -C 10`), 100% statement and
-branch coverage (LLVM `llvm-cov`), CBMC formal proofs (bounded-memory /
+branch coverage and MC/DC (LLVM `llvm-cov`), CBMC formal proofs (bounded-memory /
 output-saturation properties), ARM and RISC-V cross-compile smoke builds, a
 source-manifest drift check, a minimal-subset build, the example programs,
 a timing benchmark, a package-install smoke test, and a documentation
