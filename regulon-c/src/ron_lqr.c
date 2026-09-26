@@ -271,7 +271,7 @@ static bool lqr_integral_valid(const ron_lqr_config_t *cfg)
     return true;
 }
 
-/* Satisfies: RON-FR-736 | Test: RON-TC-LQR-004 */
+/* Satisfies: RON-FR-736, RON-SR-011 | Test: RON-TC-LQR-004, RON-TC-LQR-012 */
 static bool lqr_limits_valid(const ron_lqr_config_t *cfg)
 {
     uint8_t j;
@@ -286,7 +286,8 @@ static bool lqr_limits_valid(const ron_lqr_config_t *cfg)
             return false;
         }
     }
-    return true;
+    return ron_util_safe_policy_valid(cfg->safe_policy) &&
+           ron_mat_vec_finite(&cfg->safe_value[0], cfg->m);
 }
 
 /* Satisfies: RON-FR-730, RON-FR-732, RON-FR-734, RON-FR-736, RON-FR-737 | Test: RON-TC-LQR-001, RON-TC-LQR-006 */
@@ -429,11 +430,11 @@ static bool lqr_step_args_valid(const ron_lqr_t *lqr, const ron_float_t *r, ron_
 }
 
 /*
- * Latch a runtime fault (RON-SR-012): OR it into the fault register, hold the
- * last output vector and report FAULT.  The integrals and output history are
+ * Latch a runtime fault (RON-SR-012): OR it into the fault register, write
+ * the safe-state output vector (RON-SR-011) and report FAULT.  The integrals and output history are
  * not touched.  Passing RON_FAULT_NONE re-reports an already latched fault.
  */
-/* Satisfies: RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013 | Test: RON-TC-LQR-006, RON-TC-LQR-011 */
+/* Satisfies: RON-FR-736, RON-SR-010 – RON-SR-013 | Test: RON-TC-LQR-006, RON-TC-LQR-011, RON-TC-LQR-012 */
 static ron_fault_t lqr_fail_step(ron_lqr_t *lqr, ron_fault_t code, ron_float_t *u,
                                  ron_status_t *status)
 {
@@ -441,7 +442,8 @@ static ron_fault_t lqr_fail_step(ron_lqr_t *lqr, ron_fault_t code, ron_float_t *
 
     lqr->state.faults = (ron_fault_t) (lqr->state.faults | code);
     for (j = 0U; j < lqr->cfg.m; j++) {
-        u[j] = lqr->state.u_prev[j];
+        u[j] = ron_util_safe_output(lqr->cfg.safe_policy, lqr->state.u_prev[j],
+                                    lqr->cfg.safe_value[j], lqr->cfg.u_min[j], lqr->cfg.u_max[j]);
     }
     *status = RON_STATUS_FAULT;
 

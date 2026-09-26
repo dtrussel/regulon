@@ -15,7 +15,7 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.5.0
+**Version:** 1.6.0
 
 **Status:** Draft
 
@@ -79,6 +79,12 @@ Revision History
        cleared (RON-SR-012, SR-013). RON-TC-LQG-006 now checks both gains
        solved at init (``RON_LQG_GAIN_DARE_BOTH``) against reference values
        and against the gain a time-varying filter converges to.
+     - dtrussel
+   * - 1.6.0
+     - 2026-09-26
+     - Added RON-TC-SS-011, RON-TC-LQR-012 and RON-TC-LQG-012: the
+       state-space, LQR and LQG controllers apply the configurable safe-state
+       output policy while a fault is latched (RON-SR-011).
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -1018,7 +1024,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-SR-011
      - Safe-state output policy
      - UT
-     - RON-TC-SAFE-008
+     - RON-TC-SAFE-008, RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012
    * - RON-SR-012
      - Fault state latches until cleared
      - UT
@@ -1343,6 +1349,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-SS-010
      - UT
      - RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013
+   * - RON-TC-SS-011
+     - UT
+     - RON-FR-703, RON-SR-011
    * - RON-TC-EST-001 – EST-003
      - UT
      - RON-FR-701, RON-FR-734
@@ -1358,6 +1367,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-LQR-011
      - UT
      - RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013
+   * - RON-TC-LQR-012
+     - UT
+     - RON-FR-736, RON-SR-011
    * - RON-TC-LQG-001 – LQG-009
      - UT / IT
      - RON-FR-750 – FR-759
@@ -1367,6 +1379,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-LQG-011
      - UT
      - RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013
+   * - RON-TC-LQG-012
+     - UT
+     - RON-FR-757, RON-SR-011
    * - RON-TC-AT-001 – AT-008
      - UT / IT
      - RON-FR-800 – FR-807
@@ -3090,6 +3105,34 @@ RON-TC-SS-010 — Fault Latch and Explicit Clear
 
 ------------------------------------------------------------------------
 
+RON-TC-SS-011 — Safe-State Output Policy
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-703, RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = 1``, ``K = 1``, ``x_ext = 1``,
+       ``u_min = -5``, ``u_max = 5``.
+   * - **Stimulus**
+     - For each ``safe_policy`` (``HOLD_LAST``, ``ZERO``, ``CONSTANT`` with a
+       ``safe_value`` beyond ``u_max``): step once with finite inputs, then
+       latch a fault with a non-finite reference and step again. Initialise
+       with a non-finite ``safe_value`` and with an out-of-range
+       ``safe_policy``.
+   * - **Pass Criterion**
+     - While latched, ``u`` is the last output, ``0`` or ``u_max`` (the
+       clamped ``safe_value``) respectively, and the output history and integral
+       is unchanged, so after ``ron_ss_fault_clear()`` the next step
+       rate-limits from the last committed output. The invalid
+       configurations return ``RON_FAULT_CONFIG_INVALID``.
+
+------------------------------------------------------------------------
+
 State-Estimator Tests (RON-TC-EST-xxx)
 ======================================
 
@@ -3415,6 +3458,34 @@ RON-TC-LQR-011 — Fault Latch and Explicit Clear
 
 ------------------------------------------------------------------------
 
+RON-TC-LQR-012 — Safe-State Output Policy
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736, RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = m = 1``, ``K = 1``,
+       ``x_ext = 1``, ``u_min = -5``, ``u_max = 5``.
+   * - **Stimulus**
+     - For each ``safe_policy`` (``HOLD_LAST``, ``ZERO``, ``CONSTANT`` with a
+       ``safe_value`` beyond ``u_max``): step once with finite inputs, then
+       latch a fault with a non-finite reference and step again. Initialise
+       with a non-finite ``safe_value`` and with an out-of-range
+       ``safe_policy``.
+   * - **Pass Criterion**
+     - While latched, ``u[0]`` is the last output, ``0`` or ``u_max`` (the
+       clamped ``safe_value``) respectively, and the output history and integral
+       is unchanged, so after ``ron_lqr_fault_clear()`` the next step
+       rate-limits from the last committed output. The invalid
+       configurations return ``RON_FAULT_CONFIG_INVALID``.
+
+------------------------------------------------------------------------
+
 LQG Controller Tests (RON-TC-LQG-xxx)
 =======================================
 
@@ -3660,6 +3731,34 @@ RON-TC-LQG-011 — Fault Latch and Explicit Clear
        ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
        / uninitialised. A ``NULL``-argument step returns
        ``RON_FAULT_NULL_POINTER`` without latching.
+
+------------------------------------------------------------------------
+
+RON-TC-LQG-012 — Safe-State Output Policy
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757, RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Double-integrator LQG with pre-computed ``K``, ``Kr = 2``,
+       ``u_min = -5``, ``u_max = 5``.
+   * - **Stimulus**
+     - For each ``safe_policy`` (``HOLD_LAST``, ``ZERO``, ``CONSTANT`` with a
+       ``safe_value`` beyond ``u_max``): step once with finite inputs, then
+       latch a fault with a non-finite reference and step again. Initialise
+       with a non-finite ``safe_value`` and with an out-of-range
+       ``safe_policy``.
+   * - **Pass Criterion**
+     - While latched, ``u[0]`` is the last output, ``0`` or ``u_max`` (the
+       clamped ``safe_value``) respectively, and the output history
+       is unchanged, so after ``ron_lqg_fault_clear()`` the next step
+       rate-limits from the last committed output. The invalid
+       configurations return ``RON_FAULT_CONFIG_INVALID``.
 
 ------------------------------------------------------------------------
 
@@ -4907,4 +5006,4 @@ Open Items
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-TP-001 v1.5.0*
+*End of Document — RON-TP-001 v1.6.0*

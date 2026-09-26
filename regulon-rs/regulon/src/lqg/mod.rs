@@ -23,9 +23,9 @@ use crate::{
     kalman::{Kalman, KalmanConfig},
     lqr::{solve_dare, DareConfig, DareSolution},
     matrix::{dimension_valid, vector_is_finite, Matrix},
-    pid::{PidFault, PidStatus},
+    pid::{PidFault, PidStatus, SafePolicy},
     platform::{is_finite, RonFloat},
-    statespace::OutputLimits,
+    statespace::{validate_safe_values, OutputLimits},
 };
 
 /// Gain source. The control DARE uses the shared `A` and `B`; in
@@ -92,6 +92,11 @@ pub struct LqgConfig<const N: usize, const U: usize, const Y: usize> {
     pub kr: [RonFloat; U],
     /// Per-input output limits.
     pub limits: [OutputLimits; U],
+    /// Safe-state output while a fault is latched (RON-SR-011).
+    pub safe_policy: SafePolicy,
+    /// Per-input output for [`SafePolicy::DriveSafeValue`]; finite, clamped
+    /// to the limits.
+    pub safe_value: [RonFloat; U],
 }
 
 /// Linear quadratic Gaussian controller.
@@ -104,6 +109,8 @@ pub struct Lqg<const N: usize, const U: usize, const Y: usize> {
     kr: [RonFloat; U],
     dare_solution: Option<Matrix<N, N>>,
     limits: [OutputLimits; U],
+    safe_policy: SafePolicy,
+    safe_value: [RonFloat; U],
     output_prev: [RonFloat; U],
     fault: PidFault,
 }
@@ -134,6 +141,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
         for limits in &config.limits {
             limits.validate()?;
         }
+        validate_safe_values(&config.safe_value)?;
         let mut steady_state_gain = config.kalman_steady_state_gain;
         let (k, dare_solution) = match config.gain {
             LqgGain::Precomputed(k) => {
@@ -181,6 +189,8 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
             kr: config.kr,
             dare_solution,
             limits: config.limits,
+            safe_policy: config.safe_policy,
+            safe_value: config.safe_value,
             output_prev: [0.0; U],
             fault: PidFault::NONE,
         })
@@ -295,12 +305,21 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
         self.fault
     }
 
-    /// Returns the last committed output vector, which a faulted step holds.
+    /// Returns the output vector to apply: the last committed outputs, or the
+    /// safe-state outputs selected by the policy while a fault is latched. The
+    /// output history itself is never overwritten.
     ///
-    /// **Satisfies:** RON-FR-757
+    /// **Satisfies:** RON-FR-757, RON-SR-011
     #[must_use]
-    pub const fn output(&self) -> [RonFloat; U] {
-        self.output_prev
+    pub fn output(&self) -> [RonFloat; U] {
+        if self.fault.is_none() {
+            return self.output_prev;
+        }
+        let mut output = self.output_prev;
+        for (j, value) in output.iter_mut().enumerate() {
+            *value = self.limits[j].safe_output(self.safe_policy, *value, self.safe_value[j]);
+        }
+        output
     }
 
     /// Clears the output history and latched faults and resets the Kalman

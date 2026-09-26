@@ -3,7 +3,8 @@
  * @brief    Internal scalar helpers shared by every module (no allocation).
  * @module   ron_util
  * @doc      RON-IS-001
- * @req      RON-SR-020, RON-FR-022, RON-FR-026, RON-FR-500, RON-FR-603
+ * @req      RON-SR-011, RON-SR-020, RON-FR-022, RON-FR-026, RON-FR-500,
+ *           RON-FR-603
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  */
@@ -65,4 +66,33 @@ ron_float_t ron_util_sqrt(ron_float_t value)
 ron_float_t ron_util_sign_nonzero(ron_float_t value)
 {
     return (value < RON_FLOAT_C(0.0)) ? RON_FLOAT_C(-1.0) : RON_FLOAT_C(1.0);
+}
+
+/* Satisfies: RON-SR-011 | Test: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012 */
+bool ron_util_safe_policy_valid(ron_safe_policy_t policy)
+{
+    return (policy == RON_SAFE_HOLD_LAST) || (policy == RON_SAFE_ZERO) ||
+           (policy == RON_SAFE_CONSTANT);
+}
+
+/* Satisfies: RON-SR-011 | Test: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012 */
+ron_float_t ron_util_safe_output(ron_safe_policy_t policy, ron_float_t last, ron_float_t safe_value,
+                                 ron_float_t lo, ron_float_t hi)
+{
+    ron_float_t output;
+
+    switch (policy) {
+    case RON_SAFE_ZERO:
+        output = RON_FLOAT_C(0.0);
+        break;
+    case RON_SAFE_CONSTANT:
+        output = safe_value;
+        break;
+    case RON_SAFE_HOLD_LAST:
+    default:
+        output = last;
+        break;
+    }
+
+    return ron_clamp(output, lo, hi);
 }

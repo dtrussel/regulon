@@ -245,6 +245,14 @@ Added
   also on beta), a ``thumbv7em-none-eabihf`` release build, Kani proofs,
   ``cargo audit``, a ``cargo-llvm-cov`` coverage report (not yet enforced)
   and the traceability check.
+- Safe-state output policy for the state-space, LQR and LQG controllers
+  (RON-SR-011), as the PID has: ``safe_policy`` (``RON_SAFE_HOLD_LAST``, the
+  zero-initialised default, ``RON_SAFE_ZERO`` or ``RON_SAFE_CONSTANT``) and
+  ``safe_value`` (per input for LQR/LQG) select what a latched step writes to
+  ``u``, clamped to the output limits; the output history is kept. Rust:
+  ``safe_policy`` / ``safe_value`` on ``StateSpaceConfig``, ``LqrConfig`` and
+  ``LqgConfig``, and ``output()`` returns the safe-state output while
+  faulted. Tests: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012.
 - LQG: ``RON_LQG_GAIN_DARE_BOTH`` (Rust: ``LqgGain::DareBoth``) solves the
   steady-state Kalman gain at init as well as the LQR gain, as RON-FR-756
   requires: the dual DARE in ``(A^T, H^T, Q_noise, R_noise)`` gives the

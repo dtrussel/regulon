@@ -18,9 +18,9 @@ use crate::{
     error::RonError,
     estimator::{Estimator, EstimatorConfig},
     matrix::{dimension_valid, vector_is_finite, Matrix},
-    pid::{PidFault, PidStatus},
+    pid::{PidFault, PidStatus, SafePolicy},
     platform::{abs, clamp, is_finite, RonFloat},
-    statespace::OutputLimits,
+    statespace::{validate_safe_values, OutputLimits},
 };
 
 /// Iteration limit used when [`DareConfig::max_iterations`] is 0.
@@ -183,6 +183,11 @@ pub struct LqrConfig<const N: usize, const U: usize, const Y: usize> {
     pub integral: Option<LqrIntegral<N, U>>,
     /// Per-input output limits.
     pub limits: [OutputLimits; U],
+    /// Safe-state output while a fault is latched (RON-SR-011).
+    pub safe_policy: SafePolicy,
+    /// Per-input output for [`SafePolicy::DriveSafeValue`]; finite, clamped
+    /// to the limits.
+    pub safe_value: [RonFloat; U],
 }
 
 /// Linear quadratic regulator.
@@ -196,6 +201,8 @@ pub struct Lqr<const N: usize, const U: usize, const Y: usize> {
     dare_solution: Option<Matrix<N, N>>,
     integral_config: Option<LqrIntegral<N, U>>,
     limits: [OutputLimits; U],
+    safe_policy: SafePolicy,
+    safe_value: [RonFloat; U],
     integral: [RonFloat; U],
     output_prev: [RonFloat; U],
     fault: PidFault,
@@ -221,6 +228,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
         for limits in &config.limits {
             limits.validate()?;
         }
+        validate_safe_values(&config.safe_value)?;
         if let Some(integral) = &config.integral {
             validate_integral(integral)?;
         }
@@ -243,6 +251,8 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
             dare_solution,
             integral_config: config.integral,
             limits: config.limits,
+            safe_policy: config.safe_policy,
+            safe_value: config.safe_value,
             integral: [0.0; U],
             output_prev: [0.0; U],
             fault: PidFault::NONE,
@@ -349,12 +359,21 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
         self.fault
     }
 
-    /// Returns the last committed output vector, which a faulted step holds.
+    /// Returns the output vector to apply: the last committed outputs, or the
+    /// safe-state outputs selected by the policy while a fault is latched. The
+    /// output history itself is never overwritten.
     ///
-    /// **Satisfies:** RON-FR-736
+    /// **Satisfies:** RON-FR-736, RON-SR-011
     #[must_use]
-    pub const fn output(&self) -> [RonFloat; U] {
-        self.output_prev
+    pub fn output(&self) -> [RonFloat; U] {
+        if self.fault.is_none() {
+            return self.output_prev;
+        }
+        let mut output = self.output_prev;
+        for (j, value) in output.iter_mut().enumerate() {
+            *value = self.limits[j].safe_output(self.safe_policy, *value, self.safe_value[j]);
+        }
+        output
     }
 
     /// Replaces `K` and `K_r`, bypassing the DARE: the mechanism for

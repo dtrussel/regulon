@@ -691,6 +691,61 @@ void test_ron_tc_lqg_011(void)
 }
 
 /* ----------------------------------------------------------------------- */
+/* RON-TC-LQG-012 — Safe-State Output Policy                               */
+/* ----------------------------------------------------------------------- */
+
+/* RON-TC-LQG-012 | RON-FR-757, RON-SR-011 */
+void test_ron_tc_lqg_012(void)
+{
+    const ron_safe_policy_t policies[3] = {RON_SAFE_HOLD_LAST, RON_SAFE_ZERO, RON_SAFE_CONSTANT};
+    /* du_max = 1/s at dt = 0.01 s: the output moves 0.01 per step. */
+    const ron_float_t expected[3]         = {RON_FLOAT_C(0.01), RON_FLOAT_C(0.0), RON_FLOAT_C(5.0)};
+    ron_float_t r[RON_LQR_MAX_INPUTS]     = {RON_FLOAT_C(1.0)};
+    ron_float_t bad_r[RON_LQR_MAX_INPUTS] = {RON_FLOAT_C(0.0)};
+    ron_float_t u[RON_LQR_MAX_INPUTS];
+    ron_lqg_t lqg;
+    ron_lqg_config_t cfg;
+    ron_status_t status;
+    uint8_t i;
+
+    bad_r[0] = lqg_make_nan();
+    for (i = 0U; i < 3U; i++) {
+        cfg               = make_base_cfg();
+        cfg.Kr[0]         = RON_FLOAT_C(2.0);
+        cfg.u_min[0]      = RON_FLOAT_C(-5.0);
+        cfg.u_max[0]      = RON_FLOAT_C(5.0);
+        cfg.du_max[0]     = RON_FLOAT_C(1.0);
+        cfg.safe_policy   = policies[i];
+        cfg.safe_value[0] = RON_FLOAT_C(9.0); /* beyond u_max: clamped */
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(0.01), u[0]);
+
+        /* Latched: the policy output, twice, with the history untouched. */
+        TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                          ron_lqg_step(&lqg, bad_r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), expected[i], u[0]);
+        TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                          ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), expected[i], u[0]);
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(0.01), lqg.u_prev[0]);
+
+        /* After the clear, rate limiting continues from the last output. */
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(0.02), u[0]);
+    }
+
+    /* Invalid safe-state configuration. */
+    cfg               = make_base_cfg();
+    cfg.safe_value[0] = lqg_make_inf();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg.safe_value[0] = RON_FLOAT_C(0.0);
+    cfg.safe_policy   = (ron_safe_policy_t) 7;
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+}
+
+/* ----------------------------------------------------------------------- */
 /* Test runner                                                             */
 /* ----------------------------------------------------------------------- */
 
@@ -708,5 +763,6 @@ int main(void)
     RUN_TEST(test_ron_tc_lqg_009);
     RUN_TEST(test_ron_tc_lqg_validation);
     RUN_TEST(test_ron_tc_lqg_011);
+    RUN_TEST(test_ron_tc_lqg_012);
     return UNITY_END();
 }

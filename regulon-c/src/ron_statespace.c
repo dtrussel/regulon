@@ -33,7 +33,7 @@ static bool ss_integral_valid(const ron_ss_config_t *cfg)
     return ron_mat_vec_finite(&cfg->C_out[0], cfg->n);
 }
 
-/* Satisfies: RON-FR-700, RON-FR-703 | Test: RON-TC-SS-009 */
+/* Satisfies: RON-FR-700, RON-FR-703, RON-SR-011 | Test: RON-TC-SS-009, RON-TC-SS-011 */
 static bool ss_limits_valid(const ron_ss_config_t *cfg)
 {
     if (!ron_util_isfinite(cfg->u_min) || !ron_util_isfinite(cfg->u_max) ||
@@ -41,6 +41,9 @@ static bool ss_limits_valid(const ron_ss_config_t *cfg)
         return false;
     }
     if (cfg->u_min >= cfg->u_max) {
+        return false;
+    }
+    if (!ron_util_safe_policy_valid(cfg->safe_policy) || !ron_util_isfinite(cfg->safe_value)) {
         return false;
     }
     if (cfg->use_integral && !ss_integral_valid(cfg)) {
@@ -148,17 +151,18 @@ static ron_float_t ss_apply_limits(const ron_ss_t *ss, ron_float_t u_raw, ron_fl
  * ========================================================================= */
 
 /*
- * Latch a runtime fault (RON-SR-012): OR it into the fault register, hold the
- * last output and report FAULT.  The integral and output history are not
- * touched.  Passing RON_FAULT_NONE re-reports an already latched fault.
+ * Latch a runtime fault (RON-SR-012): OR it into the fault register, write
+ * the safe-state output (RON-SR-011) and report FAULT.  The integral and
+ * output history are not touched.  Passing RON_FAULT_NONE re-reports an already latched fault.
  */
-/* Satisfies: RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013 | Test: RON-TC-SS-009, RON-TC-SS-010 */
+/* Satisfies: RON-FR-703, RON-SR-010 – RON-SR-013 | Test: RON-TC-SS-009, RON-TC-SS-010, RON-TC-SS-011 */
 static ron_fault_t ss_fail_step(ron_ss_t *ss, ron_fault_t code, ron_float_t *u,
                                 ron_status_t *status)
 {
     ss->state.faults = (ron_fault_t) (ss->state.faults | code);
-    *u               = ss->state.u_prev;
-    *status          = RON_STATUS_FAULT;
+    *u      = ron_util_safe_output(ss->cfg.safe_policy, ss->state.u_prev, ss->cfg.safe_value,
+                                   ss->cfg.u_min, ss->cfg.u_max);
+    *status = RON_STATUS_FAULT;
 
     return ss->state.faults;
 }

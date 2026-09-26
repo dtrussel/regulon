@@ -13,7 +13,7 @@ use super::{Lqg, LqgConfig, LqgGain};
 use crate::{
     lqr::{solve_dare, DareConfig},
     matrix::{Matrix, MATRIX_MAX_DIM},
-    pid::{PidFault, PidStatus},
+    pid::{PidFault, PidStatus, SafePolicy},
     statespace::OutputLimits,
     RonError, RonFloat,
 };
@@ -45,6 +45,8 @@ fn base() -> LqgConfig<2, 1, 1> {
         gain: LqgGain::Precomputed(Matrix::new([[1.0, 1.0]])),
         kr: [0.0],
         limits: [WIDE],
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: [0.0],
     }
 }
 
@@ -211,6 +213,8 @@ fn ron_tc_lqg_006() {
         },
         kr: [0.0],
         limits: [WIDE],
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: [0.0],
     });
     assert!(matches!(
         scalar,
@@ -446,6 +450,8 @@ fn ron_tc_lqg_009_validation() {
         gain: LqgGain::Precomputed(Matrix::zeros()),
         kr: [0.0; N],
         limits: [WIDE; N],
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: [0.0; N],
     })
     .unwrap();
     assert!(largest.step(&[0.0; N], 0.01).is_ok());
@@ -484,4 +490,47 @@ fn ron_tc_lqg_011() {
     lqg.reset();
     assert_eq!(lqg.fault(), PidFault::NONE);
     assert!(lqg.step(&[3.0], 0.01).is_ok());
+}
+
+/// RON-TC-LQG-012 | RON-FR-757, RON-SR-011
+#[test]
+fn ron_tc_lqg_012() {
+    let limited = OutputLimits {
+        min: -5.0,
+        max: 5.0,
+        rate_limit: 1.0,
+    };
+    // du_max = 1/s at dt = 0.01 s: the output moves 0.01 per step.
+    for (policy, expected) in [
+        (SafePolicy::HoldLast, 0.01),
+        (SafePolicy::DriveZero, 0.0),
+        (SafePolicy::DriveSafeValue, 5.0),
+    ] {
+        let mut lqg = Lqg::new(LqgConfig {
+            kr: [2.0],
+            limits: [limited],
+            safe_policy: policy,
+            safe_value: [9.0], // beyond the limits: clamped
+            ..base()
+        })
+        .unwrap();
+        approx_eq(lqg.step(&[1.0], 0.01).unwrap().0[0], 0.01);
+
+        // Latched: the policy output, with the history untouched.
+        assert!(lqg.step(&[RonFloat::NAN], 0.01).is_err());
+        approx_eq(lqg.output()[0], expected);
+        assert!(lqg.step(&[1.0], 0.01).is_err());
+        approx_eq(lqg.output()[0], expected);
+
+        // After the clear, rate limiting continues from the last output.
+        lqg.clear_fault();
+        approx_eq(lqg.step(&[1.0], 0.01).unwrap().0[0], 0.02);
+    }
+    assert!(matches!(
+        Lqg::new(LqgConfig {
+            safe_value: [RonFloat::NAN],
+            ..base()
+        }),
+        Err(RonError::ConfigInvalid(_))
+    ));
 }

@@ -15,7 +15,7 @@ use crate::{
     kalman::KalmanConfig,
     matrix::{Matrix, MATRIX_MAX_DIM},
     observer::ObserverConfig,
-    pid::{PidFault, PidStatus},
+    pid::{PidFault, PidStatus, SafePolicy},
     statespace::OutputLimits,
     RonError, RonFloat,
 };
@@ -39,6 +39,8 @@ fn external<const N: usize>(x: [RonFloat; N], k: [RonFloat; N]) -> LqrConfig<N, 
         kr: [0.0],
         integral: None,
         limits: [WIDE],
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: [0.0],
     }
 }
 
@@ -452,6 +454,8 @@ fn ron_tc_lqr_006_validation() {
         kr: [0.0; N],
         integral: None,
         limits: [WIDE; N],
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: [0.0; N],
     })
     .unwrap();
     assert!(largest.step(&[0.0; N], 0.01).is_ok());
@@ -461,6 +465,8 @@ fn ron_tc_lqr_006_validation() {
         kr: [0.0],
         integral: None,
         limits: [WIDE],
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: [0.0],
     })
     .is_err());
 }
@@ -493,4 +499,46 @@ fn ron_tc_lqr_011() {
     lqr.reset();
     assert_eq!(lqr.fault(), PidFault::NONE);
     assert!(lqr.step(&[0.0], 0.01).is_ok());
+}
+
+/// RON-TC-LQR-012 | RON-FR-736, RON-SR-011
+#[test]
+fn ron_tc_lqr_012() {
+    let limited = OutputLimits {
+        min: -5.0,
+        max: 5.0,
+        rate_limit: 1.0,
+    };
+    // du_max = 1/s at dt = 0.01 s: the output moves 0.01 per step.
+    for (policy, expected) in [
+        (SafePolicy::HoldLast, -0.01),
+        (SafePolicy::DriveZero, 0.0),
+        (SafePolicy::DriveSafeValue, 5.0),
+    ] {
+        let mut lqr = Lqr::new(LqrConfig {
+            limits: [limited],
+            safe_policy: policy,
+            safe_value: [9.0], // beyond the limits: clamped
+            ..external([1.0], [1.0])
+        })
+        .unwrap();
+        approx_eq(lqr.step(&[0.0], 0.01).unwrap().0[0], -0.01);
+
+        // Latched: the policy output, with the history untouched.
+        assert!(lqr.step(&[RonFloat::NAN], 0.01).is_err());
+        approx_eq(lqr.output()[0], expected);
+        assert!(lqr.step(&[0.0], 0.01).is_err());
+        approx_eq(lqr.output()[0], expected);
+
+        // After the clear, rate limiting continues from the last output.
+        lqr.clear_fault();
+        approx_eq(lqr.step(&[0.0], 0.01).unwrap().0[0], -0.02);
+    }
+    assert!(matches!(
+        Lqr::new(LqrConfig {
+            safe_value: [RonFloat::INFINITY],
+            ..external([1.0], [1.0])
+        }),
+        Err(RonError::ConfigInvalid(_))
+    ));
 }

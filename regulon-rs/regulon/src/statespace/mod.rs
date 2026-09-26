@@ -19,7 +19,7 @@ use crate::{
     error::RonError,
     estimator::{Estimator, EstimatorConfig},
     matrix::{dimension_valid, vector_is_finite},
-    pid::{PidFault, PidStatus},
+    pid::{PidFault, PidStatus, SafePolicy},
     platform::{clamp, is_finite, rate_limit, RonFloat},
 };
 
@@ -96,6 +96,35 @@ impl OutputLimits {
         }
         (output, status)
     }
+
+    /// Safe-state output for one channel while a fault is latched: the last
+    /// output, zero or `safe_value` by `policy`, clamped to the limits.
+    ///
+    /// **Satisfies:** RON-SR-011
+    pub(crate) fn safe_output(
+        &self,
+        policy: SafePolicy,
+        last: RonFloat,
+        safe_value: RonFloat,
+    ) -> RonFloat {
+        let output = match policy {
+            SafePolicy::HoldLast => last,
+            SafePolicy::DriveZero => 0.0,
+            SafePolicy::DriveSafeValue => safe_value,
+        };
+        clamp(output, self.min, self.max)
+    }
+}
+
+/// Checks the safe-state values (RON-SR-011).
+///
+/// **Satisfies:** RON-SR-011
+pub(crate) fn validate_safe_values(values: &[RonFloat]) -> Result<(), RonError> {
+    if values.iter().all(|value| is_finite(*value)) {
+        Ok(())
+    } else {
+        Err(RonError::ConfigInvalid("safe-state value must be finite"))
+    }
 }
 
 /// State-space controller configuration for `N` states and an estimator with
@@ -114,6 +143,10 @@ pub struct StateSpaceConfig<const N: usize, const M: usize, const P: usize> {
     pub integral: Option<IntegralAugmentation<N>>,
     /// Output limits.
     pub limits: OutputLimits,
+    /// Safe-state output while a fault is latched (RON-SR-011).
+    pub safe_policy: SafePolicy,
+    /// Output for [`SafePolicy::DriveSafeValue`]; finite, clamped to the limits.
+    pub safe_value: RonFloat,
 }
 
 /// State-feedback controller.
@@ -126,6 +159,8 @@ pub struct StateSpace<const N: usize, const M: usize, const P: usize> {
     kr: RonFloat,
     integral_config: Option<IntegralAugmentation<N>>,
     limits: OutputLimits,
+    safe_policy: SafePolicy,
+    safe_value: RonFloat,
     integral: RonFloat,
     output_prev: RonFloat,
     fault: PidFault,
@@ -151,6 +186,7 @@ impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
             ));
         }
         config.limits.validate()?;
+        validate_safe_values(&[config.safe_value])?;
         if let Some(integral) = config.integral {
             validate_integral(&integral)?;
         }
@@ -160,6 +196,8 @@ impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
             kr: config.kr,
             integral_config: config.integral,
             limits: config.limits,
+            safe_policy: config.safe_policy,
+            safe_value: config.safe_value,
             integral: 0.0,
             output_prev: 0.0,
             fault: PidFault::NONE,
@@ -244,12 +282,19 @@ impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
         self.fault
     }
 
-    /// Returns the last committed output, which a faulted step holds.
+    /// Returns the output to apply: the last committed output, or the
+    /// safe-state output selected by the policy while a fault is latched. The
+    /// output history itself is never overwritten.
     ///
-    /// **Satisfies:** RON-FR-703
+    /// **Satisfies:** RON-FR-703, RON-SR-011
     #[must_use]
-    pub const fn output(&self) -> RonFloat {
-        self.output_prev
+    pub fn output(&self) -> RonFloat {
+        if self.fault.is_none() {
+            self.output_prev
+        } else {
+            self.limits
+                .safe_output(self.safe_policy, self.output_prev, self.safe_value)
+        }
     }
 
     /// Replaces `K` and `K_r` without touching the estimator, integral or

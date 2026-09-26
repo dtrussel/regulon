@@ -2208,6 +2208,8 @@ update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
        ron_float_t        C_out[RON_SS_MAX_STATES];
        ron_float_t        i_min, i_max;
        ron_float_t        u_min, u_max, du_max;
+       ron_safe_policy_t  safe_policy;  /* RON-SR-011; 0 = HOLD_LAST       */
+       ron_float_t        safe_value;   /* for RON_SAFE_CONSTANT; clamped  */
    } ron_ss_config_t;
 
    typedef struct {
@@ -2249,9 +2251,14 @@ are advanced through ``ron_estimator.h`` on ``&ss.est`` before the consuming
 ``ron_ss_step`` call.
 
 Runtime faults latch as for the PID module (``RON-SR-012``, ``RON-SR-013``): the
-fault is ORed into the ``faults`` register, the step writes the last output to
-``u`` and ``RON_STATUS_FAULT`` to ``status``, and the controller state is left
-unchanged. Later steps repeat this until ``ron_ss_fault_clear`` or ``ron_ss_reset`` clears the
+fault is ORed into the ``faults`` register, the step writes the safe-state
+output to ``u`` and ``RON_STATUS_FAULT`` to ``status``, and the controller state
+is left unchanged.  The safe-state output follows ``safe_policy`` as for the PID
+(``RON-SR-011``): the last output (``RON_SAFE_HOLD_LAST``, the zero-initialised
+default), ``0`` (``RON_SAFE_ZERO``) or ``safe_value`` (``RON_SAFE_CONSTANT``),
+clamped to ``[u_min, u_max]``; LQR and LQG apply it per input with a
+``safe_value`` per input.  The output history is not overwritten, so rate
+limiting resumes from the last committed output once the fault is cleared. Later steps repeat this until ``ron_ss_fault_clear`` or ``ron_ss_reset`` clears the
 register. Null-pointer and uninitialised calls return without latching.
 
 ``ron_lqr.h`` — Discrete-Time MIMO LQR Controller
@@ -2304,6 +2311,8 @@ transitively).
        ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input lower sat limit. */
        ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input upper sat limit. */
        ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit.      */
+       ron_safe_policy_t safe_policy;          /**< RON-SR-011; 0 = HOLD_LAST. */
+       ron_float_t safe_value[RON_LQR_MAX_INPUTS]; /**< For CONSTANT; clamped. */
    } ron_lqr_config_t;
 
    /* Satisfies: RON-FR-737..FR-739 | Test: RON-TC-LQR-001, RON-TC-LQR-010 */
@@ -2416,6 +2425,8 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
        ron_float_t u_min[RON_LQR_MAX_INPUTS];
        ron_float_t u_max[RON_LQR_MAX_INPUTS];
        ron_float_t du_max[RON_LQR_MAX_INPUTS];
+       ron_safe_policy_t safe_policy;               /* RON-SR-011 */
+       ron_float_t safe_value[RON_LQR_MAX_INPUTS];
    } ron_lqg_config_t;
 
    /* Satisfies: RON-FR-759 | Test: RON-TC-LQG-001, RON-TC-LQG-010 */

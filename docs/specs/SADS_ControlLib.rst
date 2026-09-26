@@ -77,6 +77,8 @@ Revision History
        output history only after every output is finite.
        ron_lqg: RON_LQG_GAIN_DARE_BOTH solves the steady-state Kalman gain
        from the dual DARE at init (RON-FR-756), reusing the DD-19 solver.
+       The three MIMO controllers write the configurable safe-state output
+       (RON-SR-011) while a fault is latched.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -1755,8 +1757,11 @@ State-Space Controller Pseudocode
 
    OPERATION ron_ss_step(inst, r, u_obs[n], dt, [out] u, [out] status) → FaultCode
 
-   -- FAIL(code): inst.state.faults |= code; *u ← inst.state.u_prev;
+   -- FAIL(code): inst.state.faults |= code;
+   --             *u ← clamp(safe(cfg.safe_policy, u_prev, cfg.safe_value), u_min, u_max);
    --             *status ← FAULT; RETURN inst.state.faults   (RON-SR-010..013)
+   --   safe(): HOLD_LAST → u_prev, ZERO → 0, CONSTANT → safe_value; u_prev
+   --   itself is not written (RON-SR-011, same as the PID)
    -- 0. Null / init guards return without latching; a latched fault → FAIL(NONE)
    IF NOT finite(r) OR NOT finite(dt) OR dt ≤ 0 THEN FAIL(INPUT_NAN)
 
@@ -1917,7 +1922,7 @@ LQR Control Step Pseudocode
 
    OPERATION ron_lqr_step(inst, r[m], dt, [out] u[m], [out] status) → FaultCode
      -- 1. Null / init guards (not latched); a latched fault → FAIL(NONE)
-     --    FAIL(code) as for ron_ss_step, holding the u_prev vector
+     --    FAIL(code) as for ron_ss_step, per input with safe_value[j]
      -- 2. Validate dt > 0 and all r[j] finite, else FAIL(INPUT_NAN)
      -- 3. Obtain x_hat from the shared estimator (as ron_ss_step does)
      fault ← ron_estimator_get_state(inst.est, x_hat, n)

@@ -88,7 +88,7 @@ static bool lqg_gain_valid(const ron_lqg_config_t *cfg)
     return lqg_dare_cost_valid(cfg);
 }
 
-/* Satisfies: RON-FR-757 | Test: RON-TC-LQG-008 */
+/* Satisfies: RON-FR-757, RON-SR-011 | Test: RON-TC-LQG-008, RON-TC-LQG-012 */
 static bool lqg_limits_valid(const ron_lqg_config_t *cfg)
 {
     uint8_t j;
@@ -103,7 +103,8 @@ static bool lqg_limits_valid(const ron_lqg_config_t *cfg)
             return false;
         }
     }
-    return true;
+    return ron_util_safe_policy_valid(cfg->safe_policy) &&
+           ron_mat_vec_finite(&cfg->safe_value[0], cfg->m);
 }
 
 /* Satisfies: RON-FR-750, RON-FR-751, RON-FR-756, RON-FR-757 | Test: RON-TC-LQG-001, RON-TC-LQG-009 */
@@ -414,11 +415,11 @@ static bool lqg_step_inputs_finite(const ron_lqg_t *lqg, const ron_float_t *r, r
 }
 
 /*
- * Latch a runtime fault (RON-SR-012): OR it into the fault register, hold the
- * last output vector and report FAULT.  The output history is not touched.
+ * Latch a runtime fault (RON-SR-012): OR it into the fault register, write
+ * the safe-state output vector (RON-SR-011) and report FAULT.  The output history is not touched.
  * Passing RON_FAULT_NONE re-reports an already latched fault.
  */
-/* Satisfies: RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
+/* Satisfies: RON-FR-757, RON-SR-010 – RON-SR-013 | Test: RON-TC-LQG-009, RON-TC-LQG-011, RON-TC-LQG-012 */
 static ron_fault_t lqg_fail_step(ron_lqg_t *lqg, ron_fault_t code, ron_float_t *u,
                                  ron_status_t *status)
 {
@@ -426,7 +427,8 @@ static ron_fault_t lqg_fail_step(ron_lqg_t *lqg, ron_fault_t code, ron_float_t *
 
     lqg->faults = (ron_fault_t) (lqg->faults | code);
     for (j = 0U; j < lqg->cfg.m; j++) {
-        u[j] = lqg->u_prev[j];
+        u[j] = ron_util_safe_output(lqg->cfg.safe_policy, lqg->u_prev[j], lqg->cfg.safe_value[j],
+                                    lqg->cfg.u_min[j], lqg->cfg.u_max[j]);
     }
     *status = RON_STATUS_FAULT;
 

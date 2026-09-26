@@ -15,7 +15,7 @@ use crate::{
     kalman::KalmanConfig,
     matrix::{Matrix, MATRIX_MAX_DIM},
     observer::ObserverConfig,
-    pid::{PidFault, PidStatus},
+    pid::{PidFault, PidStatus, SafePolicy},
     RonError, RonFloat,
 };
 
@@ -40,6 +40,8 @@ fn external<const N: usize>(x: [RonFloat; N], k: [RonFloat; N]) -> StateSpaceCon
         kr: 0.0,
         integral: None,
         limits: limits(-1_000.0, 1_000.0, 0.0),
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: 0.0,
     }
 }
 
@@ -264,6 +266,8 @@ fn ron_tc_ss_009_validation() {
         kr: 0.0,
         integral: None,
         limits: limits(-1.0, 1.0, 0.0),
+        safe_policy: SafePolicy::HoldLast,
+        safe_value: 0.0,
     })
     .is_err());
 }
@@ -321,4 +325,41 @@ fn ron_tc_ss_010() {
     controller.reset();
     assert_eq!(controller.fault(), PidFault::NONE);
     assert!(controller.step(0.0, 0.01).is_ok());
+}
+
+/// RON-TC-SS-011 | RON-FR-703, RON-SR-011
+#[test]
+fn ron_tc_ss_011() {
+    // du_max = 1/s at dt = 0.01 s: the output moves 0.01 per step.
+    for (policy, expected) in [
+        (SafePolicy::HoldLast, -0.01),
+        (SafePolicy::DriveZero, 0.0),
+        (SafePolicy::DriveSafeValue, 5.0),
+    ] {
+        let mut controller = StateSpace::new(StateSpaceConfig {
+            limits: limits(-5.0, 5.0, 1.0),
+            safe_policy: policy,
+            safe_value: 9.0, // beyond the limits: clamped
+            ..external([1.0], [1.0])
+        })
+        .unwrap();
+        approx_eq(controller.step(0.0, 0.01).unwrap().0, -0.01);
+
+        // Latched: the policy output, with the history untouched.
+        assert!(controller.step(RonFloat::NAN, 0.01).is_err());
+        approx_eq(controller.output(), expected);
+        assert!(controller.step(0.0, 0.01).is_err());
+        approx_eq(controller.output(), expected);
+
+        // After the clear, rate limiting continues from the last output.
+        controller.clear_fault();
+        approx_eq(controller.step(0.0, 0.01).unwrap().0, -0.02);
+    }
+    assert!(matches!(
+        StateSpace::new(StateSpaceConfig {
+            safe_value: RonFloat::NAN,
+            ..external([1.0], [1.0])
+        }),
+        Err(RonError::ConfigInvalid(_))
+    ));
 }

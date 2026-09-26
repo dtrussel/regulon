@@ -80,6 +80,10 @@ typedef struct {
     ron_float_t u_min;  /**< Minimum control output. Must be < u_max.          */
     ron_float_t u_max;  /**< Maximum control output.                           */
     ron_float_t du_max; /**< Max |Δu| per second. <= 0 disables rate limiting. */
+
+    /* Safe-state output while a fault is latched (RON-SR-011). */
+    ron_safe_policy_t safe_policy; /**< Hold last (default), zero, or safe_value. */
+    ron_float_t safe_value;        /**< Used when policy = CONSTANT; clamped.     */
 } ron_ss_config_t;
 
 /* =========================================================================
@@ -175,8 +179,9 @@ ron_fault_t ron_ss_fault_clear(ron_ss_t *ss);
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
  * Runtime faults latch (RON-SR-012): the fault is ORed into
- * @c state.faults, the step holds the last output in @p u, reports
- * ::RON_STATUS_FAULT in @p status and leaves the integral accumulator and
+ * @c state.faults, the step writes the safe-state output selected by
+ * @c cfg.safe_policy (RON-SR-011; clamped to the output limits) to @p u,
+ * reports ::RON_STATUS_FAULT in @p status and leaves the integral accumulator and
  * output history unchanged. Every later step does the same and returns the
  * latched fault until ron_ss_fault_clear() or ron_ss_reset() is called.
  * Null-pointer and uninitialised calls are rejected without latching and

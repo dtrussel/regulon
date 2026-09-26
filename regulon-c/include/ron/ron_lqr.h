@@ -119,6 +119,10 @@ typedef struct {
     ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input sat lower bound.  */
     ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input sat upper bound.  */
     ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit (≤ 0 disables). */
+
+    /* Safe-state output while a fault is latched (RON-SR-011). */
+    ron_safe_policy_t safe_policy;              /**< Hold last (default), zero, constant. */
+    ron_float_t safe_value[RON_LQR_MAX_INPUTS]; /**< Per input, for CONSTANT; clamped.   */
 } ron_lqr_config_t;
 
 /* =========================================================================
@@ -237,7 +241,8 @@ ron_fault_t ron_lqr_fault_clear(ron_lqr_t *lqr);
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
  * Runtime faults latch (RON-SR-012): the fault is ORed into
- * @c state.faults, the step holds the last output vector in @p u, reports
+ * @c state.faults, the step writes the safe-state output vector selected
+ * by @c cfg.safe_policy (RON-SR-011; clamped per input) to @p u, reports
  * ::RON_STATUS_FAULT in @p status and leaves the integral accumulators and
  * output history unchanged. Every later step does the same and returns the
  * latched fault until ron_lqr_fault_clear() or ron_lqr_reset() is called.
