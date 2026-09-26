@@ -14,7 +14,25 @@ use crate::{
     platform::{is_finite, is_near_zero, RonFloat},
 };
 
-use super::{AntiWindupMode, FeedForwardMode, NormalizationConfig, NormalizationRange, PidConfig};
+use super::{
+    AntiWindupMode, FeedForwardConfig, NormalizationConfig, NormalizationRange, PidConfig,
+};
+
+impl FeedForwardConfig {
+    /// Validates the feed-forward configuration without applying it.
+    ///
+    /// **Satisfies:** RON-FR-201, RON-FR-202
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the gain is non-finite or the derivative filter
+    /// bandwidth is non-finite or negative.
+    pub fn validate(&self) -> Result<(), RonError> {
+        validate_finite(self.gain, "feed-forward gain")?;
+        validate_non_negative(self.derivative_filter, "feed-forward derivative filter")?;
+        Ok(())
+    }
+}
 
 impl NormalizationConfig {
     /// Validates the normalization configuration.
@@ -74,13 +92,8 @@ impl PidConfig {
             "setpoint reset threshold",
         )?;
         validate_non_negative_or_disabled(self.setpoint_filter_tau, "setpoint filter tau")?;
-        validate_non_negative(self.feed_forward.static_gain, "feed-forward static gain")?;
+        self.feed_forward.validate()?;
         validate_finite(self.safe_value, "safe value")?;
-        if matches!(self.feed_forward.mode, FeedForwardMode::Reserved) {
-            return Err(RonError::ConfigInvalid(
-                "reserved feed-forward modes are not implemented in this sprint",
-            ));
-        }
         if matches!(self.anti_windup_mode, AntiWindupMode::BackCalculation)
             && (!is_finite(self.anti_windup_tracking_time)
                 || self.anti_windup_tracking_time <= 0.0

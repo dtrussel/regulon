@@ -136,6 +136,13 @@ Added
   ``sphinx-build -W`` documentation build.
 - API documentation for the 66 public functions that had none.
 - MISRA deviation records DEV-005 (Rule 20.9) and DEV-006 (Rules 2.3/2.4).
+- Rust: the PID feed-forward path now covers every RON-FR-201 mode: velocity
+  and acceleration (filtered finite differences with an independent
+  ``derivative_filter`` bandwidth, RON-FR-202) and external
+  (``Pid::step_with_feed_forward``), plus ``Pid::set_feed_forward`` and
+  ``Pid::last_feed_forward``. RON-TC-FF-001 – FF-009 run in the Rust suite.
+  Breaking: ``FeedForwardConfig::static_gain`` is now the signed ``gain``
+  (as in C) and ``FeedForwardMode::Reserved`` is gone.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 

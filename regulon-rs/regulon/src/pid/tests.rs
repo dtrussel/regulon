@@ -9,9 +9,8 @@
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
 
 use super::{
-    AntiWindupMode, DerivativeMode, FeedForwardConfig, FeedForwardMode, IntegrationMethod,
-    NormalizationConfig, NormalizationRange, Pid, PidConfig, PidFault, PidMode, PidStatus,
-    SafePolicy,
+    AntiWindupMode, DerivativeMode, IntegrationMethod, NormalizationConfig, NormalizationRange,
+    Pid, PidConfig, PidFault, PidMode, PidStatus, SafePolicy,
 };
 use crate::{RonError, RonFloat};
 use std::format;
@@ -143,50 +142,6 @@ fn ron_tc_pid_010() {
     let (output, status) = pid.step(10.0, 5.0, 0.01).unwrap();
     approx_eq(output, 100.0, 0.001);
     assert!(status.contains(PidStatus::NORMALIZED));
-}
-
-/// RON-TC-FF-002 | RON-FR-201
-#[test]
-fn ron_tc_ff_002() {
-    let mut pid = Pid::new(PidConfig {
-        kp: 1.0,
-        feed_forward: FeedForwardConfig {
-            mode: FeedForwardMode::StaticGain,
-            static_gain: 0.5,
-        },
-        ..base_config()
-    })
-    .unwrap();
-    let (output, status) = pid.step(2.0, 0.0, 0.01).unwrap();
-    approx_eq(output, 3.0, 4.0 * RonFloat::EPSILON);
-    assert!(status.contains(PidStatus::FEED_FORWARD_ACTIVE));
-    approx_eq(pid.state().last_feed_forward, 1.0, 4.0 * RonFloat::EPSILON);
-}
-
-/// RON-TC-FF-008 | RON-FR-204
-#[test]
-fn ron_tc_ff_008() {
-    let mut disabled = Pid::new(PidConfig {
-        kp: 1.0,
-        feed_forward: FeedForwardConfig {
-            mode: FeedForwardMode::Disabled,
-            static_gain: 0.0,
-        },
-        ..base_config()
-    })
-    .unwrap();
-    let mut legacy = Pid::new(PidConfig {
-        kp: 1.0,
-        ..base_config()
-    })
-    .unwrap();
-    for _ in 0..1_000 {
-        let (disabled_output, disabled_status) = disabled.step(0.5, 0.1, 0.01).unwrap();
-        let (legacy_output, legacy_status) = legacy.step(0.5, 0.1, 0.01).unwrap();
-        approx_eq(disabled_output, legacy_output, 4.0 * RonFloat::EPSILON);
-        assert_eq!(disabled_status, legacy_status);
-    }
-    assert_eq!(disabled.state().last_feed_forward, 0.0);
 }
 
 /// RON-TC-PID-015 | RON-FR-020

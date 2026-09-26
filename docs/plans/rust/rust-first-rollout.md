@@ -106,8 +106,14 @@ Iteration 3 evidence so far:
   - Regions: 84.69%
   - Lines: 88.70%
 
+Story FF-02 current status:
+- Implemented: velocity, acceleration and external feed-forward modes, the
+  independent feed-forward derivative filter (`derivative_filter`, `N_ff` in C),
+  a signed gain, `Pid::step_with_feed_forward`, `Pid::set_feed_forward` and
+  `Pid::last_feed_forward`.
+- Traceable tests cover `RON-TC-FF-001` to `RON-TC-FF-009`.
+
 Remaining Iteration 3 scope:
-- Story FF-02 remains open.
 - Story GS-01 remains open.
 - Coverage is still below the spec target and needs additional branch/test closure work in later slices.
 

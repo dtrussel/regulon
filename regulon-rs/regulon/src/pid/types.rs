@@ -83,19 +83,30 @@ pub enum FeedForwardMode {
     /// Feed-forward path disabled.
     #[default]
     Disabled,
-    /// Static gain applied to the setpoint.
+    /// `u_ff = gain * r`.
     StaticGain,
-    /// Higher-order feed-forward modes planned for a later sprint.
-    Reserved,
+    /// `u_ff = gain * dr/dt`, using a filtered finite difference.
+    Velocity,
+    /// `u_ff = gain * d²r/dt²`, using filtered finite differences.
+    Acceleration,
+    /// The caller supplies `u_ff` through [`Pid::step_with_feed_forward`].
+    ///
+    /// [`Pid::step_with_feed_forward`]: super::Pid::step_with_feed_forward
+    External,
 }
 
 /// Feed-forward configuration.
+///
+/// **Satisfies:** RON-FR-201, RON-FR-202, RON-FR-204
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FeedForwardConfig {
     /// Selected feed-forward mode.
     pub mode: FeedForwardMode,
-    /// Static gain applied when `mode` is `StaticGain`.
-    pub static_gain: RonFloat,
+    /// Signed gain interpreted by `mode`. Ignored for `Disabled` and `External`.
+    pub gain: RonFloat,
+    /// Low-pass bandwidth `N_ff` of the setpoint-derivative filter, independent
+    /// of the feedback derivative filter. `0` disables filtering.
+    pub derivative_filter: RonFloat,
 }
 
 /// Optional normalization configuration.
@@ -401,6 +412,9 @@ pub(crate) struct PidRuntime {
     pub(crate) error_prev: RonFloat,
     pub(crate) setpoint_prev: RonFloat,
     pub(crate) feed_forward_prev: RonFloat,
+    pub(crate) ff_setpoint_prev: RonFloat,
+    pub(crate) ff_velocity_prev: RonFloat,
+    pub(crate) ff_acceleration_prev: RonFloat,
     pub(crate) mode: PidMode,
     pub(crate) status: PidStatus,
     pub(crate) fault: PidFault,

@@ -30,24 +30,34 @@ struct StepSignals {
 }
 
 #[derive(Clone, Copy)]
+struct FeedForwardUpdate {
+    output: RonFloat,
+    setpoint_prev: RonFloat,
+    velocity_prev: RonFloat,
+    acceleration_prev: RonFloat,
+}
+
+#[derive(Clone, Copy)]
 struct StepOutputs {
     controller_raw: RonFloat,
     output_raw: RonFloat,
     output_saturated: RonFloat,
     output_final: RonFloat,
     derivative: RonFloat,
-    feed_forward: RonFloat,
+    feed_forward: FeedForwardUpdate,
     integral: RonFloat,
     integral_compensation: RonFloat,
     status: PidStatus,
 }
 
+/// **Satisfies:** RON-FR-001-RON-FR-071, RON-FR-200-RON-FR-205
 pub(crate) fn step(
     config: PidConfig,
     state: &mut PidRuntime,
     setpoint: RonFloat,
     measurement: RonFloat,
     dt: RonFloat,
+    external_feed_forward: Option<RonFloat>,
 ) -> Result<(RonFloat, PidStatus), RonError> {
     validate_inputs(dt, setpoint, measurement)?;
     if !state.fault.is_none() {
@@ -55,6 +65,7 @@ pub(crate) fn step(
         state.status = PidStatus::FAULT;
         return Err(RonError::Fault(state.fault));
     }
+    let external_feed_forward = validate_external_feed_forward(config, external_feed_forward)?;
     if matches!(state.mode, PidMode::Manual) {
         state.output_prev = clamp(state.output_prev, config.output_min, config.output_max);
         state.status = PidStatus::MANUAL_MODE;
@@ -62,7 +73,7 @@ pub(crate) fn step(
     }
 
     let signals = compute_signals(config, state, setpoint, measurement, dt);
-    let provisional = compute_provisional_output(config, state, signals, dt);
+    let provisional = compute_provisional_output(config, state, signals, dt, external_feed_forward);
     let outputs = apply_anti_windup(config, state, signals, provisional, dt);
     complete_step(config, state, setpoint, measurement, signals, outputs)
 }
@@ -70,6 +81,29 @@ pub(crate) fn step(
 pub(crate) fn clear_fault(state: &mut PidRuntime) {
     state.fault = PidFault::NONE;
     state.status = PidStatus::OK;
+}
+
+/// Checks that an external feed-forward term is supplied exactly when the
+/// `External` mode is configured, and that it is finite.
+///
+/// **Satisfies:** RON-FR-201
+fn validate_external_feed_forward(
+    config: PidConfig,
+    external_feed_forward: Option<RonFloat>,
+) -> Result<RonFloat, RonError> {
+    match (config.feed_forward.mode, external_feed_forward) {
+        (FeedForwardMode::External, Some(value)) if is_finite(value) => Ok(value),
+        (FeedForwardMode::External, Some(_)) => Err(RonError::InvalidArgument(
+            "external feed-forward must be finite",
+        )),
+        (FeedForwardMode::External, None) => Err(RonError::ConfigInvalid(
+            "external feed-forward mode requires step_with_feed_forward",
+        )),
+        (_, Some(_)) => Err(RonError::ConfigInvalid(
+            "step_with_feed_forward requires the external feed-forward mode",
+        )),
+        (_, None) => Ok(0.0),
+    }
 }
 
 fn validate_inputs(
@@ -124,13 +158,14 @@ fn compute_provisional_output(
     state: &PidRuntime,
     signals: StepSignals,
     dt: RonFloat,
+    external_feed_forward: RonFloat,
 ) -> StepOutputs {
     let proportional = config.kp * signals.proportional_error;
     let derivative = compute_derivative(config, state, signals, dt);
-    let feed_forward = compute_feed_forward(config, signals);
+    let feed_forward = compute_feed_forward(config, state, signals, dt, external_feed_forward);
     let (integral, integral_compensation) =
         compute_integral_candidate(config, state, signals.error, signals.setpoint, dt);
-    let controller_raw = proportional + integral + derivative + feed_forward;
+    let controller_raw = proportional + integral + derivative + feed_forward.output;
     let output_raw = config.map_output_from_controller(controller_raw);
     let (output_saturated, saturation_active) = saturate(config, output_raw);
     let (output_final, rate_limited) = rate_limit(config, state, output_saturated, dt);
@@ -144,7 +179,7 @@ fn compute_provisional_output(
     if config.normalization.is_some() {
         status |= PidStatus::NORMALIZED;
     }
-    if differs(feed_forward, 0.0) {
+    if differs(feed_forward.output, 0.0) {
         status |= PidStatus::FEED_FORWARD_ACTIVE;
     }
     StepOutputs {
@@ -160,11 +195,80 @@ fn compute_provisional_output(
     }
 }
 
-fn compute_feed_forward(config: PidConfig, signals: StepSignals) -> RonFloat {
-    match config.feed_forward.mode {
-        FeedForwardMode::Disabled | FeedForwardMode::Reserved => 0.0,
-        FeedForwardMode::StaticGain => config.feed_forward.static_gain * signals.filtered_setpoint,
+/// Computes the feed-forward term and the next feed-forward filter state.
+///
+/// A zero gain leaves the filter state untouched so a disabled path costs
+/// nothing, mirroring the C implementation.
+///
+/// **Satisfies:** RON-FR-200-RON-FR-202, RON-FR-204
+fn compute_feed_forward(
+    config: PidConfig,
+    state: &PidRuntime,
+    signals: StepSignals,
+    dt: RonFloat,
+    external_feed_forward: RonFloat,
+) -> FeedForwardUpdate {
+    let feed_forward = config.feed_forward;
+    let setpoint = signals.filtered_setpoint;
+    let mut update = FeedForwardUpdate {
+        output: 0.0,
+        setpoint_prev: state.ff_setpoint_prev,
+        velocity_prev: state.ff_velocity_prev,
+        acceleration_prev: state.ff_acceleration_prev,
+    };
+    let gain_active = differs(feed_forward.gain, 0.0);
+    match feed_forward.mode {
+        FeedForwardMode::External => {
+            update.output = external_feed_forward;
+            update.setpoint_prev = setpoint;
+        }
+        FeedForwardMode::StaticGain if gain_active => {
+            update.output = feed_forward.gain * setpoint;
+            update.setpoint_prev = setpoint;
+        }
+        FeedForwardMode::Velocity | FeedForwardMode::Acceleration if gain_active => {
+            let velocity = filter_feed_forward(
+                (setpoint - state.ff_setpoint_prev) / dt,
+                state.ff_velocity_prev,
+                feed_forward.derivative_filter,
+                dt,
+            );
+            update.setpoint_prev = setpoint;
+            update.velocity_prev = velocity;
+            if matches!(feed_forward.mode, FeedForwardMode::Velocity) {
+                update.output = feed_forward.gain * velocity;
+            } else {
+                update.acceleration_prev = filter_feed_forward(
+                    (velocity - state.ff_velocity_prev) / dt,
+                    state.ff_acceleration_prev,
+                    feed_forward.derivative_filter,
+                    dt,
+                );
+                update.output = feed_forward.gain * update.acceleration_prev;
+            }
+        }
+        FeedForwardMode::Disabled
+        | FeedForwardMode::StaticGain
+        | FeedForwardMode::Velocity
+        | FeedForwardMode::Acceleration => {}
     }
+    update
+}
+
+/// First-order low-pass filter for the feed-forward setpoint derivatives.
+///
+/// **Satisfies:** RON-FR-202
+fn filter_feed_forward(
+    raw: RonFloat,
+    previous: RonFloat,
+    bandwidth: RonFloat,
+    dt: RonFloat,
+) -> RonFloat {
+    if bandwidth <= 0.0 {
+        return raw;
+    }
+    let coefficient = bandwidth * dt;
+    ((coefficient / (1.0 + coefficient)) * raw) + ((1.0 / (1.0 + coefficient)) * previous)
 }
 
 fn compute_derivative(
@@ -269,7 +373,7 @@ fn recompute_outputs(
 ) -> StepOutputs {
     let proportional = config.kp * signals.proportional_error;
     outputs.controller_raw =
-        proportional + outputs.integral + outputs.derivative + outputs.feed_forward;
+        proportional + outputs.integral + outputs.derivative + outputs.feed_forward.output;
     outputs.output_raw = config.map_output_from_controller(outputs.controller_raw);
     let (saturated, saturation_active) = saturate(config, outputs.output_raw);
     let (final_output, rate_limited) = rate_limit(config, state, saturated, dt);
@@ -333,7 +437,10 @@ fn complete_step(
     state.output_unbounded_prev = outputs.output_raw;
     state.error_prev = signals.error;
     state.setpoint_prev = signals.setpoint;
-    state.feed_forward_prev = outputs.feed_forward;
+    state.feed_forward_prev = outputs.feed_forward.output;
+    state.ff_setpoint_prev = outputs.feed_forward.setpoint_prev;
+    state.ff_velocity_prev = outputs.feed_forward.velocity_prev;
+    state.ff_acceleration_prev = outputs.feed_forward.acceleration_prev;
     state.status = outputs.status;
     if !is_finite(setpoint_raw) || !is_finite(measurement_raw) {
         return latch_fault(config, state, PidFault::INPUT_NOT_FINITE);
