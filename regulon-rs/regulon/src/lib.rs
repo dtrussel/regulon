@@ -19,7 +19,9 @@ pub mod error;
 pub mod filter;
 pub mod gain_sched;
 pub mod health;
+pub mod matrix;
 pub mod metrics;
+pub mod observer;
 pub mod pid;
 pub mod platform;
 pub mod trajectory;
@@ -32,7 +34,9 @@ pub use filter::{
 };
 pub use gain_sched::{GainSchedule, ScheduleMode, GS_MAX_BREAKPOINTS};
 pub use health::{HealthCallback, HealthConfig, HealthMonitor, HealthStatus};
+pub use matrix::{Cholesky, Matrix, MATRIX_MAX_DIM};
 pub use metrics::{Metrics, MetricsConfig, MetricsMode, MetricsResults, StepFrame};
+pub use observer::{Observer, ObserverConfig};
 pub use pid::{
     AntiWindupMode, DerivativeMode, FeedForwardConfig, FeedForwardMode, IntegrationMethod,
     NormalizationConfig, NormalizationRange, Pid, PidConfig, PidFault, PidMode, PidSnapshot,

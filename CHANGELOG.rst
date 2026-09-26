@@ -181,6 +181,12 @@ Added
   controller untouched, and ``start`` clears any previous run.
   RON-TC-AT-001 – AT-008 run in the Rust suite, with a Kani harness for
   RON-TC-AT-007-FV.
+- Rust: const-generic ``Matrix<R, C>`` (products, transpose, Cholesky
+  factor/solve, SPD inverse; dimensions checked by the compiler and bounded
+  by ``MATRIX_MAX_DIM``) and the Luenberger ``Observer<N, M, P>``
+  (RON-FR-720 – FR-723, RON-TC-SS-006 – SS-009). A step whose estimate would
+  not be finite returns ``RonError::Numerical`` and keeps the previous
+  estimate; C commits the non-finite estimate.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
