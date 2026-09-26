@@ -167,6 +167,12 @@ Added
   ``fn`` callback on each first activation and also returns the newly
   latched bits from ``step``. RON-TC-HLTH-001 – HLTH-010 run in the Rust
   suite.
+- Rust: performance metrics (``metrics``, RON-FR-950 – FR-954).
+  ``Metrics`` accumulates IAE, ISE, ITAE, peak overshoot, rise and settling
+  time, cumulatively or per window, is created disabled and restarts the
+  transient metrics on each setpoint step. Rise and settling time are
+  ``Option`` rather than C's ``-1`` sentinel. RON-TC-MET-001 – MET-007 run
+  in the Rust suite.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 

@@ -18,6 +18,7 @@ pub mod error;
 pub mod filter;
 pub mod gain_sched;
 pub mod health;
+pub mod metrics;
 pub mod pid;
 pub mod platform;
 pub mod trajectory;
@@ -29,6 +30,7 @@ pub use filter::{
 };
 pub use gain_sched::{GainSchedule, ScheduleMode, GS_MAX_BREAKPOINTS};
 pub use health::{HealthCallback, HealthConfig, HealthMonitor, HealthStatus};
+pub use metrics::{Metrics, MetricsConfig, MetricsMode, MetricsResults, StepFrame};
 pub use pid::{
     AntiWindupMode, DerivativeMode, FeedForwardConfig, FeedForwardMode, IntegrationMethod,
     NormalizationConfig, NormalizationRange, Pid, PidConfig, PidFault, PidMode, PidSnapshot,
