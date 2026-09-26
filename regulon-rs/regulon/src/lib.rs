@@ -16,6 +16,7 @@ extern crate std;
 pub mod autotune;
 pub mod cascade;
 pub mod error;
+pub mod estimator;
 pub mod filter;
 pub mod gain_sched;
 pub mod health;
@@ -30,6 +31,7 @@ pub mod trajectory;
 pub use autotune::{AutotuneConfig, AutotunePhase, AutotuneResults, Autotuner, TuningRule};
 pub use cascade::{Cascade, CascadeStatus};
 pub use error::RonError;
+pub use estimator::{Estimator, EstimatorConfig, EstimatorSource};
 pub use filter::{
     FilterFault, FilterSnapshot, FilterStatus, Lp1, Lp1Config, RateLimiter, RateLimiterConfig,
 };

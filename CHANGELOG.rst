@@ -193,6 +193,11 @@ Added
   as ``update(None)``. A non-positive-definite innovation covariance or a
   non-finite result returns ``RonError::Numerical`` and keeps the previous
   estimate and covariance; C commits the non-finite state.
+- Rust: shared state estimator ``Estimator<N, M, P>`` (RON-FR-701,
+  RON-FR-734, RON-TC-EST-001 – EST-003) selecting an external vector, an
+  embedded ``Observer`` or an embedded ``Kalman``. The external estimate is
+  supplied with ``set_external`` (rejected if not finite) instead of C's
+  live pointer, so reading the state cannot fail.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
