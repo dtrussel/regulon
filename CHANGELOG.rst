@@ -149,6 +149,12 @@ Added
   ``Pid`` atomically by hard switching (optionally resetting the integrator)
   or by interpolating the gains. RON-TC-GS-001 – GS-008 run in the Rust
   suite.
+- Rust: cascade control (``cascade``, RON-FR-400 – FR-406). ``Cascade``
+  owns an outer and an inner ``Pid``, feeds the outer output to the inner
+  setpoint, propagates inner saturation to the outer integrator by
+  back-calculation, switches modes in bumpless order and reports a
+  ``CascadeStatus`` whose ``bits()`` match the C 32-bit layout.
+  RON-TC-CASC-001 – CASC-012 run in the Rust suite.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 

@@ -13,12 +13,14 @@
 #[cfg(test)]
 extern crate std;
 
+pub mod cascade;
 pub mod error;
 pub mod filter;
 pub mod gain_sched;
 pub mod pid;
 pub mod platform;
 
+pub use cascade::{Cascade, CascadeStatus};
 pub use error::RonError;
 pub use filter::{
     FilterFault, FilterSnapshot, FilterStatus, Lp1, Lp1Config, RateLimiter, RateLimiterConfig,
