@@ -238,7 +238,7 @@ jobs:
           cmake -G Ninja -B ${{ env.BUILD_DIR_COV }} -S ${{ env.SRC_DIR }} \
                 -DRON_BUILD_TESTS=ON \
                 -DCMAKE_C_COMPILER=clang \
-                -DCMAKE_C_FLAGS="-O0 -g -fprofile-instr-generate -fcoverage-mapping"
+                -DCMAKE_C_FLAGS="-O0 -g -fprofile-instr-generate -fcoverage-mapping -fcoverage-mcdc"
 
       - name: Build
         run: cmake --build ${{ env.BUILD_DIR_COV }} --parallel
@@ -278,7 +278,7 @@ jobs:
 
           llvm-cov show "${object_args[@]}" \
             -instr-profile ${{ env.BUILD_DIR_COV }}/coverage.profdata \
-            -format=html -output-dir coverage_html -show-branch-summary \
+            -format=html -output-dir coverage_html -show-branch-summary -show-mcdc \
             "${source_args[@]}"
 
           python3 - <<'PY'
@@ -287,8 +287,11 @@ jobs:
               totals = json.load(f)["data"][0]["totals"]
           line_pct = totals["lines"]["percent"]
           branch_pct = totals["branches"]["percent"]
-          print(f"LLVM coverage: lines={line_pct:.1f}%; branches={branch_pct:.1f}%")
-          if line_pct != 100.0 or branch_pct != 100.0:
+          # MC/DC (RON-TC-QUAL-015); -fcoverage-mcdc needs LLVM 18+.
+          mcdc_pct = totals["mcdc"]["percent"]
+          print(f"LLVM coverage: lines={line_pct:.1f}%; branches={branch_pct:.1f}%; "
+                f"mcdc={mcdc_pct:.1f}%")
+          if line_pct != 100.0 or branch_pct != 100.0 or mcdc_pct != 100.0:
               raise SystemExit(1)
           PY
 
@@ -449,7 +452,9 @@ jobs:
   # The format / cppcheck / lizard / coverage / CBMC jobs read their file lists
   # from scripts/lib_sources.txt and scripts/format_files.txt.  This job fails
   # if a production source has been added without being registered in those
-  # manifests, so no file can silently escape a gate.
+  # manifests, so no file can silently escape a gate. It also checks that every
+  # test ID the code uses is defined in the test plan and every requirement is
+  # covered by it (check_traceability.py).
   # ---------------------------------------------------------------------------
   manifest-check:
     name: Source Manifest Drift Check
@@ -459,6 +464,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify manifests are in sync with the tree
         run: bash regulon-c/scripts/check_manifest.sh
+      - name: Verify requirement / test / code traceability
+        run: python3 regulon-c/scripts/check_traceability.py
 
   # ---------------------------------------------------------------------------
   # Job 12: Minimal-subset smoke build (per-module selection)

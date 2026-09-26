@@ -249,8 +249,8 @@ void test_ron_tc_lqg_007(void)
 
         lqr_cfg.n             = 2U;
         lqr_cfg.m             = 1U;
-        lqr_cfg.source        = RON_LQR_SOURCE_EXTERNAL;
-        lqr_cfg.x_ext         = x_ext;
+        lqr_cfg.est.source        = RON_ESTIMATOR_EXTERNAL;
+        lqr_cfg.est.x_ext         = x_ext;
         lqr_cfg.gain_mode     = RON_LQR_GAIN_DARE;
         lqr_cfg.A[0][0]       = RON_FLOAT_C(1.0);
         lqr_cfg.A[0][1]       = RON_FLOAT_C(1.0);

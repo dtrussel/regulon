@@ -33,22 +33,22 @@ int main(void)
 
     /* Double-integrator plant: x' = [pos, vel], x(k+1) = A x(k) + B u(k). */
     cfg.n               = 2U;
-    cfg.source          = RON_SS_SOURCE_LUENBERGER;
+    cfg.est.source          = RON_ESTIMATOR_LUENBERGER;
     cfg.K[0]            = RON_FLOAT_C(2.0); /* position feedback */
     cfg.K[1]            = RON_FLOAT_C(3.0); /* velocity feedback (damping) */
     cfg.Kr              = RON_FLOAT_C(2.0); /* == K[0], so a step r settles at pos == r */
     cfg.u_min           = RON_FLOAT_C(-5.0);
     cfg.u_max           = RON_FLOAT_C(5.0);
-    cfg.obs_cfg.n       = 2U;
-    cfg.obs_cfg.m       = 1U;
-    cfg.obs_cfg.p       = 1U;
-    cfg.obs_cfg.A[0][0] = RON_FLOAT_C(1.0);
-    cfg.obs_cfg.A[0][1] = dt;
-    cfg.obs_cfg.A[1][1] = RON_FLOAT_C(1.0);
-    cfg.obs_cfg.B[1][0] = dt;
-    cfg.obs_cfg.C[0][0] = RON_FLOAT_C(1.0);
-    cfg.obs_cfg.L[0][0] = RON_FLOAT_C(1.0);
-    cfg.obs_cfg.L[1][0] = RON_FLOAT_C(0.5);
+    cfg.est.obs_cfg.n       = 2U;
+    cfg.est.obs_cfg.m       = 1U;
+    cfg.est.obs_cfg.p       = 1U;
+    cfg.est.obs_cfg.A[0][0] = RON_FLOAT_C(1.0);
+    cfg.est.obs_cfg.A[0][1] = dt;
+    cfg.est.obs_cfg.A[1][1] = RON_FLOAT_C(1.0);
+    cfg.est.obs_cfg.B[1][0] = dt;
+    cfg.est.obs_cfg.C[0][0] = RON_FLOAT_C(1.0);
+    cfg.est.obs_cfg.L[0][0] = RON_FLOAT_C(1.0);
+    cfg.est.obs_cfg.L[1][0] = RON_FLOAT_C(0.5);
 
     if (ron_ss_init(&ss, &cfg) != RON_FAULT_NONE) {
         (void) fprintf(stderr, "state-space init failed\n");
@@ -67,14 +67,14 @@ int main(void)
         y[0]    = pos; /* position-only measurement fed to the observer */
         u_in[0] = u_prev;
 
-        (void) ron_ss_observer_step(&ss, y, u_in);
+        (void) ron_estimator_observer_step(&ss.est, y, u_in);
         (void) ron_ss_step(&ss, r, dt, &u, &status);
 
         vel    = vel + dt * u;
         pos    = pos + dt * vel;
         u_prev = u;
 
-        (void) ron_obs_get_state(&ss.observer, x_hat);
+        (void) ron_obs_get_state(&ss.est.observer, x_hat);
 
         if ((k % 20U) == 0U) {
             (void) printf("%5.2f   %8.3f   %8.3f   %8.3f   %8.3f\n",

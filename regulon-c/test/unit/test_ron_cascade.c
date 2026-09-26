@@ -67,10 +67,10 @@ static ron_pid_config_t test_ron_casc_default_cfg(void)
     return cfg;
 }
 
-static ron_cascade_instance_t test_ron_casc_init(const ron_pid_config_t *outer_cfg,
+static ron_cascade_t test_ron_casc_init(const ron_pid_config_t *outer_cfg,
                                                  const ron_pid_config_t *inner_cfg)
 {
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_cascade_init(&casc, outer_cfg, inner_cfg));
     return casc;
@@ -83,7 +83,7 @@ void test_ron_tc_casc_001(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
 
     outer_cfg.Kp = RON_FLOAT_C(2.0);
     inner_cfg.Kp = RON_FLOAT_C(3.0);
@@ -103,7 +103,7 @@ void test_ron_tc_casc_002(void)
     ron_pid_config_t outer_cfg  = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg  = test_ron_casc_default_cfg();
     ron_pid_config_t bad_cfg    = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc = {0};
+    ron_cascade_t casc = {0};
 
     /* NULL pointer checks */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_cascade_init(NULL, &outer_cfg, &inner_cfg));
@@ -136,7 +136,7 @@ void test_ron_tc_casc_003(void)
      */
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
 
@@ -167,7 +167,7 @@ void test_ron_tc_casc_004(void)
      */
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
 
@@ -197,7 +197,7 @@ void test_ron_tc_casc_005(void)
      */
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
 
@@ -232,8 +232,8 @@ void test_ron_tc_casc_006(void)
     ron_pid_config_t outer_aw   = test_ron_casc_default_cfg();
     ron_pid_config_t outer_noaw = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg  = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc_aw;
-    ron_cascade_instance_t casc_noaw;
+    ron_cascade_t casc_aw;
+    ron_cascade_t casc_noaw;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
     ron_float_t I_aw;
@@ -281,7 +281,7 @@ void test_ron_tc_casc_007(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
     unsigned i;
@@ -319,7 +319,7 @@ void test_ron_tc_casc_008(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
 
@@ -362,8 +362,8 @@ void test_ron_tc_casc_009(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
-    ron_cascade_instance_t uninit;
+    ron_cascade_t casc;
+    ron_cascade_t uninit;
     ron_float_t u               = RON_FLOAT_C(0.0);
     ron_cascade_status_t status = (ron_cascade_status_t) 0U;
 
@@ -402,7 +402,7 @@ void test_ron_tc_casc_009(void)
 
     /* Outer-only-initialized instance: covers left=F,right=T branch of || in step uninit check */
     {
-        ron_cascade_instance_t partial;
+        ron_cascade_t partial;
         partial.outer.state.is_initialised = true;
         partial.inner.state.is_initialised = false;
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
@@ -417,7 +417,7 @@ void test_ron_tc_casc_009(void)
 
     /* set_mode uninit guards: covers cascade_check_inst uninit path */
     {
-        ron_cascade_instance_t sm_uninit = {0};
+        ron_cascade_t sm_uninit = {0};
 
         /* Both uninit: outer=T in || → short-circuit (covers line 31 return) */
         TEST_ASSERT_EQUAL_UINT8(
@@ -453,7 +453,7 @@ void test_ron_tc_casc_010(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t u                    = RON_FLOAT_C(0.0);
     ron_cascade_status_t step_status = (ron_cascade_status_t) 0U;
     ron_cascade_status_t get_status  = (ron_cascade_status_t) 0U;
@@ -504,7 +504,7 @@ void test_ron_tc_casc_011(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_fault_t outer_fault = RON_FAULT_NONE;
     ron_fault_t inner_fault = RON_FAULT_NONE;
     ron_float_t dummy_u;
@@ -539,7 +539,7 @@ void test_ron_tc_casc_012(void)
 {
     ron_pid_config_t outer_cfg = test_ron_casc_default_cfg();
     ron_pid_config_t inner_cfg = test_ron_casc_default_cfg();
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_float_t I_outer         = RON_FLOAT_C(0.0);
     ron_float_t I_inner         = RON_FLOAT_C(0.0);
     ron_float_t last_u          = RON_FLOAT_C(0.0);

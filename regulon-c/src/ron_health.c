@@ -11,6 +11,8 @@
 
 #include "ron/ron_health.h"
 
+#include "ron_util_internal.h"
+
 /* Largest output delta (in absolute units) still treated as "not moving". */
 #define RON_HEALTH_STUCK_EPS RON_FLOAT_C(1.0e-6)
 
@@ -25,24 +27,18 @@
  * Internal helpers
  * ========================================================================= */
 
-/* Satisfies: RON-SR-020 */
-static bool health_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
-
 /* A finite, strictly positive time constant. */
 /* Satisfies: RON-FR-902 | Test: RON-TC-HLTH-001 */
 static bool health_pos_valid(ron_float_t value)
 {
-    return health_isfinite(value) && (value > RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value > RON_FLOAT_C(0.0));
 }
 
 /* A finite, non-negative threshold magnitude. */
 /* Satisfies: RON-FR-902 | Test: RON-TC-HLTH-001 */
 static bool health_nonneg_valid(ron_float_t value)
 {
-    return health_isfinite(value) && (value >= RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value >= RON_FLOAT_C(0.0));
 }
 
 /* Satisfies: RON-FR-902 | Test: RON-TC-HLTH-007 */
@@ -222,10 +218,10 @@ static ron_fault_t health_step_args(const ron_health_t *h, ron_float_t r, ron_fl
     if (!h->state.is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!health_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
+    if (!ron_util_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!health_isfinite(r) || !health_isfinite(y) || !health_isfinite(u)) {
+    if (!ron_util_isfinite(r) || !ron_util_isfinite(y) || !ron_util_isfinite(u)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     return RON_FAULT_NONE;
@@ -293,7 +289,7 @@ ron_fault_t ron_health_clear(ron_health_t *h)
 }
 
 /* Satisfies: RON-FR-901, RON-FR-905 | Test: RON-TC-HLTH-010 */
-ron_fault_t ron_health_get(const ron_health_t *h, ron_health_status_t *status)
+ron_fault_t ron_health_get_status(const ron_health_t *h, ron_health_status_t *status)
 {
     if ((h == NULL) || (status == NULL)) {
         return RON_FAULT_NULL_POINTER;

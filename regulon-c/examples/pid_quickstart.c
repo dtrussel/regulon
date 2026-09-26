@@ -22,7 +22,7 @@
 
 int main(void)
 {
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_pid_config_t cfg = {0};
     const ron_float_t dt = RON_FLOAT_C(0.01);
     ron_float_t y        = RON_FLOAT_C(0.0); /* plant output */

@@ -7,7 +7,7 @@
  *           RON-FR-051, RON-FR-052, RON-FR-053, RON-FR-070, RON-FR-071,
  *           RON-SR-001, RON-SR-002, RON-SR-012
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  *
  * This is the ONLY header that library consumers shall include for PID
@@ -16,7 +16,7 @@
  *
  * Typical usage (bare-metal, 1 kHz sample rate):
  *
- *   static ron_pid_instance_t speed_pid;
+ *   static ron_pid_t speed_pid;
  *
  *   void control_init(void) {
  *       ron_pid_config_t cfg = {
@@ -75,13 +75,13 @@ extern "C" {
  * @return  RON_FAULT_CONFIG_INVALID   if any configuration field is out of
  *                                     range or logically inconsistent.
  *
- * @pre   inst points to writable storage of sizeof(ron_pid_instance_t) bytes.
+ * @pre   inst points to writable storage of sizeof(ron_pid_t) bytes.
  * @post  inst->state.is_initialised == true  iff return == RON_FAULT_NONE.
  *
  * Satisfies: RON-FR-050, RON-SR-001, RON-SR-002.
  */
 /* Satisfies: RON-FR-050 | Test: RON-TC-PID-030 */
-ron_fault_t ron_pid_init(ron_pid_instance_t *inst, const ron_pid_config_t *cfg);
+ron_fault_t ron_pid_init(ron_pid_t *inst, const ron_pid_config_t *cfg);
 
 /**
  * @brief Reset the dynamic state of an initialised controller.
@@ -99,7 +99,7 @@ ron_fault_t ron_pid_init(ron_pid_instance_t *inst, const ron_pid_config_t *cfg);
  * Satisfies: RON-FR-051.
  */
 /* Satisfies: RON-FR-051 | Test: RON-TC-PID-031 */
-ron_fault_t ron_pid_reset(ron_pid_instance_t *inst);
+ron_fault_t ron_pid_reset(ron_pid_t *inst);
 
 /* =========================================================================
  * Runtime
@@ -131,11 +131,11 @@ ron_fault_t ron_pid_reset(ron_pid_instance_t *inst);
  * @post  *u_out ∈ [inst->config.u_min, inst->config.u_max]
  *        OR a fault is active and the safe-state policy governs *u_out.
  *
- * Satisfies: RON-FR-001 – RON-FR-007, RON-FR-020 – RON-FR-035,
+ * Satisfies: RON-FR-001, RON-FR-003 – RON-FR-007, RON-FR-020 – RON-FR-035,
  *            RON-FR-070, RON-SR-010 – RON-SR-013, RON-PR-001 – RON-PR-002.
  */
-/* Satisfies: RON-FR-001 – RON-FR-035 | Test: RON-TC-PID-001 – RON-TC-PID-026 */
-ron_fault_t ron_pid_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-035 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-026 */
+ron_fault_t ron_pid_step(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
                          ron_float_t *u_out, ron_status_t *status);
 
 /* =========================================================================
@@ -158,7 +158,7 @@ ron_fault_t ron_pid_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
  * Satisfies: RON-FR-053.
  */
 /* Satisfies: RON-FR-053 | Test: RON-TC-PID-033, RON-TC-GS-005 */
-ron_fault_t ron_pid_set_config(ron_pid_instance_t *inst, const ron_pid_config_t *cfg);
+ron_fault_t ron_pid_set_config(ron_pid_t *inst, const ron_pid_config_t *cfg);
 
 /**
  * @brief Atomically update all three PID gain parameters.
@@ -177,8 +177,7 @@ ron_fault_t ron_pid_set_config(ron_pid_instance_t *inst, const ron_pid_config_t 
  * Satisfies: RON-FR-053.
  */
 /* Satisfies: RON-FR-053 | Test: RON-TC-PID-033 */
-ron_fault_t ron_pid_set_gains(ron_pid_instance_t *inst, ron_float_t Kp, ron_float_t Ki,
-                              ron_float_t Kd);
+ron_fault_t ron_pid_set_gains(ron_pid_t *inst, ron_float_t Kp, ron_float_t Ki, ron_float_t Kd);
 
 /**
  * @brief Atomically update the output saturation limits.
@@ -193,7 +192,7 @@ ron_fault_t ron_pid_set_gains(ron_pid_instance_t *inst, ron_float_t Kp, ron_floa
  * Satisfies: RON-FR-021, RON-FR-053.
  */
 /* Satisfies: RON-FR-021, RON-FR-053 | Test: RON-TC-PID-016 */
-ron_fault_t ron_pid_set_limits(ron_pid_instance_t *inst, ron_float_t u_min, ron_float_t u_max);
+ron_fault_t ron_pid_set_limits(ron_pid_t *inst, ron_float_t u_min, ron_float_t u_max);
 
 /**
  * @brief Update the derivative filter coefficient N.
@@ -208,7 +207,7 @@ ron_fault_t ron_pid_set_limits(ron_pid_instance_t *inst, ron_float_t u_min, ron_
  * Satisfies: RON-FR-006, RON-FR-053.
  */
 /* Satisfies: RON-FR-006, RON-FR-053 | Test: RON-TC-PID-033 */
-ron_fault_t ron_pid_set_filter(ron_pid_instance_t *inst, ron_float_t N);
+ron_fault_t ron_pid_set_filter(ron_pid_t *inst, ron_float_t N);
 
 /**
  * @brief Update the anti-windup scheme and back-calculation time constant.
@@ -224,7 +223,7 @@ ron_fault_t ron_pid_set_filter(ron_pid_instance_t *inst, ron_float_t N);
  * Satisfies: RON-FR-033, RON-FR-053.
  */
 /* Satisfies: RON-FR-033, RON-FR-053 | Test: RON-TC-PID-024 */
-ron_fault_t ron_pid_set_antiwindup(ron_pid_instance_t *inst, ron_aw_mode_t mode, ron_float_t T_aw);
+ron_fault_t ron_pid_set_antiwindup(ron_pid_t *inst, ron_aw_mode_t mode, ron_float_t T_aw);
 
 /* =========================================================================
  * State mutation
@@ -250,7 +249,7 @@ ron_fault_t ron_pid_set_antiwindup(ron_pid_instance_t *inst, ron_aw_mode_t mode,
  * Satisfies: RON-FR-040 – RON-FR-042.
  */
 /* Satisfies: RON-FR-040 – RON-FR-042 | Test: RON-TC-PID-027 – RON-TC-PID-029 */
-ron_fault_t ron_pid_set_mode(ron_pid_instance_t *inst, ron_op_mode_t mode, ron_float_t manual_out);
+ron_fault_t ron_pid_set_mode(ron_pid_t *inst, ron_op_mode_t mode, ron_float_t manual_out);
 
 /**
  * @brief Pre-load the integral accumulator (warm start).
@@ -267,7 +266,7 @@ ron_fault_t ron_pid_set_mode(ron_pid_instance_t *inst, ron_op_mode_t mode, ron_f
  * Satisfies: RON-FR-052.
  */
 /* Satisfies: RON-FR-052 | Test: RON-TC-PID-032 */
-ron_fault_t ron_pid_set_integral(ron_pid_instance_t *inst, ron_float_t value);
+ron_fault_t ron_pid_set_integral(ron_pid_t *inst, ron_float_t value);
 
 /* =========================================================================
  * State inspection
@@ -292,9 +291,8 @@ ron_fault_t ron_pid_set_integral(ron_pid_instance_t *inst, ron_float_t value);
  * Satisfies: RON-FR-071, RON-QR-021.
  */
 /* Satisfies: RON-FR-071 | Test: RON-TC-PID-039 */
-ron_fault_t ron_pid_get_state(const ron_pid_instance_t *inst, ron_float_t *integral,
-                              ron_float_t *last_u, ron_float_t *last_D, ron_status_t *status,
-                              ron_fault_t *fault);
+ron_fault_t ron_pid_get_state(const ron_pid_t *inst, ron_float_t *integral, ron_float_t *last_u,
+                              ron_float_t *last_D, ron_status_t *status, ron_fault_t *fault);
 
 /* =========================================================================
  * Fault management
@@ -315,7 +313,7 @@ ron_fault_t ron_pid_get_state(const ron_pid_instance_t *inst, ron_float_t *integ
  * Satisfies: RON-SR-012.
  */
 /* Satisfies: RON-SR-012 | Test: RON-TC-SAFE-009 */
-ron_fault_t ron_pid_fault_clear(ron_pid_instance_t *inst);
+ron_fault_t ron_pid_fault_clear(ron_pid_t *inst);
 
 /* =========================================================================
  * Configuration validation (standalone utility)
@@ -338,6 +336,30 @@ ron_fault_t ron_pid_fault_clear(ron_pid_instance_t *inst);
  */
 /* Satisfies: RON-SR-001, RON-SR-002 | Test: RON-TC-SAFE-001 */
 ron_fault_t ron_pid_config_validate(const ron_pid_config_t *cfg);
+
+/**
+ * @brief Set the gains of a configuration record from the ideal (ISA) form.
+ *
+ * Converts (Kp, Ti, Td) to the parallel gains the controller uses:
+ * Ki = Kp / Ti and Kd = Kp * Td. Ti = +Inf means no integral action
+ * (Ki = 0). Only Kp, Ki and Kd are written; every other field of cfg is left
+ * as the caller set it, and nothing is written when the inputs are rejected.
+ *
+ * @param[in,out] cfg  Configuration record to update.
+ * @param[in]     Kp   Proportional gain. Must be >= 0 and finite.
+ * @param[in]     Ti   Integral time. Must be > 0 (finite) or +Inf.
+ * @param[in]     Td   Derivative time. Must be >= 0 and finite.
+ *
+ * @return  RON_FAULT_NONE           on success.
+ * @return  RON_FAULT_NULL_POINTER   if cfg is NULL.
+ * @return  RON_FAULT_CONFIG_INVALID if an input is out of range or a
+ *                                   resulting gain is not finite.
+ *
+ * Satisfies: RON-FR-002.
+ */
+/* Satisfies: RON-FR-002 | Test: RON-TC-PID-002 */
+ron_fault_t ron_pid_config_from_isa(ron_pid_config_t *cfg, ron_float_t Kp, ron_float_t Ti,
+                                    ron_float_t Td);
 
 #ifdef __cplusplus
 }

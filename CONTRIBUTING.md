@@ -17,9 +17,8 @@ authoritative rules live in [`AGENTS.md`](https://github.com/dtrussel/regulon/bl
    test ID must exist in `TP_ControlLib.rst` before the test that uses it
    is written**.
 4. Write or update the test/proof first, then the implementation.
-5. Keep your change aligned with the active roadmap iteration
-   (`docs/plans/c11-roadmap.md` for C11) — don't opportunistically start
-   work on a future module.
+5. Keep each change focused on one agreed issue — don't fold unrelated
+   modules or refactors into it.
 
 ## Rules that apply to every change
 
@@ -33,10 +32,11 @@ formal-proof conventions) in the implementation-specific `AGENTS.md`.
 
 - [ ] Every new function has a `Satisfies:` + `Test:` annotation in the
       implementation-specific style.
-- [ ] Every new test ID exists in `TP_ControlLib.rst`.
+- [ ] Every new test ID exists in `TP_ControlLib.rst`
+      (`python3 regulon-c/scripts/check_traceability.py` checks this).
 - [ ] Relevant lint, format, test, coverage, and formal-verification gates
       pass locally (see `regulon-c/AGENTS.md` for the exact commands, or
-      `regulon-c/scripts/verify_pid.ps1` for a local runner on Windows).
+      `regulon-c/scripts/verify.ps1` for a local runner on Windows).
 - [ ] `CHANGELOG.rst` is updated.
 - [ ] For C11 changes: `bash regulon-c/scripts/check_manifest.sh` passes
       (new sources/headers must be registered in

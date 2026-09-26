@@ -15,11 +15,11 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.0.0
+**Version:** 1.3.0
 
 **Status:** Draft
 
-**Date:** 2025-04-10
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -44,14 +44,27 @@ Revision History
    * - 1.0.0
      - 2025-04-10
      - Initial baseline. Covers all RON-SRS-001 v1.1.0 requirements.
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2026-06-08
      - Added test catalog for LQR (RON-TC-LQR-001 – RON-TC-LQR-010) and LQG
        (RON-TC-LQG-001 – RON-TC-LQG-010). Added CBMC formal harness entries
        RON-TC-LQR-010-FV and RON-TC-LQG-010-FV. Updated requirement coverage
        table and test execution order.
-     - TBD
+     - dtrussel
+   * - 1.2.0
+     - 2026-09-26
+     - Recorded RON-TC-CASC-008 – CASC-012, which the C suite already ran
+       but this plan did not define. Removed development-phase wording and
+       corrected the CBMC harness count (27). Earlier unversioned additions
+       are included: RON-TC-QUAL-019 and RON-TC-QUAL-023.
+     - dtrussel
+   * - 1.3.0
+     - 2026-09-26
+     - RON-TC-PID-002 now exercises ``ron_pid_config_from_isa``; added
+       RON-TC-TRAJ-009/-010 and RON-TC-EST-001 – EST-003; RON-TC-QUAL-015
+       (MC/DC) is enforced in CI; the Rust CI pipeline is marked as planned.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -63,7 +76,7 @@ Purpose
 
 This document specifies the test strategy, test cases, and requirement
 traceability for the **Regulon Control Systems Library**. It ensures that
-every requirement in RON-SRS-001 v1.1.0 is verified by at least one test
+every requirement in RON-SRS-001 is verified by at least one test
 case, and provides the test IDs that are embedded directly into C and Rust
 unit test source code to enable automated, traceable test reports in CI.
 
@@ -250,13 +263,16 @@ zero-padded three-digit sequence number.
      - RON-FR-400 – FR-406
    * - ``TRAJ``
      - Trajectory generators
-     - RON-FR-500 – FR-513
+     - RON-FR-500 – FR-515
    * - ``KF``
      - Kalman filter
      - RON-FR-600 – FR-607
    * - ``SS``
      - State-space + observer
      - RON-FR-700 – FR-723
+   * - ``EST``
+     - State-estimator component (shared by state-space and LQR)
+     - RON-FR-701, RON-FR-734
    * - ``AT``
      - Auto-tuning
      - RON-FR-800 – FR-807
@@ -296,7 +312,7 @@ underscores) and preceded by a ``/* RON-TC-xxx-NNN */`` comment:
    void test_ron_tc_pid_001(void)
    {
        /* Verify parallel PID form: known step response of a first-order plant */
-       ron_pid_instance_t pid;
+       ron_pid_t pid;
        ron_pid_config_t   cfg = make_default_pid_config();
        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_pid_init(&pid, &cfg));
 
@@ -362,11 +378,10 @@ CI Integration and Report Generation
 Both tracks emit JUnit-compatible XML, which is consumed by CI dashboards
 (GitHub Actions ``junit-reporter``, GitLab ``artifacts: reports: junit``).
 
-During the current C11 PID vertical slice, the active C verification surface
-is limited to ``ron_platform.h``, ``ron_pid_types.h``, ``ron_pid.h``, and the
-four PID implementation units. Local Windows verification is driven via
-``regulon-c/scripts/verify_pid.ps1``; Linux CI remains the provisioned
-secondary-toolchain environment.
+The C verification surface is the full production source set listed in
+``regulon-c/scripts/lib_sources.txt``. Linux CI (``ci_c.yml``) is the
+authoritative gate; ``regulon-c/scripts/verify.ps1`` runs the same gates
+locally on Windows.
 
 **C track CI pipeline** (``ci_c.yml`` excerpt):
 
@@ -410,7 +425,8 @@ secondary-toolchain environment.
          coverage_html/
          cppcheck_results.xml
 
-**Rust track CI pipeline** (``ci_rust.yml`` excerpt):
+**Rust track CI pipeline** (planned ``ci_rust.yml``; the workflow does not
+exist yet, see ``docs/plans/rust/rust-first-rollout.md``):
 
 .. code-block:: yaml
 
@@ -744,7 +760,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-FR-401
      - Cascade step: outer→inner setpoint
      - IT
-     - RON-TC-CASC-002
+     - RON-TC-CASC-002, RON-TC-CASC-009
    * - RON-FR-402
      - Inner-loop output range constraint
      - IT
@@ -756,15 +772,15 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-FR-404
      - Coordinated mode transitions
      - IT
-     - RON-TC-CASC-005
+     - RON-TC-CASC-005, RON-TC-CASC-008
    * - RON-FR-405
      - Full single-PID feature support in cascade
      - IT
-     - RON-TC-CASC-006
+     - RON-TC-CASC-006, RON-TC-CASC-009, RON-TC-CASC-011, RON-TC-CASC-012
    * - RON-FR-406
      - Unified status word (outer/inner bits)
      - IT
-     - RON-TC-CASC-007
+     - RON-TC-CASC-007, RON-TC-CASC-010
    * - RON-FR-500
      - Trapezoidal velocity profile
      - UT
@@ -797,6 +813,14 @@ that verify it. Every requirement **shall** appear in at least one row.
      - Hold mode
      - UT
      - RON-TC-TRAJ-008
+   * - RON-FR-514
+     - Reset to a position
+     - UT
+     - RON-TC-TRAJ-009
+   * - RON-FR-515
+     - State read-back
+     - UT
+     - RON-TC-TRAJ-010
    * - RON-FR-600
      - Kalman predict–update cycle
      - UT
@@ -836,7 +860,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-FR-701
      - State source selection
      - UT
-     - RON-TC-SS-002
+     - RON-TC-SS-002, RON-TC-EST-001 – EST-003
    * - RON-FR-702
      - Integral augmentation
      - UT
@@ -1276,15 +1300,15 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-GS-001 – GS-008
      - UT
      - RON-FR-300 – FR-306
-   * - RON-TC-CASC-001 – CASC-007
+   * - RON-TC-CASC-001 – CASC-012
      - IT
      - RON-FR-400 – FR-406
    * - RON-TC-CASC-004-FV
      - FV
      - RON-FR-403
-   * - RON-TC-TRAJ-001 – TRAJ-008
+   * - RON-TC-TRAJ-001 – TRAJ-010
      - UT
-     - RON-FR-500 – FR-513
+     - RON-FR-500 – FR-515
    * - RON-TC-KF-001 – KF-008
      - UT
      - RON-FR-600 – FR-607
@@ -1294,6 +1318,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-SS-001 – SS-009
      - UT
      - RON-FR-700 – FR-723
+   * - RON-TC-EST-001 – EST-003
+     - UT
+     - RON-FR-701, RON-FR-734
    * - RON-TC-SS-004-FV
      - FV
      - RON-FR-703, RON-FR-020
@@ -1372,7 +1399,7 @@ RON-TC-PID-001 — Parallel PID Form Output Correctness
 
    /* RON-TC-PID-001 | RON-FR-001 */
    void test_ron_tc_pid_001(void) {
-       ron_pid_instance_t pid;
+       ron_pid_t pid;
        ron_pid_config_t cfg = make_pid_cfg_kp_only(2.0F);
        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_pid_init(&pid, &cfg));
        ron_float_t u; ron_status_t s;
@@ -1406,15 +1433,25 @@ RON-TC-PID-002 — ISA Form Parameter Conversion
    * - **Level**
      - UT / ENV-HOST
    * - **Preconditions**
-     - Two instances: one configured in parallel form, one using ISA form
-       (:math:`K_p=2.0`, :math:`T_i=5.0`, :math:`T_d=0.1`), implying
-       :math:`K_i = K_p/T_i = 0.4`, :math:`K_d = K_p \cdot T_d = 0.2`.
+     - Two instances: one configured in parallel form
+       (:math:`K_p=2.0`, :math:`K_i=0.4`, :math:`K_d=0.2`), one whose gains
+       are set by ``ron_pid_config_from_isa(&cfg, 2.0, 5.0, 0.1)``
+       (:math:`T_i=5.0`, :math:`T_d=0.1`).
    * - **Stimulus**
-     - 50 identical steps (:math:`r=1.0`, :math:`y=0.5`, :math:`dt=0.01`).
+     - Case A: 50 identical steps (:math:`r=1.0`, :math:`y=0.5`,
+       :math:`dt=0.01`). Case B: :math:`T_i=+\infty`. Case C, rejected
+       inputs: NULL ``cfg``; :math:`K_p<0` or NaN; :math:`T_i \le 0`, NaN or
+       :math:`-\infty`; :math:`T_d<0`, NaN or :math:`+\infty`;
+       :math:`K_p/T_i` or :math:`K_p \cdot T_d` overflowing.
    * - **Expected Output**
-     - Both instances produce identical output sequences within ±4 ULP.
+     - Case A: the helper returns ``RON_FAULT_NONE``, sets :math:`K_i=0.4`
+       and :math:`K_d=0.2` and leaves every other field unchanged; both
+       instances produce identical output sequences. Case B: :math:`K_i=0`.
+       Case C: ``RON_FAULT_NULL_POINTER`` for NULL, otherwise
+       ``RON_FAULT_CONFIG_INVALID``, with the record unchanged.
    * - **Pass Criterion**
-     - ``fabs(u_parallel - u_isa) < 4 * FLT_EPSILON`` for all 50 steps.
+     - ``fabs(u_parallel - u_isa) < 4 * FLT_EPSILON`` for all 50 steps, and
+       every return code and field check in cases A–C holds.
 
 ------------------------------------------------------------------------
 
@@ -2209,6 +2246,99 @@ RON-TC-CASC-004-FV — AW Propagation Formal Proof
    * - **Pass Criterion**
      - No assertion violation from CBMC / Kani.
 
+RON-TC-CASC-008 — Bumpless MANUAL→AUTOMATIC Transfer
+-----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-404
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Stimulus**
+     - ``ron_cascade_set_mode(MANUAL, u_inner=4.0, u_outer=8.0)``, one step;
+       then ``set_mode(AUTOMATIC, 4.0, 8.0)`` and one step at the zero-error
+       operating point :math:`r_{out}=y_{out}=y_{in}=8.0`.
+   * - **Pass Criterion**
+     - Manual step outputs 4.0; both loops report ``RON_MODE_AUTOMATIC``
+       after the switch; the first automatic step outputs 4.0 within
+       ``4 * FLT_EPSILON`` (integrals pre-loaded with the manual values).
+
+RON-TC-CASC-009 — Step and Mode-Switch Argument Guards
+-------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-401, RON-FR-405
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - ``ron_cascade_step`` with a NULL instance, output or status pointer;
+       with either loop uninitialised; and with :math:`dt` = 0, negative,
+       NaN or +Inf. ``ron_cascade_set_mode`` with a NULL or partially
+       initialised instance and with NaN/−Inf manual values.
+   * - **Pass Criterion**
+     - NULL pointers return ``RON_FAULT_NULL_POINTER``; every other case
+       returns ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-CASC-010 — Cascade State Query
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-406
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - One saturating cascade step, then ``ron_cascade_get_state``; repeat
+       with NULL output pointers, a NULL instance, and after forcing an outer
+       fault with a NaN setpoint.
+   * - **Pass Criterion**
+     - The reported outer status bits equal those returned by the step;
+       NULL outputs are skipped with ``RON_FAULT_NONE``; a NULL instance
+       returns ``RON_FAULT_NULL_POINTER``; the forced outer fault is
+       reported.
+
+RON-TC-CASC-011 — Fault Clear Covers Both Loops
+------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-405
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Latch a fault in both loops with NaN inputs, then
+       ``ron_cascade_fault_clear``; call it again with NULL.
+   * - **Pass Criterion**
+     - Both loops report ``RON_FAULT_NONE`` after the clear; the NULL call
+       returns ``RON_FAULT_NULL_POINTER``.
+
+RON-TC-CASC-012 — Reset Clears State, Keeps Configuration
+----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-405
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Build integral state in both loops (10 steps, :math:`K_i=5.0`), then
+       ``ron_cascade_reset``.
+   * - **Pass Criterion**
+     - Integral, last-output and derivative state of both loops are zero;
+       the outer gains are unchanged; a NULL instance returns
+       ``RON_FAULT_NULL_POINTER``.
+
 ------------------------------------------------------------------------
 
 Trajectory Generator Tests (RON-TC-TRAJ-xxx)
@@ -2363,6 +2493,51 @@ RON-TC-TRAJ-008 - Hold Mode
    * - **Pass Criterion**
      - Position, velocity, acceleration, and jerk outputs do not change while
        held. The generator resumes and eventually reaches the commanded target.
+
+RON-TC-TRAJ-009 - Reset to a Position
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-514
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid trapezoidal and S-curve generators, each mid-move and held.
+   * - **Stimulus**
+     - Reset each to position 2.5; then call reset with a NULL instance, an
+       uninitialised instance and a non-finite position.
+   * - **Pass Criterion**
+     - After the reset: position and target equal 2.5, velocity and
+       acceleration (and jerk) are zero, ``finished`` is true, hold is
+       cleared and the configuration is unchanged; a following step returns
+       ``RON_FAULT_NONE`` and position 2.5. NULL returns
+       ``RON_FAULT_NULL_POINTER``; the uninitialised instance and the
+       non-finite position return ``RON_FAULT_CONFIG_INVALID`` and leave the
+       state unchanged.
+
+RON-TC-TRAJ-010 - State Read-Back
+----------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-515
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Valid trapezoidal and S-curve generators after several steps of a move.
+   * - **Stimulus**
+     - Read the state; then call with a NULL instance, a NULL output and an
+       uninitialised instance.
+   * - **Pass Criterion**
+     - The copy equals the instance's state field for field (position,
+       velocity, acceleration, phase, target, flags). NULL arguments return
+       ``RON_FAULT_NULL_POINTER``; the uninitialised instance returns
+       ``RON_FAULT_CONFIG_INVALID``.
 
 ------------------------------------------------------------------------
 
@@ -2638,8 +2813,9 @@ RON-TC-SS-002 — State-Estimate Source Selection
        embedded Kalman filter seeded to ``x0 = [1, 2]``.
    * - **Stimulus**
      - One step at ``r = 0`` for each; advance the embedded observer
-       (``ron_ss_observer_step``) and Kalman (``ron_ss_kalman_predict`` /
-       ``ron_ss_kalman_update``); issue cross-source estimator calls.
+       (``ron_estimator_observer_step``) and Kalman
+       (``ron_estimator_kalman_predict`` / ``ron_estimator_kalman_update``) on
+       ``&ss.est``; issue cross-source estimator calls.
    * - **Pass Criterion**
      - Every source yields ``u = -(2·1 + 1·2) = -4``.  Estimator-advance
        calls on the matching source return ``RON_FAULT_NONE``; estimator
@@ -2824,6 +3000,81 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
 
 ------------------------------------------------------------------------
 
+State-Estimator Tests (RON-TC-EST-xxx)
+======================================
+
+``ron_estimator`` is the state-estimate source shared by the state-space
+controller (RON-FR-701) and the LQR (RON-FR-734). These cases test it on its
+own; RON-TC-SS-002/-009 and RON-TC-LQR-008/-009 exercise it through the
+controllers.
+
+RON-TC-EST-001 - Source Selection and Initialisation
+----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Validate and initialise one estimator per source (external,
+       Luenberger, Kalman) for :math:`n=2`; then an out-of-range source, an
+       embedded configuration whose dimension differs from :math:`n`, an
+       invalid embedded configuration, and NULL arguments. Reset each
+       initialised estimator after stepping it.
+   * - **Pass Criterion**
+     - Valid configurations return ``RON_FAULT_NONE`` and initialise only the
+       selected embedded component. An out-of-range source or dimension
+       mismatch returns ``RON_FAULT_CONFIG_INVALID``; an invalid embedded
+       configuration returns that component's fault; NULL returns
+       ``RON_FAULT_NULL_POINTER``. Reset restores the embedded component's
+       initial estimate; reset of an uninitialised estimator returns
+       ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-EST-002 - Estimator Update Guards
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Call observer step, Kalman predict and Kalman update on the matching
+       source, on each other source, with a NULL estimator and on an
+       uninitialised estimator.
+   * - **Pass Criterion**
+     - The matching source advances the embedded component and returns its
+       result. Any other source or an uninitialised estimator returns
+       ``RON_FAULT_CONFIG_INVALID``; NULL returns ``RON_FAULT_NULL_POINTER``.
+
+RON-TC-EST-003 - State-Estimate Read-Back
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Read the estimate from each source; then with a NULL external vector,
+       a non-finite external vector, NULL arguments and an uninitialised
+       estimator.
+   * - **Pass Criterion**
+     - The leading :math:`n` entries equal the external vector or the
+       embedded component's ``x_hat``. A NULL external vector or NULL
+       argument returns ``RON_FAULT_NULL_POINTER``; a non-finite estimate
+       returns ``RON_FAULT_INPUT_NAN``; an uninitialised estimator returns
+       ``RON_FAULT_CONFIG_INVALID``.
+
+------------------------------------------------------------------------
+
 LQR Controller Tests (RON-TC-LQR-xxx)
 =======================================
 
@@ -2859,7 +3110,7 @@ RON-TC-LQR-002 — External State Source
    * - **Level**
      - UT / ENV-HOST
    * - **Preconditions**
-     - 2-state, 1-input system with ``LQR_SOURCE_EXTERNAL`` and a
+     - 2-state, 1-input system with ``RON_ESTIMATOR_EXTERNAL`` and a
        caller-owned state vector.
    * - **Stimulus**
      - Mutate the external state vector between successive ``ron_lqr_step``
@@ -2981,10 +3232,10 @@ RON-TC-LQR-008 — Luenberger Observer Source (Integration)
    * - **Level**
      - IT / ENV-HOST
    * - **Preconditions**
-     - 2-state, 1-input system with ``LQR_SOURCE_LUENBERGER``.
-       Valid ``obs_cfg`` configured.
+     - 2-state, 1-input system with ``RON_ESTIMATOR_LUENBERGER``.
+       Valid ``est.obs_cfg`` configured.
    * - **Stimulus**
-     - For each of 200 steps: call ``ron_lqr_observer_step`` with a
+     - For each of 200 steps: call ``ron_estimator_observer_step(&lqr.est, …)`` with a
        simulated measurement and the previous control output; then call
        ``ron_lqr_step`` to compute the new control.
    * - **Pass Criterion**
@@ -3003,10 +3254,10 @@ RON-TC-LQR-009 — Kalman Filter Source (Integration)
    * - **Level**
      - IT / ENV-HOST
    * - **Preconditions**
-     - 2-state, 1-input system with ``LQR_SOURCE_KALMAN``. Valid ``kf_cfg``.
+     - 2-state, 1-input system with ``RON_ESTIMATOR_KALMAN``. Valid ``est.kf_cfg``.
    * - **Stimulus**
-     - For each of 200 steps: ``ron_lqr_kalman_predict`` → ``ron_lqr_kalman_update``
-       → ``ron_lqr_step``.
+     - For each of 200 steps: ``ron_estimator_kalman_predict`` →
+       ``ron_estimator_kalman_update`` (on ``&lqr.est``) → ``ron_lqr_step``.
    * - **Pass Criterion**
      - No fault raised. Control output is finite and within
        ``[u_min, u_max]``. Kalman state estimate tracks a known trajectory
@@ -3539,9 +3790,9 @@ RON-TC-QUAL-014 — 100% Statement and Branch Coverage
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - C: build the active PID slice with Clang
-       ``-fprofile-instr-generate -fcoverage-mapping``, run the PID unit
-       suites with ``LLVM_PROFILE_FILE`` set, merge profiles with
+     - C: build the library and test suites with Clang
+       ``-fprofile-instr-generate -fcoverage-mapping``, run the unit and
+       integration suites with ``LLVM_PROFILE_FILE`` set, merge profiles with
        ``llvm-profdata``, export/report coverage with ``llvm-cov``, and
        render HTML via ``llvm-cov show -format=html``.
        Rust: ``cargo llvm-cov nextest --workspace``.
@@ -3561,7 +3812,10 @@ RON-TC-QUAL-015 — MC/DC on Safety-Critical Conditions
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - ``llvm-cov --mcdc`` (LLVM 18+) on the active PID slice. Targets: all
+     - C: the coverage build adds ``-fcoverage-mcdc`` (LLVM 18+) and the CI
+       coverage job requires 100% of the MC/DC conditions ``llvm-cov`` reports
+       over the production source set, a superset of the designated targets:
+       all
        ``if`` conditions inside RON-SR-010 – SR-013 fault detection paths,
        all AW clamping conditions, and all saturation / safe-output branches.
    * - **Pass Criterion**
@@ -4185,8 +4439,8 @@ CBMC Harness Inventory (C Track)
 
 The C11 formal harnesses live under ``regulon-c/test/formal/*_proof.c`` and are
 discovered automatically by the verify script and CI (the harness file's base
-name is its CBMC entry function).  Phase 11 audited the inventory: 25 harnesses
-are present, one entry function each, covering every safety-critical module.
+name is its CBMC entry function).  27 harnesses are present, one entry
+function each, covering every safety-critical module.
 
 .. list-table::
    :header-rows: 1
@@ -4320,9 +4574,9 @@ must reach 100% before a release is considered verified.
      - 7
      - 7 IT + 1 FV
      - All mapped
-   * - RON-FR-500 – FR-513 (Trajectory)
-     - 11
-     - 8 UT
+   * - RON-FR-500 – FR-515 (Trajectory)
+     - 13
+     - 10 UT
      - All mapped
    * - RON-FR-600 – FR-607 (Kalman)
      - 8
@@ -4439,7 +4693,7 @@ Open Items
      - Implementation phase
    * - OI-TP-04
      - ``cargo-nextest`` JUnit XML profile for CI integration to be
-       configured in ``rust/.config/nextest.toml``.
+       configured in ``regulon-rs/.config/nextest.toml``.
      - Implementation phase
    * - OI-TP-05
      - OTAWA static WCET analysis to be evaluated for ARM Cortex-M target;
@@ -4449,8 +4703,7 @@ Open Items
      - RON-TC-CASC-004-FV (outer-integral-bounded property) is listed in the
        Formal Verification Summary but has no dedicated ``cascade_*_proof.c``
        harness yet; the shared back-calculation logic is covered by
-       ``pid_backcalc_proof.c`` in the interim. (Identified by the Phase 11
-       CBMC harness inventory audit.)
+       ``pid_backcalc_proof.c`` in the interim.
      - Implementation phase
    * - OI-TP-07
      - RON-TC-LQR-003 and RON-TC-LQG-006 rely on a known analytical LQR

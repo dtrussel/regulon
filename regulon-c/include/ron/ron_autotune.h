@@ -18,20 +18,20 @@
  * explicit ron_autotune_abort() restores the controller untouched
  * (RON-FR-807).
  *
- * The library NEVER allocates memory: the caller owns the ron_at_t instance
+ * The library NEVER allocates memory: the caller owns the ron_autotune_t instance
  * (typically a file-scope static) and runs the relay loop from its own control
  * task.  ron_autotune_step() is standalone and does not touch the PID; the PID
  * is referenced only at start/apply/abort to snapshot, apply, or restore gains.
  *
  * Typical usage:
  *
- *   static ron_pid_instance_t pid;
- *   static ron_at_t           at;
+ *   static ron_pid_t pid;
+ *   static ron_autotune_t           at;
  *
  *   void tune_begin(void) {
- *       ron_at_config_t cfg = {
+ *       ron_autotune_config_t cfg = {
  *           .relay_amplitude = 0.5F, .hysteresis = 0.05F, .u_bias = 0.0F,
- *           .min_cycles = 5U, .timeout_s = 30.0F, .tuning_rule = RON_AT_RULE_ZN,
+ *           .min_cycles = 5U, .timeout_s = 30.0F, .tuning_rule = RON_AUTOTUNE_RULE_ZN,
  *       };
  *       (void)ron_autotune_init(&at, &cfg);
  *       (void)ron_autotune_start(&at, &pid);
@@ -68,30 +68,30 @@ extern "C" {
  */
 /* Satisfies: RON-FR-803 | Test: RON-TC-AT-004 */
 typedef enum {
-    RON_AT_RULE_ZN      = 0, /**< Ziegler-Nichols (classic).                 */
-    RON_AT_RULE_TL      = 1, /**< Tyreus-Luyben (robust, slow).              */
-    RON_AT_RULE_SOME_OS = 2, /**< Some-overshoot.                            */
-    RON_AT_RULE_NO_OS   = 3  /**< No-overshoot (conservative).               */
-} ron_at_rule_t;
+    RON_AUTOTUNE_RULE_ZN      = 0, /**< Ziegler-Nichols (classic).                 */
+    RON_AUTOTUNE_RULE_TL      = 1, /**< Tyreus-Luyben (robust, slow).              */
+    RON_AUTOTUNE_RULE_SOME_OS = 2, /**< Some-overshoot.                            */
+    RON_AUTOTUNE_RULE_NO_OS   = 3  /**< No-overshoot (conservative).               */
+} ron_autotune_rule_t;
 
 /* =========================================================================
  * Auto-tune lifecycle phase (SADS state machine)
  * ========================================================================= */
 
 /**
- * @brief Auto-tune lifecycle phase, stored in ron_at_state_t.phase.
+ * @brief Auto-tune lifecycle phase, stored in ron_autotune_state_t.phase.
  *
  * Satisfies: RON-FR-800.
  */
 /* Satisfies: RON-FR-800 | Test: RON-TC-AT-001 */
 typedef enum {
-    RON_AT_IDLE       = 0, /**< Initialised, not yet started.               */
-    RON_AT_SETTLING   = 1, /**< Relay driving; awaiting first crossing.     */
-    RON_AT_RELAY      = 2, /**< Oscillating; counting cycles.               */
-    RON_AT_ESTIMATING = 3, /**< Computing Ku / Tu and gains.                */
-    RON_AT_DONE       = 4, /**< Estimation complete; results valid.         */
-    RON_AT_ABORTED    = 5  /**< Aborted (fault, timeout, or caller abort).  */
-} ron_at_phase_t;
+    RON_AUTOTUNE_IDLE       = 0, /**< Initialised, not yet started.               */
+    RON_AUTOTUNE_SETTLING   = 1, /**< Relay driving; awaiting first crossing.     */
+    RON_AUTOTUNE_RELAY      = 2, /**< Oscillating; counting cycles.               */
+    RON_AUTOTUNE_ESTIMATING = 3, /**< Computing Ku / Tu and gains.                */
+    RON_AUTOTUNE_DONE       = 4, /**< Estimation complete; results valid.         */
+    RON_AUTOTUNE_ABORTED    = 5  /**< Aborted (fault, timeout, or caller abort).  */
+} ron_autotune_phase_t;
 
 /* =========================================================================
  * Configuration structure (RON-FR-801)
@@ -104,13 +104,13 @@ typedef enum {
  */
 /* Satisfies: RON-FR-801 | Test: RON-TC-AT-002 */
 typedef struct {
-    ron_float_t relay_amplitude; /**< Relay half-amplitude d. Must be > 0, finite.   */
-    ron_float_t hysteresis;      /**< Switching band epsilon. Must be >= 0, finite.  */
-    ron_float_t u_bias;          /**< Output bias the relay swings about. Finite.    */
-    uint8_t min_cycles;          /**< Full cycles required before estimating. >= 1.  */
-    ron_float_t timeout_s;       /**< Abort if not done within this time. > 0.       */
-    ron_at_rule_t tuning_rule;   /**< Rule applied to Ku / Tu.                       */
-} ron_at_config_t;
+    ron_float_t relay_amplitude;     /**< Relay half-amplitude d. Must be > 0, finite.   */
+    ron_float_t hysteresis;          /**< Switching band epsilon. Must be >= 0, finite.  */
+    ron_float_t u_bias;              /**< Output bias the relay swings about. Finite.    */
+    uint8_t min_cycles;              /**< Full cycles required before estimating. >= 1.  */
+    ron_float_t timeout_s;           /**< Abort if not done within this time. > 0.       */
+    ron_autotune_rule_t tuning_rule; /**< Rule applied to Ku / Tu.                       */
+} ron_autotune_config_t;
 
 /* =========================================================================
  * State structure (dynamic, mutable)
@@ -136,7 +136,7 @@ typedef struct {
     ron_float_t Kd_result; /**< Computed derivative gain.                   */
 
     /* ── Observable status ────────────────────────────────────────────── */
-    uint8_t phase;       /**< Current ron_at_phase_t value.                 */
+    uint8_t phase;       /**< Current ron_autotune_phase_t value.                 */
     bool done;           /**< Estimation completed; results valid.          */
     bool aborted;        /**< Tuning was aborted.                           */
     bool is_initialised; /**< Guard: set by ron_autotune_init() only.       */
@@ -156,7 +156,7 @@ typedef struct {
     ron_float_t saved_Ki;     /**< PID Ki captured at start.                */
     ron_float_t saved_Kd;     /**< PID Kd captured at start.                */
     ron_op_mode_t saved_mode; /**< PID operating mode captured at start.    */
-} ron_at_state_t;
+} ron_autotune_state_t;
 
 /* =========================================================================
  * Instance structure (the handle)
@@ -172,9 +172,9 @@ typedef struct {
  */
 /* Satisfies: RON-FR-800 | Test: RON-TC-AT-001 */
 typedef struct {
-    ron_at_config_t cfg;  /**< Configuration (constant during a run).      */
-    ron_at_state_t state; /**< Dynamic computation state.                  */
-} ron_at_t;
+    ron_autotune_config_t cfg;  /**< Configuration (constant during a run).      */
+    ron_autotune_state_t state; /**< Dynamic computation state.                  */
+} ron_autotune_t;
 
 /* =========================================================================
  * Lifecycle
@@ -184,7 +184,7 @@ typedef struct {
  * @brief Initialise an auto-tuner instance.
  *
  * Validates the configuration, copies it into the instance, and zeroes all
- * dynamic state (phase becomes RON_AT_IDLE).
+ * dynamic state (phase becomes RON_AUTOTUNE_IDLE).
  *
  * @param[in,out] at   Pointer to caller-allocated instance.  Must not be NULL.
  * @param[in]     cfg  Pointer to configuration record.       Must not be NULL.
@@ -198,7 +198,7 @@ typedef struct {
  * Satisfies: RON-FR-800, RON-FR-801.
  */
 /* Satisfies: RON-FR-800, RON-FR-801 | Test: RON-TC-AT-001, RON-TC-AT-002 */
-ron_fault_t ron_autotune_init(ron_at_t *at, const ron_at_config_t *cfg);
+ron_fault_t ron_autotune_init(ron_autotune_t *at, const ron_autotune_config_t *cfg);
 
 /**
  * @brief Begin a relay-feedback tuning run against a PID instance.
@@ -217,7 +217,7 @@ ron_fault_t ron_autotune_init(ron_at_t *at, const ron_at_config_t *cfg);
  * Satisfies: RON-FR-800, RON-FR-804.
  */
 /* Satisfies: RON-FR-800, RON-FR-804 | Test: RON-TC-AT-001, RON-TC-AT-005 */
-ron_fault_t ron_autotune_start(ron_at_t *at, ron_pid_instance_t *pid);
+ron_fault_t ron_autotune_start(ron_autotune_t *at, ron_pid_t *pid);
 
 /* =========================================================================
  * Runtime
@@ -230,9 +230,9 @@ ron_fault_t ron_autotune_start(ron_at_t *at, ron_pid_instance_t *pid);
  * advances oscillation detection, and (once min_cycles full cycles have been
  * observed) estimates Ku / Tu and the tuned gains.  The returned output always
  * lies in [u_bias - d, u_bias + d] (RON-FR-806).  Exceeding timeout_s, or an
- * oscillation too small to measure, transitions the run to RON_AT_ABORTED.
+ * oscillation too small to measure, transitions the run to RON_AUTOTUNE_ABORTED.
  *
- * Once the run has reached RON_AT_DONE or RON_AT_ABORTED, further calls return
+ * Once the run has reached RON_AUTOTUNE_DONE or RON_AUTOTUNE_ABORTED, further calls return
  * the bias output and leave the results unchanged.
  *
  * @param[in,out] at     Pointer to a started instance.
@@ -248,7 +248,7 @@ ron_fault_t ron_autotune_start(ron_at_t *at, ron_pid_instance_t *pid);
  * Satisfies: RON-FR-800, RON-FR-802, RON-FR-806.
  */
 /* Satisfies: RON-FR-800, RON-FR-802, RON-FR-806 | Test: RON-TC-AT-003, RON-TC-AT-007 */
-ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_float_t dt,
+ron_fault_t ron_autotune_step(ron_autotune_t *at, ron_float_t r, ron_float_t y, ron_float_t dt,
                               ron_float_t *u_out);
 
 /* =========================================================================
@@ -258,7 +258,7 @@ ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_fl
 /**
  * @brief Apply the computed gains to the target PID.
  *
- * Permitted only after the run has reached RON_AT_DONE.  Writes
+ * Permitted only after the run has reached RON_AUTOTUNE_DONE.  Writes
  * (Kp_result, Ki_result, Kd_result) via ron_pid_set_gains() and restores the
  * PID operating mode captured at start.  This is the ONLY path that modifies
  * the PID gains (RON-FR-804).
@@ -273,7 +273,7 @@ ron_fault_t ron_autotune_step(ron_at_t *at, ron_float_t r, ron_float_t y, ron_fl
  * Satisfies: RON-FR-804.
  */
 /* Satisfies: RON-FR-804 | Test: RON-TC-AT-005 */
-ron_fault_t ron_autotune_apply(const ron_at_t *at, ron_pid_instance_t *pid);
+ron_fault_t ron_autotune_apply(const ron_autotune_t *at, ron_pid_t *pid);
 
 /**
  * @brief Abort the tuning run and restore the PID untouched.
@@ -291,7 +291,7 @@ ron_fault_t ron_autotune_apply(const ron_at_t *at, ron_pid_instance_t *pid);
  * Satisfies: RON-FR-807.
  */
 /* Satisfies: RON-FR-807 | Test: RON-TC-AT-008 */
-ron_fault_t ron_autotune_abort(ron_at_t *at, ron_pid_instance_t *pid);
+ron_fault_t ron_autotune_abort(ron_autotune_t *at, ron_pid_t *pid);
 
 /* =========================================================================
  * Results
@@ -317,8 +317,8 @@ ron_fault_t ron_autotune_abort(ron_at_t *at, ron_pid_instance_t *pid);
  * Satisfies: RON-FR-805.
  */
 /* Satisfies: RON-FR-805 | Test: RON-TC-AT-006 */
-ron_fault_t ron_autotune_results(const ron_at_t *at, ron_float_t *Ku, ron_float_t *Tu,
-                                 ron_float_t *Kp, ron_float_t *Ki, ron_float_t *Kd);
+ron_fault_t ron_autotune_get_results(const ron_autotune_t *at, ron_float_t *Ku, ron_float_t *Tu,
+                                     ron_float_t *Kp, ron_float_t *Ki, ron_float_t *Kd);
 
 #ifdef __cplusplus
 }

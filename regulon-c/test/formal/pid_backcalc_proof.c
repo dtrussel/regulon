@@ -15,7 +15,7 @@ extern void __CPROVER_assert(int condition, const char *description);
 /* Satisfies: RON-FR-031 | Test: RON-TC-PID-022-FV */
 void pid_backcalc_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t   cfg = {
         RON_FLOAT_C(1.0), RON_FLOAT_C(10.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
         RON_FLOAT_C(1.0), RON_FLOAT_C(1.0), RON_FLOAT_C(-5.0), RON_FLOAT_C(5.0),

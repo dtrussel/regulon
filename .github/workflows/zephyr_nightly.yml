@@ -152,7 +152,7 @@ jobs:
           west build -b native_sim/native/64 -d build-min -p always zephyr/samples/pid_loop
           objs=$(ar t build-min/modules/regulon/libregulon.a | sort | tr '\n' ' ')
           echo "objects: $objs"
-          expected="ron_feedforward.c.obj ron_pid_api.c.obj ron_pid_config.c.obj ron_pid_core.c.obj ron_pid_fault.c.obj "
+          expected="ron_feedforward.c.obj ron_pid_api.c.obj ron_pid_config.c.obj ron_pid_core.c.obj ron_pid_fault.c.obj ron_util.c.obj "
           [ "$objs" = "$expected" ] || {
             echo "::error::expected only the mandatory baseline objects"
             echo "expected: $expected"

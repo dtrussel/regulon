@@ -13,12 +13,7 @@
 
 #include "ron_lqr_internal.h"
 #include "ron_matrix_internal.h"
-
-/* Satisfies: RON-SR-020 | Test: RON-TC-LQG-009 */
-static bool lqg_finite(ron_float_t v)
-{
-    return ron_mat_vec_finite(&v, 1U);
-}
+#include "ron_util_internal.h"
 
 /* =========================================================================
  * Configuration validation
@@ -61,7 +56,7 @@ static bool lqg_dare_cost_valid(const ron_lqg_config_t *cfg)
         !ron_mat_strided_finite(&cfg->R_cost[0][0], (uint8_t) RON_LQR_MAX_INPUTS, cfg->m, cfg->m)) {
         return false;
     }
-    return lqg_finite(cfg->dare_tol) && (cfg->dare_tol > RON_FLOAT_C(0.0));
+    return ron_util_isfinite(cfg->dare_tol) && (cfg->dare_tol > RON_FLOAT_C(0.0));
 }
 
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
@@ -120,19 +115,6 @@ static ron_fault_t lqg_validate_config(const ron_lqg_config_t *cfg)
  * Dual-DARE initialisation (RON-FR-752, RON-FR-756, separation principle)
  * ========================================================================= */
 
-/* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001 */
-static void lqg_zero_matrix(ron_float_t *dst, uint8_t n)
-{
-    uint8_t i;
-    uint8_t j;
-
-    for (i = 0U; i < n; i++) {
-        for (j = 0U; j < n; j++) {
-            dst[((size_t) i * (size_t) RON_LQR_MAX_STATES) + (size_t) j] = RON_FLOAT_C(0.0);
-        }
-    }
-}
-
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 static ron_fault_t lqg_resolve_lqr_gain(ron_lqg_t *lqg)
 {
@@ -143,7 +125,7 @@ static ron_fault_t lqg_resolve_lqr_gain(ron_lqg_t *lqg)
 
         ron_mat_load(k_work, &cfg->K[0][0], (uint8_t) RON_LQR_MAX_STATES, cfg->m, cfg->n);
         ron_mat_store(&lqg->K_solved[0][0], (uint8_t) RON_LQR_MAX_STATES, k_work, cfg->m, cfg->n);
-        lqg_zero_matrix(&lqg->P_lqr[0][0], cfg->n);
+        ron_mat_zero(&lqg->P_lqr[0][0], RON_LQR_MAX_STATES, cfg->n, cfg->n);
 
         return RON_FAULT_NONE;
     }
@@ -312,32 +294,6 @@ static void lqg_compute_raw(const ron_lqg_t *lqg, const ron_float_t *r, const ro
     }
 }
 
-/* Satisfies: RON-FR-022, RON-FR-757 | Test: RON-TC-LQG-008 */
-static ron_float_t lqg_rate_limit(ron_float_t u_sat, ron_float_t u_prev, ron_float_t du_max,
-                                  ron_float_t dt, bool *limited)
-{
-    ron_float_t limited_value = u_sat;
-
-    if (du_max <= RON_FLOAT_C(0.0)) {
-        *limited = false;
-    } else {
-        ron_float_t delta_max = du_max * dt;
-        ron_float_t delta     = u_sat - u_prev;
-
-        if (delta > delta_max) {
-            *limited      = true;
-            limited_value = u_prev + delta_max;
-        } else if (delta < (-delta_max)) {
-            *limited      = true;
-            limited_value = u_prev - delta_max;
-        } else {
-            *limited = false;
-        }
-    }
-
-    return limited_value;
-}
-
 /* Satisfies: RON-FR-020, RON-FR-022, RON-FR-757 | Test: RON-TC-LQG-008 */
 static void lqg_apply_limits(ron_lqg_t *lqg, const ron_float_t *u_raw, ron_float_t dt,
                              ron_float_t *u, ron_status_t *status)
@@ -354,7 +310,7 @@ static void lqg_apply_limits(ron_lqg_t *lqg, const ron_float_t *u_raw, ron_float
             *status = (ron_status_t) (*status | RON_STATUS_SATURATED);
         }
 
-        u_final = lqg_rate_limit(u_sat, lqg->u_prev[j], cfg->du_max[j], dt, &rate_limited);
+        u_final = ron_util_rate_limit(u_sat, lqg->u_prev[j], cfg->du_max[j], dt, &rate_limited);
         if (rate_limited) {
             *status = (ron_status_t) (*status | RON_STATUS_RATE_LIMITED);
         }
@@ -367,7 +323,7 @@ static void lqg_apply_limits(ron_lqg_t *lqg, const ron_float_t *u_raw, ron_float
 /* Satisfies: RON-FR-755 | Test: RON-TC-LQG-005, RON-TC-LQG-009 */
 static bool lqg_step_inputs_finite(const ron_lqg_t *lqg, const ron_float_t *r, ron_float_t dt)
 {
-    if (!ron_mat_vec_finite(r, lqg->cfg.m) || !lqg_finite(dt) || (dt <= RON_FLOAT_C(0.0))) {
+    if (!ron_mat_vec_finite(r, lqg->cfg.m) || !ron_util_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
         return false;
     }
     return ron_mat_vec_finite(&lqg->kalman.state.x_hat[0], lqg->cfg.n);

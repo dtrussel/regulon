@@ -143,6 +143,36 @@ ron_fault_t ron_trap_step(ron_trap_t *t, ron_float_t dt, ron_float_t *pos, ron_f
 /* Satisfies: RON-FR-513 | Test: RON-TC-TRAJ-008 */
 ron_fault_t ron_trap_hold(ron_trap_t *t, bool hold);
 
+/**
+ * @brief Re-seed the generator at rest at a position, keeping its configuration.
+ *
+ * Clears the active move, hold and any latched fault, exactly as
+ * ron_trap_init() seeds a new instance, but without re-validating or
+ * replacing the configuration.
+ *
+ * @param[in,out] t     Initialised generator instance. Must not be NULL.
+ * @param[in]     pos0  New position (and target). Must be finite.
+ *
+ * @retval RON_FAULT_NONE           State re-seeded.
+ * @retval RON_FAULT_NULL_POINTER   @p t was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID Never initialised, or @p pos0 not finite.
+ */
+/* Satisfies: RON-FR-514 | Test: RON-TC-TRAJ-009 */
+ron_fault_t ron_trap_reset(ron_trap_t *t, ron_float_t pos0);
+
+/**
+ * @brief Copy the generator's complete internal state.
+ *
+ * @param[in]  t      Initialised generator instance. Must not be NULL.
+ * @param[out] state  Receives the state. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           State copied.
+ * @retval RON_FAULT_NULL_POINTER   @p t or @p state was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The generator was never initialised.
+ */
+/* Satisfies: RON-FR-515 | Test: RON-TC-TRAJ-010 */
+ron_fault_t ron_trap_get_state(const ron_trap_t *t, ron_trap_state_t *state);
+
 /* =========================================================================
  * S-curve jerk-limited profile
  * ========================================================================= */
@@ -278,6 +308,36 @@ ron_fault_t ron_scurve_step(ron_scurve_t *t, ron_float_t dt, ron_float_t *pos, r
  */
 /* Satisfies: RON-FR-513 | Test: RON-TC-TRAJ-008 */
 ron_fault_t ron_scurve_hold(ron_scurve_t *t, bool hold);
+
+/**
+ * @brief Re-seed the generator at rest at a position, keeping its configuration.
+ *
+ * Clears the active move, hold and any latched fault, exactly as
+ * ron_scurve_init() seeds a new instance, but without re-validating or
+ * replacing the configuration.
+ *
+ * @param[in,out] t     Initialised generator instance. Must not be NULL.
+ * @param[in]     pos0  New position (and target). Must be finite.
+ *
+ * @retval RON_FAULT_NONE           State re-seeded.
+ * @retval RON_FAULT_NULL_POINTER   @p t was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID Never initialised, or @p pos0 not finite.
+ */
+/* Satisfies: RON-FR-514 | Test: RON-TC-TRAJ-009 */
+ron_fault_t ron_scurve_reset(ron_scurve_t *t, ron_float_t pos0);
+
+/**
+ * @brief Copy the generator's complete internal state.
+ *
+ * @param[in]  t      Initialised generator instance. Must not be NULL.
+ * @param[out] state  Receives the state. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           State copied.
+ * @retval RON_FAULT_NULL_POINTER   @p t or @p state was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The generator was never initialised.
+ */
+/* Satisfies: RON-FR-515 | Test: RON-TC-TRAJ-010 */
+ron_fault_t ron_scurve_get_state(const ron_scurve_t *t, ron_scurve_state_t *state);
 
 #ifdef __cplusplus
 }

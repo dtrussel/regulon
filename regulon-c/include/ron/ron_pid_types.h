@@ -9,7 +9,7 @@
  *           RON-SR-010, RON-SR-011, RON-SR-012, RON-SR-013,
  *           RON-PR-021
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  *
  * All public enumerations, bitmask types, and data structures used by the
@@ -187,16 +187,16 @@ typedef struct {
 /**
  * @brief Complete configuration record for one PID controller instance.
  *
- * This structure is copied by value into ron_pid_instance_t at
+ * This structure is copied by value into ron_pid_t at
  * initialisation.  The caller does not need to keep it alive afterwards.
  *
  * All fields are validated by ron_pid_config_validate() before use.
  *
- * Satisfies: RON-FR-001 – RON-FR-007, RON-FR-010 – RON-FR-013,
+ * Satisfies: RON-FR-001, RON-FR-003 – RON-FR-007, RON-FR-010 – RON-FR-013,
  *            RON-FR-020 – RON-FR-027, RON-FR-030 – RON-FR-035,
  *            RON-SR-010 – RON-SR-013.
  */
-/* Satisfies: RON-FR-001 – RON-FR-035 | Test: RON-TC-PID-001 – RON-TC-PID-026 */
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-035 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-026 */
 typedef struct {
     /* ── Gain parameters (parallel form) ─────────────────────────────── */
     ron_float_t Kp; /**< Proportional gain. Must be >= 0 and finite.        */
@@ -308,7 +308,7 @@ typedef struct {
  *
  * @example
  * @code
- *   static ron_pid_instance_t speed_pid;
+ *   static ron_pid_t speed_pid;
  *   ron_pid_config_t cfg = { .Kp = 1.5F, .Ki = 0.3F, ... };
  *   (void)ron_pid_init(&speed_pid, &cfg);
  * @endcode
@@ -319,7 +319,7 @@ typedef struct {
 typedef struct {
     ron_pid_config_t config; /**< Configuration (copied at init, constant during step). */
     ron_pid_state_t state;   /**< Dynamic computation state.                             */
-} ron_pid_instance_t;
+} ron_pid_t;
 
 /* =========================================================================
  * Compile-time size assertions (RON-PR-021, RON-SR-022)

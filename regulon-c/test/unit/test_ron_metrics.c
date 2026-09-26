@@ -129,10 +129,10 @@ void test_ron_tc_met_001(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_enable(&m, true));
     TEST_ASSERT_TRUE(m.enabled);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_metrics_get(NULL, &out));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_metrics_get(&m, NULL));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_metrics_get(&uninit, &out));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_metrics_get_results(NULL, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_metrics_get_results(&m, NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_metrics_get_results(&uninit, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &out));
 
     /* Defensive paths on step: null, uninitialised, bad dt, non-finite r/y. */
     TEST_ASSERT_EQUAL_UINT8(
@@ -180,7 +180,7 @@ void test_ron_tc_met_002(void)
                                 ron_metrics_step(&m, RON_FLOAT_C(0.5), RON_FLOAT_C(0.0), dt));
     }
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &out));
 
     /* IAE  = 0.5  * 100 * 0.01            = 0.5
      * ISE  = 0.25 * 100 * 0.01            = 0.25
@@ -222,7 +222,7 @@ void test_ron_tc_met_003(void)
                                 ron_metrics_step(&m, RON_FLOAT_C(1.0), y_seq[k], dt));
     }
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &out));
     /* Peak overshoot = (1.2 - 1.0) / 1.0 * 100 = 20 %. */
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.5), RON_FLOAT_C(20.0), out.peak_overshoot);
 }
@@ -259,7 +259,7 @@ void test_ron_tc_met_004(void)
                                 ron_metrics_step(&m, RON_FLOAT_C(1.0), RON_FLOAT_C(1.0), dt));
     }
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &out));
     /* Rise: t(90 %) - t(10 %) = 0.19 - 0.03 = 0.16 s. */
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.02), RON_FLOAT_C(0.16), out.rise_time);
     /* Settling: PV is within band from call 21; confirmed five samples later. */
@@ -299,8 +299,8 @@ void test_ron_tc_met_005(void)
                                 ron_metrics_step(&win, RON_FLOAT_C(0.5), RON_FLOAT_C(0.0), dt));
     }
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&cum, &cout));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&win, &wout));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&cum, &cout));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&win, &wout));
 
     /* Cumulative: 0.5 * 0.01 * 25 = 0.125.  Windowed holds the last 5 samples:
      * 0.5 * 0.01 * 5 = 0.025. */
@@ -318,7 +318,7 @@ void test_ron_tc_met_006(void)
     ron_metrics_config_t cfg = test_met_default_cfg();
     ron_metrics_result_t before;
     ron_metrics_result_t after;
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_pid_config_t pcfg = test_ron_make_pid_cfg();
     const ron_float_t dt  = RON_FLOAT_C(0.01);
     const ron_float_t tau = RON_FLOAT_C(0.1);
@@ -330,12 +330,12 @@ void test_ron_tc_met_006(void)
 
     /* A disabled accumulator must not change state across many steps. */
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_init(&m, &cfg));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &before));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &before));
     for (k = 0U; k < 1000U; ++k) {
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
                                 ron_metrics_step(&m, RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), dt));
     }
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &after));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &after));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.0), before.IAE, after.IAE);
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.0), before.ISE, after.ISE);
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.0), before.ITAE, after.ITAE);
@@ -398,7 +398,7 @@ void test_ron_tc_met_007(void)
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
                                 ron_metrics_step(&m, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), dt));
     }
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &out));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(-1.0), out.rise_time);
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(-1.0), out.settling_time);
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), out.peak_overshoot);
@@ -415,7 +415,7 @@ void test_ron_tc_met_007(void)
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(1.0), m.step_size);
 
     /* Transient metrics are now measured against the post-step target. */
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&m, &out));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&m, &out));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.5), RON_FLOAT_C(20.0), out.peak_overshoot);
 }
 

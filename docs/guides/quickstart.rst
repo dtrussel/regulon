@@ -49,7 +49,7 @@ yours. At file scope, so it outlives the loop:
 
    #include "ron/ron.h"
 
-   static ron_pid_instance_t pid;
+   static ron_pid_t pid;
 
 **2. Configure and initialise.** Every field is explicit — there are no
 hidden defaults to discover later:
@@ -71,6 +71,15 @@ hidden defaults to discover later:
 deliver, and ``aw_mode`` decides what the integrator does once that bound is
 reached. Setting them is not optional polish: an unbounded integrator winding
 up against a saturated actuator is the classic way a PID loop misbehaves.
+
+Gains are in parallel form. If your tuning is in ideal (ISA) form, with an
+integral time ``Ti`` and a derivative time ``Td``, let the library convert it
+before ``ron_pid_init`` — it sets ``Kp``, ``Ki = Kp/Ti`` and ``Kd = Kp*Td`` and
+leaves the rest of ``cfg`` alone (``Ti`` of ``+Inf`` means no integral action):
+
+.. code-block:: c
+
+   (void)ron_pid_config_from_isa(&cfg, 2.0F, 0.4F, 0.0F);   /* Kp, Ti, Td */
 
 **3. Step it.** ``dt`` is passed per call rather than fixed at init, so a
 variable-rate loop is supported directly:

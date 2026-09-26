@@ -13,7 +13,8 @@
 
 #include "ron/ron_filter.h"
 
-#define RON_FILTER_TWO_PI RON_FLOAT_C(6.28318530717958647692)
+#include "ron_util_internal.h"
+
 #define RON_FILTER_HALF RON_FLOAT_C(0.5)
 #define RON_FILTER_TWO RON_FLOAT_C(2.0)
 #define RON_FILTER_FOUR RON_FLOAT_C(4.0)
@@ -63,16 +64,10 @@ typedef enum {
     FILTER_KIND_NOTCH = 3
 } filter_coeff_kind_t;
 
-/* Satisfies: RON-SR-020 | Test: RON-TC-FILT-004 */
-static bool filter_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
-
 /* Satisfies: RON-FR-103 | Test: RON-TC-FILT-004 */
 static bool filter_positive(ron_float_t value)
 {
-    return filter_isfinite(value) && (value > RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value > RON_FLOAT_C(0.0));
 }
 
 /* Satisfies: RON-FR-103 | Test: RON-TC-FILT-004 */
@@ -97,8 +92,8 @@ static ron_fault_t filter_step_fault(ron_fault_t fault, ron_status_t *status)
 /* Satisfies: RON-FR-103, RON-FR-120 | Test: RON-TC-FILT-004, RON-TC-FILT-011 */
 static bool filter_section_coefficients_finite(const ron_biquad_section_t *s)
 {
-    return filter_isfinite(s->b0) && filter_isfinite(s->b1) && filter_isfinite(s->b2) &&
-           filter_isfinite(s->a1) && filter_isfinite(s->a2);
+    return ron_util_isfinite(s->b0) && ron_util_isfinite(s->b1) && ron_util_isfinite(s->b2) &&
+           ron_util_isfinite(s->a1) && ron_util_isfinite(s->a2);
 }
 
 /* Satisfies: RON-FR-103, RON-FR-120 | Test: RON-TC-FILT-004, RON-TC-FILT-011 */
@@ -228,7 +223,7 @@ static ron_fault_t filter_coeff_common(ron_biquad_section_t *s, ron_float_t freq
 
     fault = filter_validate_coeff_inputs(s, frequency, Q, dt);
     if (fault == RON_FAULT_NONE) {
-        ron_float_t omega = RON_FILTER_TWO_PI * frequency * dt;
+        ron_float_t omega = RON_UTIL_TWO_PI * frequency * dt;
         double sin_val;
         double cos_val;
         ron_float_t c;
@@ -393,7 +388,7 @@ ron_fault_t ron_lp1_init_fc(ron_lp1_t *f, ron_float_t fc, ron_float_t dt)
         return RON_FAULT_CONFIG_INVALID;
     }
 
-    omega     = RON_FILTER_TWO_PI * fc * dt;
+    omega     = RON_UTIL_TWO_PI * fc * dt;
     cfg.alpha = omega / (RON_FLOAT_C(1.0) + omega);
     return ron_lp1_init(f, &cfg);
 }
@@ -430,14 +425,14 @@ ron_fault_t ron_lp1_step(ron_lp1_t *f, ron_float_t x, ron_float_t *y)
         *y = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
-    if (!filter_isfinite(x)) {
+    if (!ron_util_isfinite(x)) {
         f->state.fault_code = RON_FAULT_INPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
 
     y_new = filter_lp1_apply(f, x);
-    if (!filter_isfinite(y_new)) {
+    if (!ron_util_isfinite(y_new)) {
         f->state.fault_code = RON_FAULT_OUTPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
@@ -508,14 +503,14 @@ ron_fault_t ron_ma_step(ron_ma_t *f, ron_float_t x, ron_float_t *y)
         *y = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
-    if (!filter_isfinite(x)) {
+    if (!ron_util_isfinite(x)) {
         f->state.fault_code = RON_FAULT_INPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
 
     y_new = filter_ma_apply(f, x);
-    if (!filter_isfinite(y_new)) {
+    if (!ron_util_isfinite(y_new)) {
         f->state.fault_code = RON_FAULT_OUTPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
@@ -586,14 +581,14 @@ ron_fault_t ron_biquad_step(ron_biquad_t *f, ron_float_t x, ron_float_t *y)
         *y = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
-    if (!filter_isfinite(x)) {
+    if (!ron_util_isfinite(x)) {
         f->state.fault_code = RON_FAULT_INPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
 
     y_new = filter_biquad_apply(f, x);
-    if (!filter_isfinite(y_new)) {
+    if (!ron_util_isfinite(y_new)) {
         f->state.fault_code = RON_FAULT_OUTPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
@@ -729,7 +724,7 @@ ron_fault_t ron_ratelim_step(ron_ratelim_t *f, ron_float_t x, ron_float_t dt, ro
         *y = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
-    if (!filter_isfinite(x) || !filter_isfinite(dt)) {
+    if (!ron_util_isfinite(x) || !ron_util_isfinite(dt)) {
         f->state.fault_code = RON_FAULT_INPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);

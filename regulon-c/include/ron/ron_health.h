@@ -249,7 +249,7 @@ ron_fault_t ron_health_clear(ron_health_t *h);
  * Satisfies: RON-FR-901, RON-FR-905.
  */
 /* Satisfies: RON-FR-901, RON-FR-905 | Test: RON-TC-HLTH-010 */
-ron_fault_t ron_health_get(const ron_health_t *h, ron_health_status_t *status);
+ron_fault_t ron_health_get_status(const ron_health_t *h, ron_health_status_t *status);
 
 #ifdef __cplusplus
 }

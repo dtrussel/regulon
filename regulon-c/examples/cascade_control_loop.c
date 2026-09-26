@@ -47,7 +47,7 @@ static ron_pid_config_t make_pid(ron_float_t kp, ron_float_t ki, ron_float_t umi
 
 int main(void)
 {
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_trap_t traj;
     ron_health_t mon;
     ron_metrics_t met;
@@ -107,8 +107,8 @@ int main(void)
         ron_health_status_t health = RON_HEALTH_OK;
         ron_metrics_result_t result;
 
-        (void) ron_health_get(&mon, &health);
-        (void) ron_metrics_get(&met, &result);
+        (void) ron_health_get_status(&mon, &health);
+        (void) ron_metrics_get_results(&met, &result);
         (void) printf("\nfinal position : %.4f (target 1.0)\n", (double) pos);
         (void) printf("health bitmask : 0x%02X\n", (unsigned) health);
         (void) printf("IAE=%.4f  ISE=%.4f  ITAE=%.4f  settling=%.3f s\n", (double) result.IAE,

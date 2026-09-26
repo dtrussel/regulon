@@ -11,18 +11,14 @@
 
 #include "ron/ron_cascade.h"
 
+#include "ron_util_internal.h"
+
 /* =========================================================================
  * Internal helpers
  * ========================================================================= */
 
-/* Satisfies: RON-SR-020 */
-static bool cascade_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
-
 /* Satisfies: RON-SR-006 */
-static ron_fault_t cascade_check_inst(const ron_cascade_instance_t *casc)
+static ron_fault_t cascade_check_inst(const ron_cascade_t *casc)
 {
     if (casc == NULL) {
         return RON_FAULT_NULL_POINTER;
@@ -55,8 +51,8 @@ static ron_cascade_status_t cascade_build_status(ron_status_t outer_s, ron_statu
  * Satisfies: RON-FR-403.
  */
 /* Satisfies: RON-FR-403 | Test: RON-TC-CASC-006 */
-static void cascade_apply_cross_aw(ron_cascade_instance_t *casc, ron_float_t u_outer,
-                                   ron_float_t u_inner, ron_status_t inner_status, ron_float_t dt)
+static void cascade_apply_cross_aw(ron_cascade_t *casc, ron_float_t u_outer, ron_float_t u_inner,
+                                   ron_status_t inner_status, ron_float_t dt)
 {
     ron_float_t outer_integral;
     ron_float_t delta_I;
@@ -78,7 +74,7 @@ static void cascade_apply_cross_aw(ron_cascade_instance_t *casc, ron_float_t u_o
  * ========================================================================= */
 
 /* Satisfies: RON-FR-400, RON-FR-402, RON-FR-405 | Test: RON-TC-CASC-001, RON-TC-CASC-002 */
-ron_fault_t ron_cascade_init(ron_cascade_instance_t *casc, const ron_pid_config_t *outer_cfg,
+ron_fault_t ron_cascade_init(ron_cascade_t *casc, const ron_pid_config_t *outer_cfg,
                              const ron_pid_config_t *inner_cfg)
 {
     ron_fault_t fault;
@@ -97,7 +93,7 @@ ron_fault_t ron_cascade_init(ron_cascade_instance_t *casc, const ron_pid_config_
 }
 
 /* Satisfies: RON-FR-401 – RON-FR-403, RON-FR-406 | Test: RON-TC-CASC-003 – RON-TC-CASC-009 */
-ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ron_float_t y_out,
+ron_fault_t ron_cascade_step(ron_cascade_t *casc, ron_float_t r_out, ron_float_t y_out,
                              ron_float_t y_in, ron_float_t dt, ron_float_t *u_out,
                              ron_cascade_status_t *status)
 {
@@ -114,7 +110,7 @@ ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ro
     if (!casc->outer.state.is_initialised || !casc->inner.state.is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if ((dt <= RON_FLOAT_C(0.0)) || !cascade_isfinite(dt)) {
+    if ((dt <= RON_FLOAT_C(0.0)) || !ron_util_isfinite(dt)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -130,8 +126,8 @@ ron_fault_t ron_cascade_step(ron_cascade_instance_t *casc, ron_float_t r_out, ro
 }
 
 /* Satisfies: RON-FR-404 | Test: RON-TC-CASC-007, RON-TC-CASC-008 */
-ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mode,
-                                 ron_float_t manual_inner, ron_float_t manual_outer)
+ron_fault_t ron_cascade_set_mode(ron_cascade_t *casc, ron_op_mode_t mode, ron_float_t manual_inner,
+                                 ron_float_t manual_outer)
 {
     ron_fault_t fault;
 
@@ -139,7 +135,7 @@ ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mod
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
-    if (!cascade_isfinite(manual_inner) || !cascade_isfinite(manual_outer)) {
+    if (!ron_util_isfinite(manual_inner) || !ron_util_isfinite(manual_outer)) {
         return RON_FAULT_CONFIG_INVALID;
     }
 
@@ -157,7 +153,7 @@ ron_fault_t ron_cascade_set_mode(ron_cascade_instance_t *casc, ron_op_mode_t mod
 }
 
 /* Satisfies: RON-FR-406 | Test: RON-TC-CASC-010 */
-ron_fault_t ron_cascade_get_state(const ron_cascade_instance_t *casc, ron_cascade_status_t *status,
+ron_fault_t ron_cascade_get_state(const ron_cascade_t *casc, ron_cascade_status_t *status,
                                   ron_fault_t *outer_fault, ron_fault_t *inner_fault)
 {
     ron_status_t outer_s;
@@ -178,7 +174,7 @@ ron_fault_t ron_cascade_get_state(const ron_cascade_instance_t *casc, ron_cascad
 }
 
 /* Satisfies: RON-FR-405 | Test: RON-TC-CASC-011 */
-ron_fault_t ron_cascade_fault_clear(ron_cascade_instance_t *casc)
+ron_fault_t ron_cascade_fault_clear(ron_cascade_t *casc)
 {
     ron_fault_t fault;
 
@@ -193,7 +189,7 @@ ron_fault_t ron_cascade_fault_clear(ron_cascade_instance_t *casc)
 }
 
 /* Satisfies: RON-FR-405 | Test: RON-TC-CASC-012 */
-ron_fault_t ron_cascade_reset(ron_cascade_instance_t *casc)
+ron_fault_t ron_cascade_reset(ron_cascade_t *casc)
 {
     ron_fault_t fault;
 

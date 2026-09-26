@@ -1,25 +1,25 @@
 .. ============================================================
 .. Implementation Specification
-.. Regulon — PID Controller Module
+.. Regulon — Control Systems Library
 .. ============================================================
 
 .. meta::
-   :description: Implementation Specification for the Regulon, PID Controller Module.
+   :description: Implementation Specification for the Regulon Control Systems Library.
    :keywords: PID, control systems, embedded, C, implementation, MISRA, API
 
 ########################################################################
 Implementation Specification
 ########################################################################
 
-**Document Title:** Implementation Specification — Regulon, PID Controller Module
+**Document Title:** Implementation Specification — Regulon Control Systems Library
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.3.1
+**Version:** 1.5.0
 
 **Status:** Draft
 
-**Date:** 2026-08-10
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -44,11 +44,11 @@ Revision History
    * - 0.1
      - 2025-03-20
      - Initial draft
-     - TBD
+     - dtrussel
    * - 1.0.0
      - 2025-04-10
      - First baseline release
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2025-04-10
      - Added: new module headers (ron_filter.h, ron_feedforward.h,
@@ -56,14 +56,14 @@ Revision History
        ron_statespace.h, ron_observer.h, ron_autotune.h, ron_health.h,
        ron_metrics.h). Updated directory layout, CMakeLists.txt, compile-time
        constants, and traceability table.
-     - TBD
+     - dtrussel
    * - 1.2.0
      - 2026-06-08
      - Added: ron_lqr.h (LQR controller), ron_lqg.h (LQG controller).
        Added RON_LQR_MAX_STATES and RON_LQR_MAX_INPUTS compile-time
        constants. Added RON_ENABLE_LQR and RON_ENABLE_LQG CMake options.
        Updated traceability table.
-     - TBD
+     - dtrussel
    * - 1.3.0
      - 2026-08-09
      - Lowered the default matrix dimension bounds (states 8 -> 4, inputs /
@@ -71,14 +71,32 @@ Revision History
        thread by default, and documented that scratch stack grows with the
        square of the largest bound. Added the optional ron_config.h override
        hook and the ron_mat_mul_ta matrix primitive.
-     - TBD
+     - dtrussel
    * - 1.3.1
      - 2026-08-10
      - Added the Zephyr integration track to the Integration Guide: module
        manifest declaration, Kconfig gating and precision/bounds selection,
        and the CONFIG_MINIMAL_LIBC obligation. Documents an integration path
        that was implemented and verified (RON-TC-QUAL-023) but unspecified.
-     - TBD
+     - dtrussel
+   * - 1.4.0
+     - 2026-09-26
+     - Scope and titles cover the whole library rather than the PID module.
+       Directory layout matches the repository. The build section states the
+       CMake contract and includes the option and toolchain files verbatim,
+       replacing hand-copied listings that had drifted from the build.
+     - dtrussel
+   * - 1.5.0
+     - 2026-09-26
+     - 0.2.0 API: documented the module naming convention and applied it
+       (``ron_pid_t``, ``ron_cascade_t``, ``ron_autotune_*``,
+       ``_get_results``/``_get_status``, ``ron_gs_table_validate``); added
+       ``ron_pid_config_from_isa`` and trajectory ``reset``/``get_state``;
+       ``ron_util.c`` joins the mandatory baseline; the Rust track is marked
+       as a target description. New ``ron_estimator.h`` replaces the
+       per-controller source enums, estimator fields and wrappers of
+       ``ron_statespace.h`` and ``ron_lqr.h``.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -88,7 +106,7 @@ Introduction
 Purpose
 -------
 
-This document is the **Implementation Specification (IS)** for the Regulon Control Systems Library PID Controller Module. It refines the language-agnostic architecture established in RON-SADS-001 into concrete, binding implementation decisions:
+This document is the **Implementation Specification (IS)** for the Regulon Control Systems Library. It refines the language-agnostic architecture established in RON-SADS-001 into concrete, binding implementation decisions:
 
 - The programming language and dialect selection.
 - The applicable coding standard.
@@ -103,11 +121,11 @@ This document, together with RON-SRS-001 and RON-SADS-001, forms the complete sp
 Scope
 -----
 
-This document covers the Regulon PID module only. The current active C11 build
-is intentionally narrowed to the PID vertical slice while future modules remain
-specified but inactive. It does not cover test code or documentation tooling
-except where a concrete verification entrypoint is needed to reproduce the
-active PID quality gates.
+This document covers every module of the Regulon library specified in
+RON-SRS-001. The C11 track implements all of them; the Rust track implements a
+subset (see ``regulon-rs/``). It does not cover test code or documentation
+tooling except where a concrete verification entrypoint is needed to reproduce
+the quality gates.
 
 Parent Documents
 ----------------
@@ -119,9 +137,9 @@ Parent Documents
    * - Document ID
      - Title
    * - RON-SRS-001 v1.0.0
-     - Software Requirements Specification — PID Controller Module
+     - Software Requirements Specification — Regulon Control Systems Library
    * - RON-SADS-001 v1.0.0
-     - Software Architecture and Design Specification — PID Controller Module
+     - Software Architecture and Design Specification — Regulon Control Systems Library
    * - RON-TP-001
      - Test Plan (companion document, produced separately)
 
@@ -175,7 +193,7 @@ comparative evaluation that led to that decision, and the specific rules each
 implementation track must follow.
 
 The two implementations are maintained as sibling crates/libraries within the
-same repository under ``c/`` and ``rust/`` subdirectories respectively. They
+same repository under ``regulon-c/`` and ``regulon-rs/`` subdirectories respectively. They
 share the same documentation, test specifications, and requirement traceability.
 
 Comparative Evaluation
@@ -392,10 +410,11 @@ C Toolchain and Free Tools
    * - **Build system**
      - CMake 3.21+ (BSD licence).
    * - **Local verification entrypoint**
-     - ``regulon-c/scripts/verify_pid.ps1`` on Windows for the active PID
-       slice. It probes the local toolchain, runs the PID-only MSVC and
-       double-precision builds, and executes any available static/formal
-       checks without widening scope to future modules.
+     - ``regulon-c/scripts/verify.ps1`` on Windows. It probes the local
+       toolchain, runs the MSVC, double-precision and Clang builds, and
+       executes whichever of the CI format, static-analysis, coverage,
+       cross-compile and CBMC gates the local tools allow, over the source
+       manifests in ``regulon-c/scripts/``.
    * - **Documentation**
      - Doxygen (GPL) for API reference. Sphinx + ``breathe`` for integration
        with ``.rst`` documentation (both free).
@@ -406,7 +425,16 @@ C Toolchain and Free Tools
 ------------------------------------------------------------------------
 
 Rust Implementation Track
-==========================
+=========================
+
+.. note::
+
+   This track describes the **target** Rust implementation. ``regulon-rs/``
+   currently implements the PID and filter modules only (see
+   ``docs/plans/rust/rust-first-rollout.md``). Artefacts named below that do
+   not exist yet — the other module files, the ``regulon-sys`` C-ABI crate,
+   a ``ci_rust.yml`` workflow, ``rustfmt.toml`` and
+   ``docs/deviations/MISRA_Rust_deviations.rst`` — are planned, not missing.
 
 Language Standard
 -----------------
@@ -668,91 +696,61 @@ specifications) live at the root.
 .. code-block:: none
 
    regulon/
-   ├── docs/
-   │   ├── SRS_ControlLib.rst          -- RON-SRS-001
-   │   ├── SADS_ControlLib.rst         -- RON-SADS-001
-   │   ├── IS_ControlLib.rst           -- RON-IS-001 (this document)
-   │   ├── TP_ControlLib.rst           -- RON-TP-001
-   │   └── deviations/
-   │       ├── MISRA_C_deviations.rst
-   │       └── MISRA_Rust_deviations.rst
-   ├── c/                              -- C11 implementation track
-   │   ├── include/
-   │   │   └── ron/
-   │   │       ├── ron.h            -- aggregate convenience header
-   │   │       ├── ron_platform.h
-   │   │       ├── ron_pid_types.h
-   │   │       ├── ron_pid.h
-   │   │       ├── ron_filter.h
-   │   │       ├── ron_feedforward.h
-   │   │       ├── ron_gain_sched.h
-   │   │       ├── ron_cascade.h
-   │   │       ├── ron_trajectory.h
-   │   │       ├── ron_kalman.h
-   │   │       ├── ron_statespace.h
-   │   │       ├── ron_observer.h
-   │   │       ├── ron_autotune.h
-   │   │       ├── ron_health.h
-   │   │       ├── ron_metrics.h
-   │   │       └── ron_modules.h    -- generated by CMake (RON_HAVE_* macros)
+   ├── docs/                           -- Sphinx site (conf.py, index.rst)
+   │   ├── specs/
+   │   │   ├── SRS_ControlLib.rst      -- RON-SRS-001
+   │   │   ├── SADS_ControlLib.rst     -- RON-SADS-001
+   │   │   ├── IS_ControlLib.rst       -- RON-IS-001 (this document)
+   │   │   └── TP_ControlLib.rst       -- RON-TP-001
+   │   ├── deviations/
+   │   │   └── MISRA_C_deviations.rst  -- RON-DEV-C-001
+   │   ├── api/                        -- Breathe API reference pages
+   │   ├── guides/                     -- usage guides
+   │   └── _ext/regulon_trace.py       -- requirement/test ID cross-linking
+   ├── regulon-c/                      -- C11 implementation track
+   │   ├── include/ron/
+   │   │   ├── ron.h                   -- aggregate convenience header
+   │   │   ├── ron_platform.h
+   │   │   ├── ron_pid_types.h
+   │   │   ├── ron_pid.h
+   │   │   ├── ron_<module>.h          -- filter, feedforward, gain_sched,
+   │   │   │                              cascade, trajectory, kalman,
+   │   │   │                              statespace, observer, estimator,
+   │   │   │                              lqr, lqg,
+   │   │   │                              autotune, health, metrics
+   │   │   └── ron_modules.h           -- generated at build time (RON_HAVE_*)
    │   ├── src/
-   │   │   ├── ron_pid_config.c
-   │   │   ├── ron_pid_core.c
-   │   │   ├── ron_pid_fault.c
-   │   │   ├── ron_pid_api.c
-   │   │   ├── ron_filter.c
-   │   │   ├── ron_feedforward.c
-   │   │   ├── ron_gain_sched.c
-   │   │   ├── ron_cascade.c
-   │   │   ├── ron_trajectory_trap.c
-   │   │   ├── ron_trajectory_scurve.c
-   │   │   ├── ron_kalman.c
-   │   │   ├── ron_statespace.c
-   │   │   ├── ron_observer.c
-   │   │   ├── ron_autotune.c
-   │   │   ├── ron_health.c
-   │   │   └── ron_metrics.c
+   │   │   ├── ron_pid_{api,config,core,fault}.c
+   │   │   ├── ron_trajectory_{trap,scurve}.c
+   │   │   ├── ron_<module>.c          -- one per remaining module
+   │   │   ├── ron_util.c              -- internal scalar helpers (baseline)
+   │   │   ├── ron_estimator.c         -- shared state-estimate source
+   │   │   ├── ron_matrix.c            -- internal fixed-size matrix helper
+   │   │   └── ron_*_internal.h        -- internal headers (not installed)
    │   ├── test/
-   │   │   ├── unit/          (test_ron_pid_*.c, test_ron_filter_*.c, ...)
+   │   │   ├── unit/                   -- Unity suites, test_ron_<module>.c
+   │   │   ├── integration/            -- cross-module suite via ron/ron.h
+   │   │   ├── formal/                 -- CBMC harnesses, <name>_proof.c
    │   │   └── framework/unity/
+   │   ├── examples/  bench/
+   │   ├── scripts/                    -- source manifests, CI helper scripts
    │   ├── cmake/
-   │   │   ├── toolchains/
-   │   │   │   ├── arm-none-eabi.cmake
-   │   │   │   ├── armv7-none-eabi-clang.cmake
-   │   │   │   ├── riscv32-unknown-elf.cmake
-   │   │   │   └── host-x86_64.cmake
-   │   │   └── ron_options.cmake
+   │   │   ├── toolchains/             -- ARM (GCC, Clang), RISC-V, host
+   │   │   ├── ron_options.cmake
+   │   │   └── *.in                    -- ron_modules.h, package config, .pc
+   │   ├── Doxyfile                    -- XML backend for the Sphinx site
    │   └── CMakeLists.txt
-   ├── rust/                           -- Rust Edition 2021 track
-   │   ├── Cargo.toml                  -- workspace
-   │   ├── regulon/                    -- #![no_std] library crate
-   │   │   ├── Cargo.toml
-   │   │   └── src/
-   │   │       ├── lib.rs
-   │   │       ├── platform.rs
-   │   │       ├── error.rs
-   │   │       ├── pid/
-   │   │       ├── filter/
-   │   │       ├── feedforward.rs
-   │   │       ├── gain_sched.rs
-   │   │       ├── cascade.rs
-   │   │       ├── trajectory/
-   │   │       ├── kalman.rs
-   │   │       ├── statespace.rs
-   │   │       ├── observer.rs
-   │   │       ├── autotune.rs
-   │   │       ├── health.rs
-   │   │       └── metrics.rs
-   │   ├── regulon-sys/                -- C-ABI wrapper crate
-   │   │   ├── Cargo.toml
-   │   │   └── src/lib.rs
-   │   └── .cargo/config.toml
+   ├── regulon-rs/                     -- Rust Edition 2021 track
+   ├── zephyr/                         -- Zephyr module (Kconfig, build glue,
+   │                                      sample, on-target tests)
+   ├── west.yml                        -- west manifest for the Zephyr CI
    ├── .github/workflows/
-   │   ├── ci_c.yml
-   │   └── ci_rust.yml
+   │   ├── ci_c.yml                    -- per-push gates
+   │   ├── docs_c.yml                  -- documentation publishing
+   │   └── zephyr_nightly.yml
    ├── CHANGELOG.rst
    ├── LICENSE
-   └── README.rst
+   └── README.md
 
 Header Inclusion Model (C Track)
 ---------------------------------
@@ -766,7 +764,7 @@ under ``regulon-c/include/ron/``. For PID-only use:
 
 The headers ``ron_platform.h`` and ``ron_pid_types.h`` are transitively included.
 Internal translation units may include internal headers directly. No internal
-header (e.g., ``ron_pid_core_internal.h``) is installed or part of the public
+header (e.g., ``ron_pid_internal.h``) is installed or part of the public
 API surface.
 
 As an optional convenience, consumers that want the whole library **may**
@@ -1079,7 +1077,7 @@ Defines all public enumeration and structure types. This header has no dependenc
    /**
     * @brief  Complete configuration record for one PID controller instance.
     *
-    * This structure is copied by value into ron_pid_instance_t at
+    * This structure is copied by value into ron_pid_t at
     * initialisation. The caller does not need to keep it alive afterwards.
     *
     * All fields are validated by ron_pid_config_validate() before use.
@@ -1202,7 +1200,7 @@ Defines all public enumeration and structure types. This header has no dependenc
     *
     * @example
     * @code
-    *   static ron_pid_instance_t  my_speed_pid;
+    *   static ron_pid_t  my_speed_pid;
     *   ron_pid_config_t cfg = { .Kp = 1.5F, .Ki = 0.3F, ... };
     *   (void)ron_pid_init(&my_speed_pid, &cfg);
     * @endcode
@@ -1211,7 +1209,7 @@ Defines all public enumeration and structure types. This header has no dependenc
    {
        ron_pid_config_t  config;   /**< Configuration (copied at init, read-only during step). */
        ron_pid_state_t   state;    /**< Dynamic computation state.                             */
-   } ron_pid_instance_t;
+   } ron_pid_t;
 
    /* ------------------------------------------------------------------ */
    /* Compile-time size assertions (RON-PR-021, RON-SR-022)            */
@@ -1241,7 +1239,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Usage pattern (bare-metal, single controller, 1 kHz sample rate):
     *
-    *   static ron_pid_instance_t pid;
+    *   static ron_pid_t pid;
     *
     *   void control_init(void) {
     *       ron_pid_config_t cfg = {
@@ -1299,12 +1297,12 @@ This is the **only** header that library consumers include. It provides the comp
     * @return  RON_FAULT_CONFIG_INVALID if any configuration field is out of range
     *          or logically inconsistent.
     *
-    * @pre     inst points to writable storage of sizeof(ron_pid_instance_t) bytes.
+    * @pre     inst points to writable storage of sizeof(ron_pid_t) bytes.
     * @post    inst->state.is_initialised == true  iff return == RON_FAULT_NONE.
     *
     * Satisfies: RON-FR-050, RON-SR-001, RON-SR-002.
     */
-   ron_fault_t ron_pid_init(ron_pid_instance_t       *inst,
+   ron_fault_t ron_pid_init(ron_pid_t       *inst,
                                const ron_pid_config_t   *cfg);
 
    /**
@@ -1322,7 +1320,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-051.
     */
-   ron_fault_t ron_pid_reset(ron_pid_instance_t *inst);
+   ron_fault_t ron_pid_reset(ron_pid_t *inst);
 
    /* ================================================================== */
    /* Runtime                                                             */
@@ -1357,7 +1355,7 @@ This is the **only** header that library consumers include. It provides the comp
     * Satisfies: RON-FR-001 – FR-007, RON-FR-020 – FR-035,
     *            RON-FR-070, RON-SR-010 – SR-013, RON-PR-001 – PR-002.
     */
-   ron_fault_t ron_pid_step(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_step(ron_pid_t *inst,
                                ron_float_t         r,
                                ron_float_t         y,
                                ron_float_t         dt,
@@ -1367,6 +1365,24 @@ This is the **only** header that library consumers include. It provides the comp
    /* ================================================================== */
    /* Configuration update (runtime)                                     */
    /* ================================================================== */
+
+   /**
+    * @brief  Atomically replace the full PID configuration record.
+    *
+    * Validates the candidate first; only commits it if the whole record is
+    * internally consistent. Dynamic controller state is preserved.
+    *
+    * @param[in,out] inst  Pointer to an initialised instance.
+    * @param[in]     cfg   Pointer to the replacement configuration record.
+    *
+    * @return  RON_FAULT_NONE           on success.
+    * @return  RON_FAULT_NULL_POINTER   if inst or cfg is NULL.
+    * @return  RON_FAULT_CONFIG_INVALID if the candidate configuration is invalid.
+    *
+    * Satisfies: RON-FR-053.
+    */
+   ron_fault_t ron_pid_set_config(ron_pid_t     *inst,
+                                  const ron_pid_config_t *cfg);
 
    /**
     * @brief  Atomically update all three gain parameters.
@@ -1384,7 +1400,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-053.
     */
-   ron_fault_t ron_pid_set_gains(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_gains(ron_pid_t *inst,
                                     ron_float_t         Kp,
                                     ron_float_t         Ki,
                                     ron_float_t         Kd);
@@ -1401,7 +1417,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-021, RON-FR-053.
     */
-   ron_fault_t ron_pid_set_limits(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_limits(ron_pid_t *inst,
                                      ron_float_t         u_min,
                                      ron_float_t         u_max);
 
@@ -1417,7 +1433,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-006, RON-FR-053.
     */
-   ron_fault_t ron_pid_set_filter(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_filter(ron_pid_t *inst,
                                      ron_float_t         N);
 
    /**
@@ -1433,7 +1449,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-033, RON-FR-053.
     */
-   ron_fault_t ron_pid_set_antiwindup(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_antiwindup(ron_pid_t *inst,
                                          ron_aw_mode_t       mode,
                                          ron_float_t         T_aw);
 
@@ -1460,7 +1476,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-040 – FR-042.
     */
-   ron_fault_t ron_pid_set_mode(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_mode(ron_pid_t *inst,
                                    ron_op_mode_t       mode,
                                    ron_float_t         manual_out);
 
@@ -1478,7 +1494,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-052.
     */
-   ron_fault_t ron_pid_set_integral(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_integral(ron_pid_t *inst,
                                        ron_float_t         value);
 
    /* ================================================================== */
@@ -1503,7 +1519,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-FR-071, RON-QR-021.
     */
-   ron_fault_t ron_pid_get_state(const ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_get_state(const ron_pid_t *inst,
                                     ron_float_t              *integral,
                                     ron_float_t              *last_u,
                                     ron_float_t              *last_D,
@@ -1529,7 +1545,7 @@ This is the **only** header that library consumers include. It provides the comp
     *
     * Satisfies: RON-SR-012.
     */
-   ron_fault_t ron_pid_fault_clear(ron_pid_instance_t *inst);
+   ron_fault_t ron_pid_fault_clear(ron_pid_t *inst);
 
    /* ================================================================== */
    /* Configuration validation (standalone utility)                      */
@@ -1550,6 +1566,31 @@ This is the **only** header that library consumers include. It provides the comp
     * Satisfies: RON-SR-001, RON-SR-002.
     */
    ron_fault_t ron_pid_config_validate(const ron_pid_config_t *cfg);
+
+   /**
+    * @brief Set the gains of a configuration record from the ideal (ISA) form.
+    *
+    * Converts (Kp, Ti, Td) to the parallel gains the controller uses:
+    * Ki = Kp / Ti and Kd = Kp * Td. Ti = +Inf means no integral action
+    * (Ki = 0). Only Kp, Ki and Kd are written; every other field of cfg is left
+    * as the caller set it, and nothing is written when the inputs are rejected.
+    *
+    * @param[in,out] cfg  Configuration record to update.
+    * @param[in]     Kp   Proportional gain. Must be >= 0 and finite.
+    * @param[in]     Ti   Integral time. Must be > 0 (finite) or +Inf.
+    * @param[in]     Td   Derivative time. Must be >= 0 and finite.
+    *
+    * @return  RON_FAULT_NONE           on success.
+    * @return  RON_FAULT_NULL_POINTER   if cfg is NULL.
+    * @return  RON_FAULT_CONFIG_INVALID if an input is out of range or a
+    *                                   resulting gain is not finite.
+    *
+    * Satisfies: RON-FR-002.
+    */
+   ron_fault_t ron_pid_config_from_isa(ron_pid_config_t *cfg,
+                                       ron_float_t       Kp,
+                                       ron_float_t       Ti,
+                                       ron_float_t       Td);
 
    #ifdef __cplusplus
    }
@@ -1574,10 +1615,10 @@ This header exposes the optional PID feed-forward extension. It includes
 
    ron_fault_t ron_feedforward_config_validate(const ron_feedforward_config_t *cfg);
 
-   ron_fault_t ron_pid_set_feedforward(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_set_feedforward(ron_pid_t *inst,
                                        const ron_feedforward_config_t *cfg);
 
-   ron_fault_t ron_pid_step_feedforward(ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_step_feedforward(ron_pid_t *inst,
                                         ron_float_t         r,
                                         ron_float_t         y,
                                         ron_float_t         dt,
@@ -1585,7 +1626,7 @@ This header exposes the optional PID feed-forward extension. It includes
                                         ron_float_t        *u_out,
                                         ron_status_t       *status);
 
-   ron_fault_t ron_pid_get_feedforward(const ron_pid_instance_t *inst,
+   ron_fault_t ron_pid_get_feedforward(const ron_pid_t *inst,
                                        ron_float_t *u_ff);
 
    #endif /* RON_FEEDFORWARD_H */
@@ -1658,8 +1699,8 @@ is defined). They bound the static allocation of all fixed-size arrays in the li
    #endif
 
    /* Auto-tuning */
-   #ifndef RON_AT_MIN_CYCLES
-   #define RON_AT_MIN_CYCLES         3U   /* minimum relay oscillation cycles    */
+   #ifndef RON_AUTOTUNE_MIN_CYCLES
+   #define RON_AUTOTUNE_MIN_CYCLES         3U   /* minimum relay oscillation cycles    */
    #endif
 
    /* Health monitor */
@@ -1824,9 +1865,9 @@ established for ``ron_pid.h`` apply equally to all headers.
        bool                 reset_integral_on_switch;
    } ron_gs_table_t;
 
-   ron_fault_t ron_gs_init   (ron_gs_table_t *tbl);
+   ron_fault_t ron_gs_table_validate   (const ron_gs_table_t *tbl);
    ron_fault_t ron_gs_update (const ron_gs_table_t *tbl,
-                                 ron_pid_instance_t   *pid,
+                                 ron_pid_t   *pid,
                                  ron_float_t           sigma);
 
    #ifdef __cplusplus
@@ -1846,25 +1887,40 @@ established for ``ron_pid.h`` apply equally to all headers.
    extern "C" {
    #endif
 
+   /* Unified status word: outer-loop bits in [15:0], inner-loop bits in [31:16]. */
+   typedef uint32_t ron_cascade_status_t;
+
+   #define RON_CASCADE_STATUS_OUTER_SHIFT ((uint32_t) 0U)
+   #define RON_CASCADE_STATUS_INNER_SHIFT ((uint32_t) 16U)
+   #define RON_CASCADE_STATUS_OUTER_MASK  ((ron_cascade_status_t) 0x0000FFFFU)
+   #define RON_CASCADE_STATUS_INNER_MASK  ((ron_cascade_status_t) 0xFFFF0000U)
+   #define RON_CASCADE_STATUS_OUTER(cs)   ((ron_status_t) ((cs) & RON_CASCADE_STATUS_OUTER_MASK))
+   #define RON_CASCADE_STATUS_INNER(cs) \
+       ((ron_status_t) (((cs) & RON_CASCADE_STATUS_INNER_MASK) >> RON_CASCADE_STATUS_INNER_SHIFT))
+
    typedef struct {
-       ron_pid_instance_t outer;
-       ron_pid_instance_t inner;
+       ron_pid_t outer;   /* output becomes the inner setpoint */
+       ron_pid_t inner;
    } ron_cascade_t;
 
-   ron_fault_t ron_cascade_init  (ron_cascade_t          *c,
-                                     const ron_pid_config_t *outer_cfg,
-                                     const ron_pid_config_t *inner_cfg);
-   ron_fault_t ron_cascade_reset (ron_cascade_t *c);
-   ron_fault_t ron_cascade_step  (ron_cascade_t *c,
-                                     ron_float_t    r_out,
-                                     ron_float_t    y_out,
-                                     ron_float_t    y_in,
-                                     ron_float_t    dt,
-                                     ron_float_t   *u_out,
-                                     ron_status_t  *status);
-   ron_fault_t ron_cascade_set_mode (ron_cascade_t *c,
-                                        ron_op_mode_t  mode,
-                                        ron_float_t    manual_out);
+   ron_fault_t ron_cascade_init(ron_cascade_t *casc,
+                                const ron_pid_config_t *outer_cfg,
+                                const ron_pid_config_t *inner_cfg);
+   ron_fault_t ron_cascade_step(ron_cascade_t *casc,
+                                ron_float_t r_out, ron_float_t y_out,
+                                ron_float_t y_in,  ron_float_t dt,
+                                ron_float_t *u_out,
+                                ron_cascade_status_t *status);
+   ron_fault_t ron_cascade_set_mode(ron_cascade_t *casc,
+                                    ron_op_mode_t mode,
+                                    ron_float_t   manual_inner,
+                                    ron_float_t   manual_outer);
+   ron_fault_t ron_cascade_get_state(const ron_cascade_t *casc,
+                                     ron_cascade_status_t *status,
+                                     ron_fault_t *outer_fault,
+                                     ron_fault_t *inner_fault);
+   ron_fault_t ron_cascade_fault_clear(ron_cascade_t *casc);
+   ron_fault_t ron_cascade_reset(ron_cascade_t *casc);
 
    #ifdef __cplusplus
    }
@@ -1920,6 +1976,8 @@ established for ``ron_pid.h`` apply equally to all headers.
                                        ron_float_t *pos, ron_float_t *vel,
                                        ron_float_t *acc, bool *finished);
    ron_fault_t ron_trap_hold       (ron_trap_t *t, bool hold);
+   ron_fault_t ron_trap_reset      (ron_trap_t *t, ron_float_t pos0);
+   ron_fault_t ron_trap_get_state  (const ron_trap_t *t, ron_trap_state_t *state);
 
    /* ── S-curve (jerk-limited) profile ──────────────────────── */
    typedef struct {
@@ -1969,6 +2027,8 @@ established for ``ron_pid.h`` apply equally to all headers.
                                          ron_float_t *acc, ron_float_t *jrk,
                                          bool *finished);
    ron_fault_t ron_scurve_hold       (ron_scurve_t *t, bool hold);
+   ron_fault_t ron_scurve_reset      (ron_scurve_t *t, ron_float_t pos0);
+   ron_fault_t ron_scurve_get_state  (const ron_scurve_t *t, ron_scurve_state_t *state);
 
    #ifdef __cplusplus
    }
@@ -2075,6 +2135,66 @@ sample period, so no ``dt`` argument is taken.  Storage is bounded by the
 ``RON_SS_MAX_*`` constants (``RON-FR-723``) and the full estimate is read back
 via ``ron_obs_get_state`` (``RON-FR-722``).
 
+``ron_estimator.h`` — State-Estimate Source
+--------------------------------------------
+
+Shared by the state-space controller (``RON-FR-701``) and the LQR
+(``RON-FR-734``): one component selects where ``x_hat`` comes from and owns the
+embedded observer and Kalman filter.
+
+.. code-block:: c
+
+   #ifndef RON_ESTIMATOR_H
+   #define RON_ESTIMATOR_H
+   #include "ron/ron_kalman.h"
+   #include "ron/ron_observer.h"
+
+   typedef enum {
+       RON_ESTIMATOR_EXTERNAL   = 0,
+       RON_ESTIMATOR_LUENBERGER = 1,
+       RON_ESTIMATOR_KALMAN     = 2
+   } ron_estimator_source_t;
+
+   typedef struct {
+       ron_estimator_source_t source;
+       const ron_float_t     *x_ext;     /* EXTERNAL   */
+       ron_obs_config_t       obs_cfg;   /* LUENBERGER */
+       ron_kf_config_t        kf_cfg;    /* KALMAN     */
+   } ron_estimator_config_t;
+
+   typedef struct {
+       ron_estimator_source_t source;
+       const ron_float_t     *x_ext;
+       ron_obs_t              observer;
+       ron_kf_t               kalman;
+       bool                   is_initialised;
+   } ron_estimator_t;
+
+   ron_fault_t ron_estimator_config_validate(const ron_estimator_config_t *cfg,
+                                             uint8_t n);
+   ron_fault_t ron_estimator_init(ron_estimator_t *est,
+                                  const ron_estimator_config_t *cfg, uint8_t n);
+   ron_fault_t ron_estimator_reset(ron_estimator_t *est);
+   ron_fault_t ron_estimator_observer_step(ron_estimator_t *est,
+                                           const ron_float_t y[RON_SS_MAX_OUTPUTS],
+                                           const ron_float_t u[RON_SS_MAX_INPUTS]);
+   ron_fault_t ron_estimator_kalman_predict(ron_estimator_t *est,
+                                            const ron_float_t u[RON_KF_MAX_INPUTS]);
+   ron_fault_t ron_estimator_kalman_update(ron_estimator_t *est,
+                                           const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
+                                           bool z_valid);
+   ron_fault_t ron_estimator_get_state(const ron_estimator_t *est,
+                                       ron_float_t *x_hat, uint8_t n);
+
+   #endif /* RON_ESTIMATOR_H */
+
+A controller embeds the configuration as ``cfg.est`` and the instance as
+``est``. The caller advances an embedded estimator with
+``ron_estimator_observer_step`` / ``ron_estimator_kalman_predict`` /
+``ron_estimator_kalman_update`` on ``&ctrl.est`` before the controller's step,
+which reads the estimate with ``ron_estimator_get_state``. The step, predict and
+update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
+
 ``ron_statespace.h`` — State-Feedback Controller
 --------------------------------------------------
 
@@ -2082,22 +2202,14 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
 
    #ifndef RON_STATESPACE_H
    #define RON_STATESPACE_H
-   #include "ron/ron_kalman.h"
-   #include "ron/ron_observer.h"
+   #include "ron/ron_estimator.h"
    #ifdef __cplusplus
    extern "C" {
    #endif
 
-   typedef enum {
-       RON_SS_SOURCE_EXTERNAL   = 0,
-       RON_SS_SOURCE_LUENBERGER = 1,
-       RON_SS_SOURCE_KALMAN     = 2
-   } ron_ss_source_t;
-
    typedef struct {
-       uint8_t            n;
-       ron_ss_source_t    source;
-       const ron_float_t *x_ext;
+       uint8_t                n;
+       ron_estimator_config_t est;
        ron_float_t        K[RON_SS_MAX_STATES];
        ron_float_t        Kr;
        bool               use_integral;
@@ -2105,8 +2217,6 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
        ron_float_t        C_out[RON_SS_MAX_STATES];
        ron_float_t        i_min, i_max;
        ron_float_t        u_min, u_max, du_max;
-       ron_obs_config_t   obs_cfg;
-       ron_kf_config_t    kf_cfg;
    } ron_ss_config_t;
 
    typedef struct {
@@ -2118,8 +2228,7 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
 
    typedef struct { ron_ss_config_t cfg;
                     ron_ss_state_t  state;
-                    ron_obs_t       observer;
-                    ron_kf_t        kalman; } ron_ss_t;
+                    ron_estimator_t est; } ron_ss_t;
 
    ron_fault_t ron_ss_init           (ron_ss_t *ss, const ron_ss_config_t *cfg);
    ron_fault_t ron_ss_reset          (ron_ss_t *ss);
@@ -2128,14 +2237,6 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
    ron_fault_t ron_ss_set_gains      (ron_ss_t *ss,
                                          const ron_float_t K[RON_SS_MAX_STATES],
                                          ron_float_t Kr);
-   ron_fault_t ron_ss_observer_step  (ron_ss_t *ss,
-                                         const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                         const ron_float_t u[RON_SS_MAX_INPUTS]);
-   ron_fault_t ron_ss_kalman_predict (ron_ss_t *ss,
-                                         const ron_float_t u[RON_KF_MAX_INPUTS]);
-   ron_fault_t ron_ss_kalman_update  (ron_ss_t *ss,
-                                         const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                         bool z_valid);
 
    #ifdef __cplusplus
    }
@@ -2152,33 +2253,25 @@ to the control (``RON-FR-702``).  The output is then saturated to
 PID module, with ``RON_STATUS_SATURATED`` / ``RON_STATUS_RATE_LIMITED`` reported
 in ``status`` (``RON-FR-703``).  ``K`` and ``Kr`` may be replaced at run time via
 ``ron_ss_set_gains`` (``RON-FR-704``).  The embedded observer / Kalman estimators
-are advanced by ``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` /
-``ron_ss_kalman_update`` before the consuming ``ron_ss_step`` call.
+are advanced through ``ron_estimator.h`` on ``&ss.est`` before the consuming
+``ron_ss_step`` call.
 
 ``ron_lqr.h`` — Discrete-Time MIMO LQR Controller
 --------------------------------------------------
 
-Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
-``ron_observer.h`` (pulled in transitively).
+Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_estimator.h`` (pulled in
+transitively).
 
 .. code-block:: c
 
    #ifndef RON_LQR_H
    #define RON_LQR_H
 
-   #include "ron/ron_kalman.h"
-   #include "ron/ron_observer.h"
+   #include "ron/ron_estimator.h"
 
    #ifdef __cplusplus
    extern "C" {
    #endif
-
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-002 */
-   typedef enum {
-       RON_LQR_SOURCE_EXTERNAL   = 0,
-       RON_LQR_SOURCE_LUENBERGER = 1,
-       RON_LQR_SOURCE_KALMAN     = 2
-   } ron_lqr_source_t;
 
    /* Satisfies: RON-FR-732 | Test: RON-TC-LQR-001 */
    typedef enum {
@@ -2190,9 +2283,8 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
    typedef struct {
        uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES). */
        uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS). */
-       ron_lqr_source_t   source;     /**< State estimate source.              */
+       ron_estimator_config_t est;    /**< State-estimate source (FR-734).     */
        ron_lqr_gain_mode_t gain_mode; /**< Pre-computed or DARE.               */
-       const ron_float_t *x_ext;      /**< External state (EXTERNAL source).   */
 
        ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< System A.  */
        ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];  /**< System B.  */
@@ -2214,9 +2306,6 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
        ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input lower sat limit. */
        ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input upper sat limit. */
        ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit.      */
-
-       ron_obs_config_t obs_cfg; /**< Embedded observer (LUENBERGER source).  */
-       ron_kf_config_t  kf_cfg;  /**< Embedded Kalman  (KALMAN source).        */
    } ron_lqr_config_t;
 
    /* Satisfies: RON-FR-737..FR-739 | Test: RON-TC-LQR-001, RON-TC-LQR-010 */
@@ -2234,8 +2323,7 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
    typedef struct {
        ron_lqr_config_t cfg;
        ron_lqr_state_t  state;
-       ron_obs_t        observer;
-       ron_kf_t         kalman;
+       ron_estimator_t  est;
    } ron_lqr_t;
 
    /* Satisfies: RON-FR-730, RON-FR-733 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
@@ -2260,20 +2348,6 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
    ron_fault_t ron_lqr_get_dare_solution(const ron_lqr_t *lqr,
                                           ron_float_t P[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]);
 
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008 */
-   ron_fault_t ron_lqr_observer_step(ron_lqr_t *lqr,
-                                      const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                      const ron_float_t u[RON_SS_MAX_INPUTS]);
-
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-   ron_fault_t ron_lqr_kalman_predict(ron_lqr_t *lqr,
-                                       const ron_float_t u[RON_KF_MAX_INPUTS]);
-
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-   ron_fault_t ron_lqr_kalman_update(ron_lqr_t *lqr,
-                                      const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                      bool z_valid);
-
    #ifdef __cplusplus
    }
    #endif
@@ -2284,9 +2358,8 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
 solver to compute ``K_solved`` and ``P_solved`` from ``Q_cost`` and ``R_cost``.
 In PRECOMPUTED mode the supplied ``K`` is copied directly.  The embedded
 observer or Kalman filter is also initialised if the corresponding source is
-selected.  The observer and Kalman step helpers mirror the pattern of
-``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` / ``ron_ss_kalman_update``
-and must be called by the application before ``ron_lqr_step`` each cycle.
+selected.  As for the state-space controller, the application advances it
+through ``ron_estimator.h`` on ``&lqr.est`` before ``ron_lqr_step`` each cycle.
 
 ``ron_lqg.h`` — Discrete-Time MIMO LQG Controller
 --------------------------------------------------
@@ -2404,11 +2477,21 @@ control and sensing.
    #endif
 
    typedef enum {
-       RON_AT_RULE_ZN        = 0,
-       RON_AT_RULE_TL        = 1,
-       RON_AT_RULE_SOME_OS   = 2,
-       RON_AT_RULE_NO_OS     = 3
-   } ron_at_rule_t;
+       RON_AUTOTUNE_RULE_ZN        = 0,
+       RON_AUTOTUNE_RULE_TL        = 1,
+       RON_AUTOTUNE_RULE_SOME_OS   = 2,
+       RON_AUTOTUNE_RULE_NO_OS     = 3
+   } ron_autotune_rule_t;
+
+   /* Lifecycle phase, stored as uint8_t in ron_autotune_state_t.phase. */
+   typedef enum {
+       RON_AUTOTUNE_IDLE       = 0,
+       RON_AUTOTUNE_SETTLING   = 1,
+       RON_AUTOTUNE_RELAY      = 2,
+       RON_AUTOTUNE_ESTIMATING = 3,
+       RON_AUTOTUNE_DONE       = 4,
+       RON_AUTOTUNE_ABORTED    = 5
+   } ron_autotune_phase_t;
 
    typedef struct {
        ron_float_t  relay_amplitude;
@@ -2416,30 +2499,30 @@ control and sensing.
        ron_float_t  u_bias;
        uint8_t       min_cycles;
        ron_float_t  timeout_s;
-       ron_at_rule_t tuning_rule;
-   } ron_at_config_t;
+       ron_autotune_rule_t tuning_rule;
+   } ron_autotune_config_t;
 
    typedef struct {
        ron_float_t  Ku, Tu;
        ron_float_t  Kp_result, Ki_result, Kd_result;
-       uint8_t       phase;
+       uint8_t       phase;      /* ron_autotune_phase_t */
        bool          done;
        bool          aborted;
        bool          is_initialised;
        /* internal oscillation tracking fields omitted for brevity */
-   } ron_at_state_t;
+   } ron_autotune_state_t;
 
-   typedef struct { ron_at_config_t cfg;
-                    ron_at_state_t  state; } ron_at_t;
+   typedef struct { ron_autotune_config_t cfg;
+                    ron_autotune_state_t  state; } ron_autotune_t;
 
-   ron_fault_t ron_autotune_init    (ron_at_t *at, const ron_at_config_t *cfg);
-   ron_fault_t ron_autotune_start   (ron_at_t *at, ron_pid_instance_t *pid);
-   ron_fault_t ron_autotune_step    (ron_at_t *at, ron_float_t r,
+   ron_fault_t ron_autotune_init    (ron_autotune_t *at, const ron_autotune_config_t *cfg);
+   ron_fault_t ron_autotune_start   (ron_autotune_t *at, ron_pid_t *pid);
+   ron_fault_t ron_autotune_step    (ron_autotune_t *at, ron_float_t r,
                                         ron_float_t y, ron_float_t dt,
                                         ron_float_t *u_out);
-   ron_fault_t ron_autotune_apply   (const ron_at_t *at, ron_pid_instance_t *pid);
-   ron_fault_t ron_autotune_abort   (ron_at_t *at, ron_pid_instance_t *pid);
-   ron_fault_t ron_autotune_results (const ron_at_t *at,
+   ron_fault_t ron_autotune_apply   (const ron_autotune_t *at, ron_pid_t *pid);
+   ron_fault_t ron_autotune_abort   (ron_autotune_t *at, ron_pid_t *pid);
+   ron_fault_t ron_autotune_get_results (const ron_autotune_t *at,
                                         ron_float_t *Ku, ron_float_t *Tu,
                                         ron_float_t *Kp, ron_float_t *Ki,
                                         ron_float_t *Kd);
@@ -2503,7 +2586,7 @@ control and sensing.
                                      ron_float_t y, ron_float_t u,
                                      ron_float_t dt);
    ron_fault_t ron_health_clear  (ron_health_t *h);
-   ron_fault_t ron_health_get    (const ron_health_t *h,
+   ron_fault_t ron_health_get_status    (const ron_health_t *h,
                                      ron_health_status_t *status);
 
    #ifdef __cplusplus
@@ -2556,7 +2639,7 @@ control and sensing.
    ron_fault_t ron_metrics_enable  (ron_metrics_t *m, bool enable);
    ron_fault_t ron_metrics_step    (ron_metrics_t *m, ron_float_t r,
                                        ron_float_t y, ron_float_t dt);
-   ron_fault_t ron_metrics_get     (const ron_metrics_t *m,
+   ron_fault_t ron_metrics_get_results     (const ron_metrics_t *m,
                                        ron_metrics_result_t *out);
 
    #ifdef __cplusplus
@@ -2571,143 +2654,54 @@ Build System Specification
 
 C Track — CMake
 ---------------
-
-The C implementation **shall** use **CMake** (version ≥ 3.21) located under
-``c/``. CMake is free, open-source (BSD licence), and supported by all major
-embedded IDEs and CI environments.
+The C implementation **shall** build with **CMake** (version ≥ 3.21) from
+``regulon-c/``. CMake is free, open-source (BSD licence), and supported by all
+major embedded IDEs and CI environments. The build files themselves are the
+reference; this section states the contract they satisfy and includes the
+option and toolchain files verbatim so the two cannot drift.
 
 ``regulon-c/CMakeLists.txt``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: cmake
+The top-level build **shall**:
 
-   cmake_minimum_required(VERSION 3.21)
-
-   project(regulon
-       VERSION     1.0.0
-       DESCRIPTION "Regulon Control Systems Library — C Implementation"
-       LANGUAGES   C
-   )
-
-   set(CMAKE_C_STANDARD          11)
-   set(CMAKE_C_STANDARD_REQUIRED ON)
-   set(CMAKE_C_EXTENSIONS        OFF)
-
-   include(cmake/ron_options.cmake)
-
-   add_library(regulon STATIC
-       src/ron_pid_config.c
-       src/ron_pid_core.c
-       src/ron_pid_fault.c
-       src/ron_pid_api.c
-   )
-
-   # During the PID verification-closure iteration, only the PID slice is
-   # linked into the active library target. Future modules remain specified in
-   # this document but stay out of the active CMake build until their own
-   # implementations and traceability evidence exist.
-
-   target_include_directories(regulon
-       PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
-       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
-   )
-
-   target_compile_options(regulon PRIVATE
-       $<$<C_COMPILER_ID:GNU>:
-           -Wall -Wextra -Wpedantic -Werror
-           -Wconversion -Wshadow -Wundef
-           -fno-common -fstack-usage
-       >
-       $<$<C_COMPILER_ID:Clang>:
-           -Wall -Wextra -Wpedantic -Werror
-           -Wconversion -Wshadow -Wundef
-       >
-   )
-
-   if(RON_USE_DOUBLE)
-       target_compile_definitions(regulon PUBLIC RON_USE_DOUBLE=1)
-   endif()
-
-   if(RON_BUILD_TESTS AND NOT CMAKE_CROSSCOMPILING)
-       enable_testing()
-       add_subdirectory(test)
-   endif()
-
-   install(TARGETS regulon ARCHIVE DESTINATION lib)
-   install(DIRECTORY include/ron DESTINATION include)
+- compile as C11 with extensions off (``CMAKE_C_STANDARD 11``,
+  ``CMAKE_C_EXTENSIONS OFF``) into one static library, ``regulon``, aliased
+  ``regulon::regulon``;
+- always compile the mandatory baseline (``ron_pid_api.c``,
+  ``ron_pid_config.c``, ``ron_pid_core.c``, ``ron_pid_fault.c``,
+  ``ron_feedforward.c``, and ``ron_util.c``, the internal scalar helpers every
+  module shares) and add each optional module's sources only when its
+  ``RON_ENABLE_<MODULE>`` option is on, adding the internal matrix helper
+  (``ron_matrix.c``) whenever Kalman, state-space, LQR or LQG is enabled;
+- resolve module dependencies by forcing options on — LQG → LQR → state-space
+  → Kalman — and report each forced option;
+- generate ``ron/ron_modules.h`` from ``cmake/ron_modules.h.in`` with
+  ``RON_HAVE_<MODULE>`` set to ``1`` or ``0``, so ``ron/ron.h`` includes only
+  the headers whose implementations were compiled;
+- treat every warning as an error: ``-Wall -Wextra -Wpedantic -Werror
+  -Wconversion -Wshadow -Wundef`` for GCC and Clang (GCC adds ``-fno-common
+  -fstack-usage``), ``/W4 /WX`` for MSVC;
+- export ``RON_USE_DOUBLE=1`` as a public definition when ``RON_USE_DOUBLE``
+  is on, since ``ron_float_t`` is part of the ABI;
+- build tests, examples and benchmarks only for the host, never when
+  cross-compiling;
+- install the archive, the public headers and the generated
+  ``ron_modules.h``, a relocatable ``find_package(regulon)`` package and a
+  ``regulon.pc`` pkg-config file.
 
 ``regulon-c/cmake/ron_options.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: cmake
-
-   option(RON_USE_DOUBLE     "Use 64-bit double precision"        OFF)
-   option(RON_BUILD_TESTS    "Build unit and integration tests"   ON)
-   option(RON_BUILD_EXAMPLES "Build host example programs"         OFF)
-   option(RON_ENABLE_ASSERT  "Enable runtime RON_ASSERT checks"    OFF)
-
-   # Per-module selection (default ON → complete library).  The PID core and
-   # its integrated feed-forward path are the mandatory baseline and have no
-   # option.  Dependencies are resolved in CMakeLists.txt: RON_ENABLE_STATESPACE
-   # forces RON_ENABLE_KALMAN, and Kalman / state-space / observer pull in the
-   # internal matrix helper.
-   option(RON_ENABLE_FILTER     "Build signal-conditioning filters"          ON)
-   option(RON_ENABLE_GAIN_SCHED "Build gain scheduling"                      ON)
-   option(RON_ENABLE_TRAJECTORY "Build trajectory generators"                ON)
-   option(RON_ENABLE_CASCADE    "Build cascade controller"                   ON)
-   option(RON_ENABLE_KALMAN     "Build discrete Kalman filter"               ON)
-   option(RON_ENABLE_STATESPACE "Build state-space controller + observer"    ON)
-   option(RON_ENABLE_LQR        "Build LQR optimal state-feedback controller (forces KALMAN+STATESPACE)" OFF)
-   option(RON_ENABLE_LQG        "Build LQG controller (forces KALMAN+LQR)"  OFF)
-   option(RON_ENABLE_AUTOTUNE   "Build relay-feedback auto-tuner"            ON)
-   option(RON_ENABLE_HEALTH     "Build control-loop health monitor"          ON)
-   option(RON_ENABLE_METRICS    "Build runtime performance metrics"          ON)
-
-   if(RON_ENABLE_ASSERT)
-       target_compile_definitions(regulon PRIVATE
-           "RON_ASSERT(cond)=do { if(!(cond)) { __builtin_trap(); } } while(0)"
-       )
-   endif()
+.. literalinclude:: ../../regulon-c/cmake/ron_options.cmake
+   :language: cmake
 
 Each enabled module defines ``RON_HAVE_<MODULE>=1`` in the generated
 ``ron/ron_modules.h`` (``0`` when excluded), which the aggregate ``ron/ron.h``
 uses to include only the available headers.
 
-Example Toolchain File: ``regulon-c/cmake/toolchains/arm-none-eabi.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: cmake
-
-   # Usage: cmake -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake \
-   #              -DCMAKE_C_FLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb" \
-   #              -B build_arm -S c/
-
-   set(CMAKE_SYSTEM_NAME       Generic)
-   set(CMAKE_SYSTEM_PROCESSOR  arm)
-   set(CMAKE_C_COMPILER        arm-none-eabi-gcc)
-   set(CMAKE_AR                arm-none-eabi-ar)
-   set(CMAKE_RANLIB            arm-none-eabi-ranlib)
-   set(CMAKE_SIZE              arm-none-eabi-size)
-   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
-
-Example Toolchain File: ``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: cmake
-
-   # Usage: cmake -G Ninja \
-   #              -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/armv7-none-eabi-clang.cmake \
-   #              -B build_armv7_clang -S c/
-
-   set(CMAKE_SYSTEM_NAME       Generic)
-   set(CMAKE_SYSTEM_PROCESSOR  armv7)
-   set(CMAKE_C_COMPILER_TARGET armv7-none-eabi)
-   set(CMAKE_C_COMPILER        clang)
-   set(CMAKE_AR                llvm-ar)
-   set(CMAKE_RANLIB            llvm-ranlib)
-   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
+Cross-Compile Toolchain Files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 No target C library is required by any of the cross toolchains. Per RON-DC-002
 the library includes only freestanding headers, which the compiler supplies
@@ -2717,28 +2711,30 @@ assertion about it. Each job then runs ``scripts/check_no_libm.sh`` over the
 produced archive, which fails the build if any ``<math.h>`` entry point appears
 among its undefined symbols.
 
-Example Toolchain File: ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``regulon-c/cmake/toolchains/arm-none-eabi.cmake`` (GCC, Cortex-M):
 
-.. code-block:: cmake
+.. literalinclude:: ../../regulon-c/cmake/toolchains/arm-none-eabi.cmake
+   :language: cmake
 
-   set(CMAKE_SYSTEM_NAME       Generic)
-   set(CMAKE_SYSTEM_PROCESSOR  riscv)
-   set(CMAKE_C_COMPILER        riscv32-unknown-elf-gcc)
-   set(CMAKE_AR                riscv32-unknown-elf-ar)
-   set(CMAKE_RANLIB            riscv32-unknown-elf-ranlib)
-   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
+``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake`` (Clang, ARMv7):
+
+.. literalinclude:: ../../regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake
+   :language: cmake
+
+``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake`` (GCC, ``rv32imc``):
+
+.. literalinclude:: ../../regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake
+   :language: cmake
 
 Rust Track — Cargo
 -------------------
 
 The Rust implementation uses **Cargo** (built-in with ``rustc``, free). Cross-
 compilation targets are managed with ``rustup target add`` and declared in
-``rust/.cargo/config.toml``.
+``regulon-rs/.cargo/config.toml``.
 
-``rust/regulon/Cargo.toml``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``regulon-rs/regulon/Cargo.toml``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
 
@@ -2766,8 +2762,8 @@ compilation targets are managed with ``rustup target add`` and declared in
    lto       = true
    panic     = "abort"     # required for no_std bare-metal
 
-``rust/.cargo/config.toml``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``regulon-rs/.cargo/config.toml``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
 
@@ -2800,7 +2796,7 @@ Every ``.c`` and ``.h`` file shall begin with the following comment block:
     * @doc      RON-IS-001
     * @req      <comma-separated RON-FR/PR/SR requirement IDs satisfied>
     * @version  1.0.0
-    * @author   TBD
+    * @author   <GitHub handle>
     * SPDX-License-Identifier: MIT
     */
 
@@ -2853,6 +2849,34 @@ C Track — Naming Conventions
    * - Named constants (``#define``)
      - ``RON_<SCREAMING_SNAKE>``
      - ``RON_VERSION_MAJOR``, ``RON_MA_MAX_WINDOW``
+
+One ``<module>`` token names a module everywhere: header, types, enum
+constants and functions (``ron_autotune.h`` → ``ron_autotune_t``,
+``RON_AUTOTUNE_IDLE``, ``ron_autotune_step``). Within a module:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 40 30
+
+   * - Role
+     - Name
+     - Example
+   * - Instance, configuration, state
+     - ``ron_<module>_t``, ``ron_<module>_config_t``, ``ron_<module>_state_t``
+     - ``ron_kf_t``, ``ron_pid_config_t``
+   * - Lifecycle
+     - ``ron_<module>_init``, ``_reset``, ``_step``
+     - ``ron_trap_reset``
+   * - Read-back
+     - ``_get_state`` (internal state), ``_get_results`` (computed results),
+       ``_get_status`` (detection flags)
+     - ``ron_metrics_get_results``
+   * - Faults
+     - ``_fault_clear`` clears the latched fault register
+     - ``ron_cascade_fault_clear``
+   * - Validation without side effects
+     - ``ron_<module>_[<noun>_]validate``
+     - ``ron_gs_table_validate``
 
 C Track — Comment Style
 ------------------------
@@ -2931,7 +2955,7 @@ C Track — Minimal Integration Steps
 
    .. code-block:: c
 
-      static ron_pid_instance_t  position_pid;
+      static ron_pid_t  position_pid;
 
 2. **Populate a configuration record** and call ``ron_pid_init()``.
 
@@ -3170,7 +3194,7 @@ denote track-specific deliverables.
      - RON-FR-001 – FR-007, RON-FR-010 – FR-013, RON-FR-020 – FR-035
    * - ``ron_pid_state_t`` / ``PidState`` (both)
      - RON-FR-050 – FR-054, RON-FR-060 – FR-062
-   * - ``ron_pid_instance_t`` / ``Pid<State>`` typestate (both)
+   * - ``ron_pid_t`` / ``Pid<State>`` typestate (both)
      - RON-SR-003, RON-FR-060 – FR-062, RON-PR-022
    * - Compile-time size assertions (both)
      - RON-PR-021

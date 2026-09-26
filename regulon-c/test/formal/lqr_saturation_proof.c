@@ -85,9 +85,9 @@ void lqr_saturation_proof(void)
     r[0]          = r0;
     cfg.n         = 1U;
     cfg.m         = 1U;
-    cfg.source    = RON_LQR_SOURCE_EXTERNAL;
+    cfg.est.source    = RON_ESTIMATOR_EXTERNAL;
     cfg.gain_mode = RON_LQR_GAIN_PRECOMPUTED;
-    cfg.x_ext     = x_ext;
+    cfg.est.x_ext     = x_ext;
     cfg.K[0][0]   = RON_FLOAT_C(2.0);
     cfg.Kr[0]     = RON_FLOAT_C(1.0);
     cfg.u_min[0]  = RON_FLOAT_C(-5.0);

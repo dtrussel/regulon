@@ -13,7 +13,7 @@
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007-FV */
 void pid_fault_detection_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg;
     ron_float_t bad_input;
     ron_float_t u = RON_FLOAT_C(0.0);

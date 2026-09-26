@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(regulon
-    VERSION     0.1.0
+    VERSION     0.2.0
     DESCRIPTION "Regulon Control Systems Library — C11 Implementation"
     LANGUAGES   C
 )
@@ -65,13 +65,14 @@ configure_file(
 # ---------------------------------------------------------------------------
 # Library source list (mandatory baseline + selected modules)
 # ---------------------------------------------------------------------------
-# Mandatory baseline: PID core + integrated feed-forward path.
+# Mandatory baseline: PID core, integrated feed-forward path, shared helpers.
 set(RON_LIB_SOURCES
     src/ron_pid_api.c
     src/ron_pid_config.c
     src/ron_pid_core.c
     src/ron_pid_fault.c
     src/ron_feedforward.c
+    src/ron_util.c
 )
 
 if(RON_ENABLE_FILTER)
@@ -103,7 +104,7 @@ if(RON_ENABLE_KALMAN)
     list(APPEND RON_LIB_SOURCES src/ron_kalman.c)
 endif()
 if(RON_ENABLE_STATESPACE)
-    list(APPEND RON_LIB_SOURCES src/ron_statespace.c src/ron_observer.c)
+    list(APPEND RON_LIB_SOURCES src/ron_statespace.c src/ron_observer.c src/ron_estimator.c)
 endif()
 if(RON_ENABLE_LQR)
     list(APPEND RON_LIB_SOURCES src/ron_lqr.c)
@@ -205,10 +206,13 @@ configure_package_config_file(
     ${CMAKE_CURRENT_BINARY_DIR}/regulonConfig.cmake
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/regulon
 )
+# Semantic Versioning allows breaking changes between 0.y minor releases, so
+# until 1.0 a request for 0.1 must not accept 0.2. Switch to SameMajorVersion
+# at 1.0.0.
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/regulonConfigVersion.cmake
     VERSION       ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
+    COMPATIBILITY SameMinorVersion
 )
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/regulonConfig.cmake

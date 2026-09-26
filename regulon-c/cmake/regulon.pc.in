@@ -7,5 +7,4 @@ Name: regulon
 Description: @PROJECT_DESCRIPTION@
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -lregulon
-Libs.private: -lm
 Cflags: -I${includedir}

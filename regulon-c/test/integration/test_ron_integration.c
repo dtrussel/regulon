@@ -1,6 +1,6 @@
 /*
  * @file     test_ron_integration.c
- * @brief    Full-library integration tests (Phase 11).
+ * @brief    Full-library integration tests.
  * @module   test_ron_integration
  * @doc      RON-TP-001
  * @req      RON-FR-401, RON-FR-500, RON-FR-701, RON-FR-804, RON-FR-900,
@@ -99,7 +99,7 @@ void test_ron_tc_int_001(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_lp1_reset(NULL));
 #endif
 #if RON_HAVE_GAIN_SCHED
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_gs_init(NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_gs_table_validate(NULL));
 #endif
 #if RON_HAVE_TRAJECTORY
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_trap_init(NULL, NULL, RON_FLOAT_C(0.0)));
@@ -137,7 +137,7 @@ void test_ron_tc_int_001(void)
 
 /* One cascade control step against the two-state plant; returns the command u.
  * pos/vel are advanced in place. */
-static ron_float_t int_loop2_step(ron_cascade_instance_t *casc, ron_float_t r_pos, ron_float_t *pos,
+static ron_float_t int_loop2_step(ron_cascade_t *casc, ron_float_t r_pos, ron_float_t *pos,
                                   ron_float_t *vel, ron_float_t dt, ron_cascade_status_t *status,
                                   ron_fault_t *fault)
 {
@@ -157,7 +157,7 @@ static void int_run_loop2(ron_float_t *u_log, unsigned n, ron_float_t *final_pos
                           ron_health_status_t *final_health, ron_metrics_result_t *final_metrics,
                           bool *any_fault)
 {
-    ron_cascade_instance_t casc;
+    ron_cascade_t casc;
     ron_trap_t traj;
     ron_health_t mon;
     ron_metrics_t met;
@@ -216,8 +216,8 @@ static void int_run_loop2(ron_float_t *u_log, unsigned n, ron_float_t *final_pos
     }
 
     *final_pos = pos;
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_get(&mon, final_health));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get(&met, final_metrics));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_health_get_status(&mon, final_health));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_metrics_get_results(&met, final_metrics));
 }
 
 void test_ron_tc_int_002(void)
@@ -288,21 +288,21 @@ void test_ron_tc_int_003(void)
     unsigned k;
 
     cfg.n               = 1U;
-    cfg.source          = RON_SS_SOURCE_LUENBERGER;
+    cfg.est.source          = RON_ESTIMATOR_LUENBERGER;
     cfg.K[0]            = RON_FLOAT_C(1.5);
     cfg.Kr              = RON_FLOAT_C(1.5);
     cfg.use_integral    = false;
     cfg.u_min           = -umx;
     cfg.u_max           = umx;
     cfg.du_max          = RON_FLOAT_C(0.0);
-    cfg.obs_cfg.n       = 1U;
-    cfg.obs_cfg.m       = 1U;
-    cfg.obs_cfg.p       = 1U;
-    cfg.obs_cfg.A[0][0] = a;
-    cfg.obs_cfg.B[0][0] = b;
-    cfg.obs_cfg.C[0][0] = RON_FLOAT_C(1.0);
-    cfg.obs_cfg.L[0][0] = RON_FLOAT_C(0.5);
-    cfg.obs_cfg.x0[0]   = RON_FLOAT_C(0.0);
+    cfg.est.obs_cfg.n       = 1U;
+    cfg.est.obs_cfg.m       = 1U;
+    cfg.est.obs_cfg.p       = 1U;
+    cfg.est.obs_cfg.A[0][0] = a;
+    cfg.est.obs_cfg.B[0][0] = b;
+    cfg.est.obs_cfg.C[0][0] = RON_FLOAT_C(1.0);
+    cfg.est.obs_cfg.L[0][0] = RON_FLOAT_C(0.5);
+    cfg.est.obs_cfg.x0[0]   = RON_FLOAT_C(0.0);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ss_init(&ss, &cfg));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_lp1_init(&filt, &fcfg));
@@ -318,7 +318,7 @@ void test_ron_tc_int_003(void)
         (void) ron_lp1_step(&filt, y_meas, &y_filt);
         y_vec[0] = y_filt;
         u_vec[0] = u_prev;
-        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ss_observer_step(&ss, y_vec, u_vec));
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_estimator_observer_step(&ss.est, y_vec, u_vec));
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
                                 ron_ss_step(&ss, RON_FLOAT_C(5.0), dt, &u, &status));
 
@@ -337,7 +337,7 @@ void test_ron_tc_int_003(void)
     TEST_ASSERT_TRUE(saturated_seen);
 
     /* The embedded observer estimate has converged to the true plant state. */
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.01), x, ss.observer.state.x_hat[0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.01), x, ss.est.observer.state.x_hat[0]);
 }
 
 /* =========================================================================
@@ -350,11 +350,11 @@ void test_ron_tc_int_003(void)
  * ========================================================================= */
 void test_ron_tc_int_004(void)
 {
-    ron_at_t at;
-    ron_pid_instance_t pid;
+    ron_autotune_t at;
+    ron_pid_t pid;
     ron_pid_config_t pcfg =
         int_make_pid_cfg(RON_FLOAT_C(1.0), RON_FLOAT_C(0.0), RON_FLOAT_C(-10.0), RON_FLOAT_C(10.0));
-    ron_at_config_t cfg;
+    ron_autotune_config_t cfg;
 
     /* A derivative filter is required for the auto-tuned Kd term to be stable. */
     pcfg.N                = RON_FLOAT_C(10.0);
@@ -369,7 +369,7 @@ void test_ron_tc_int_004(void)
     cfg.u_bias          = RON_FLOAT_C(0.0);
     cfg.min_cycles      = 5U;
     cfg.timeout_s       = RON_FLOAT_C(30.0);
-    cfg.tuning_rule     = RON_AT_RULE_ZN;
+    cfg.tuning_rule     = RON_AUTOTUNE_RULE_ZN;
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_init(&pid, &pcfg));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_init(&at, &cfg));
@@ -422,9 +422,9 @@ void test_ron_tc_int_005(void)
     enum { N = 600 };
     static ron_float_t u_solo[N];
     static ron_float_t u_paired[N];
-    ron_cascade_instance_t a1;
-    ron_cascade_instance_t a2;
-    ron_cascade_instance_t b2;
+    ron_cascade_t a1;
+    ron_cascade_t a2;
+    ron_cascade_t b2;
     ron_pid_config_t outer =
         int_make_pid_cfg(RON_FLOAT_C(4.0), RON_FLOAT_C(0.0), RON_FLOAT_C(-5.0), RON_FLOAT_C(5.0));
     ron_pid_config_t inner = int_make_pid_cfg(RON_FLOAT_C(8.0), RON_FLOAT_C(40.0),

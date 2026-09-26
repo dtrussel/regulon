@@ -15,7 +15,7 @@ extern void __CPROVER_assert(int condition, const char *description);
 /* Satisfies: RON-FR-035 | Test: RON-TC-PID-026-FV */
 void pid_integral_clamp_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t   cfg = {
         RON_FLOAT_C(0.0), RON_FLOAT_C(100.0), RON_FLOAT_C(0.0), RON_FLOAT_C(0.0),
         RON_FLOAT_C(1.0), RON_FLOAT_C(1.0), RON_FLOAT_C(-100.0), RON_FLOAT_C(100.0),

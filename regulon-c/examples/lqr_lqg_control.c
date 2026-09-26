@@ -43,8 +43,8 @@ static int run_lqr(void)
 
     cfg.n             = 2U;
     cfg.m             = 1U;
-    cfg.source        = RON_LQR_SOURCE_EXTERNAL;
-    cfg.x_ext         = x;
+    cfg.est.source        = RON_ESTIMATOR_EXTERNAL;
+    cfg.est.x_ext         = x;
     cfg.gain_mode     = RON_LQR_GAIN_DARE;
     cfg.A[0][0]       = RON_FLOAT_C(1.0);
     cfg.A[0][1]       = RON_FLOAT_C(1.0);

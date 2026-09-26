@@ -6,13 +6,14 @@
  * @req      RON-FR-001, RON-FR-004, RON-FR-005, RON-FR-006, RON-FR-010,
  *           RON-FR-020, RON-FR-030, RON-FR-040, RON-FR-070, RON-SR-010
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  */
 
 #include "ron/ron_platform.h"
 
 #include "ron_pid_internal.h"
+#include "ron_util_internal.h"
 
 typedef struct {
     ron_float_t u_ff;
@@ -20,12 +21,6 @@ typedef struct {
     ron_float_t v_prev;
     ron_float_t a_prev;
 } pid_feedforward_update_t;
-
-/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-static bool pid_core_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
 
 /* Satisfies: RON-FR-010, RON-FR-011 | Test: RON-TC-PID-011, RON-TC-PID-012 */
 static ron_float_t pid_normalise(ron_float_t x, ron_float_t x_min, ron_float_t x_max)
@@ -170,37 +165,8 @@ static ron_float_t pid_integral(const ron_pid_config_t *cfg, const ron_pid_state
     return ron_clamp(i_new, cfg->I_min, cfg->I_max);
 }
 
-/* Satisfies: RON-FR-022 | Test: RON-TC-PID-017 */
-static ron_float_t pid_rate_limit(ron_float_t u_sat, ron_float_t u_prev, ron_float_t du_max,
-                                  ron_float_t dt, bool *limited)
-{
-    ron_float_t limited_value;
-
-    limited_value = u_sat;
-    if (du_max <= RON_FLOAT_C(0.0)) {
-        *limited = false;
-    } else {
-        ron_float_t delta_max;
-        ron_float_t delta;
-
-        delta_max = du_max * dt;
-        delta     = u_sat - u_prev;
-        if (delta > delta_max) {
-            *limited      = true;
-            limited_value = u_prev + delta_max;
-        } else if (delta < (-delta_max)) {
-            *limited      = true;
-            limited_value = u_prev - delta_max;
-        } else {
-            *limited = false;
-        }
-    }
-
-    return limited_value;
-}
-
 /* Satisfies: RON-SR-010 | Test: RON-TC-SAFE-007, RON-TC-SAFE-010 */
-static ron_fault_t pid_fail_step(ron_pid_instance_t *inst, ron_fault_t code, ron_float_t *u_out,
+static ron_fault_t pid_fail_step(ron_pid_t *inst, ron_fault_t code, ron_float_t *u_out,
                                  ron_status_t *status)
 {
     ron_fault_t fault;
@@ -253,17 +219,17 @@ static void pid_prepare_inputs(const ron_pid_config_t *cfg, ron_pid_state_t *sta
 }
 
 /* Satisfies: RON-FR-020 – RON-FR-035, RON-SR-010 | Test: RON-TC-PID-015 – RON-TC-PID-026, RON-TC-SAFE-010 */
-static ron_fault_t pid_apply_output_limits(ron_pid_instance_t *inst, ron_float_t dt,
-                                           ron_float_t i_term, ron_float_t u_raw,
-                                           ron_float_t *u_final, ron_status_t *step_status,
-                                           ron_float_t *u_out, ron_status_t *status)
+static ron_fault_t pid_apply_output_limits(ron_pid_t *inst, ron_float_t dt, ron_float_t i_term,
+                                           ron_float_t u_raw, ron_float_t *u_final,
+                                           ron_status_t *step_status, ron_float_t *u_out,
+                                           ron_status_t *status)
 {
     const ron_pid_config_t *cfg;
     ron_fault_t fault;
 
     cfg   = &inst->config;
     fault = RON_FAULT_NONE;
-    if (!pid_core_isfinite(u_raw)) {
+    if (!ron_util_isfinite(u_raw)) {
         fault = pid_fail_step(inst, RON_FAULT_OUTPUT_NAN, u_out, status);
     } else {
         ron_float_t u_sat;
@@ -274,7 +240,8 @@ static ron_fault_t pid_apply_output_limits(ron_pid_instance_t *inst, ron_float_t
             *step_status = (ron_status_t) (*step_status | RON_STATUS_SATURATED);
         }
 
-        *u_final = pid_rate_limit(u_sat, inst->state.u_sat_prev, cfg->du_max, dt, &rate_limited);
+        *u_final =
+            ron_util_rate_limit(u_sat, inst->state.u_sat_prev, cfg->du_max, dt, &rate_limited);
         if (rate_limited) {
             *step_status = (ron_status_t) (*step_status | RON_STATUS_RATE_LIMITED);
         }
@@ -311,10 +278,9 @@ static void pid_store_step(ron_pid_state_t *state, ron_float_t y_n, ron_float_t 
     state->status      = step_status;
 }
 
-/* Satisfies: RON-FR-001 – RON-FR-071 | Test: RON-TC-PID-001 – RON-TC-PID-039 */
-ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float_t y,
-                              ron_float_t dt, ron_float_t external_ff, ron_float_t *u_out,
-                              ron_status_t *status)
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-007, RON-FR-010 – RON-FR-013, RON-FR-020 – RON-FR-035, RON-FR-040, RON-FR-054, RON-FR-070 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-027, RON-TC-PID-034, RON-TC-PID-039 */
+ron_fault_t ron_pid_core_step(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
+                              ron_float_t external_ff, ron_float_t *u_out, ron_status_t *status)
 {
     const ron_pid_config_t *cfg;
     ron_pid_state_t *state;
@@ -328,7 +294,7 @@ ron_fault_t ron_pid_core_step(ron_pid_instance_t *inst, ron_float_t r, ron_float
     state       = &inst->state;
     step_status = RON_STATUS_OK;
 
-    if (!pid_core_isfinite(r) || !pid_core_isfinite(y)) {
+    if (!ron_util_isfinite(r) || !ron_util_isfinite(y)) {
         fault = pid_fail_step(inst, RON_FAULT_INPUT_NAN, u_out, status);
     } else if (pid_manual_step(state, u_out, status)) {
         fault = RON_FAULT_NONE;

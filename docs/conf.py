@@ -115,8 +115,8 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "requirements.txt",
-    # Per-phase implementation plans and closure evidence are internal
-    # development records rather than user-facing documentation.
+    # The Rust track's status notes are internal development records rather
+    # than user-facing documentation.
     "plans/**",
 ]
 

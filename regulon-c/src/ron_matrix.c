@@ -10,8 +10,6 @@
 
 #include "ron_matrix_internal.h"
 
-#define RON_MAT_SQRT_STEPS (30U)
-
 /* Satisfies: RON-FR-607 | Test: RON-TC-KF-008, RON-TC-SS-001 */
 void ron_mat_load(ron_mat_t dst, const ron_float_t *src, uint8_t src_cols, uint8_t rows,
                   uint8_t cols)
@@ -156,19 +154,17 @@ bool ron_mat_strided_finite(const ron_float_t *src, uint8_t src_cols, uint8_t ro
     return true;
 }
 
-/* Fixed-iteration Newton square root.  Precondition: value > 0. */
-/* Satisfies: RON-FR-603 | Test: RON-TC-KF-004 */
-ron_float_t ron_mat_sqrt(ron_float_t value)
+/* Satisfies: RON-FR-700, RON-FR-756 | Test: RON-TC-LQR-001, RON-TC-LQG-001 */
+void ron_mat_zero(ron_float_t *dst, uint8_t dst_cols, uint8_t rows, uint8_t cols)
 {
-    ron_float_t x;
-    uint8_t step;
+    uint8_t i;
+    uint8_t j;
 
-    x = (value > RON_FLOAT_C(1.0)) ? value : RON_FLOAT_C(1.0);
-    for (step = 0U; step < RON_MAT_SQRT_STEPS; step++) {
-        x = RON_FLOAT_C(0.5) * (x + (value / x));
+    for (i = 0U; i < rows; i++) {
+        for (j = 0U; j < cols; j++) {
+            dst[((size_t) i * (size_t) dst_cols) + (size_t) j] = RON_FLOAT_C(0.0);
+        }
     }
-
-    return x;
 }
 
 /* Satisfies: RON-FR-603 | Test: RON-TC-KF-004 */
@@ -189,7 +185,7 @@ bool ron_mat_cholesky(ron_mat_t mat, uint8_t dim)
                 if (sum <= RON_FLOAT_C(0.0)) {
                     return false;
                 }
-                mat[i][j] = ron_mat_sqrt(sum);
+                mat[i][j] = ron_util_sqrt(sum);
             } else {
                 mat[i][j] = sum / mat[j][j];
             }

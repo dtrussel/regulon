@@ -13,8 +13,8 @@
 /* Satisfies: RON-QR-030, RON-FR-061 | Test: RON-TC-QUAL-016-FV */
 void pid_no_global_state_proof(void)
 {
-    ron_pid_instance_t first;
-    ron_pid_instance_t second;
+    ron_pid_t first;
+    ron_pid_t second;
     ron_pid_config_t cfg;
     ron_float_t first_u = RON_FLOAT_C(0.0);
     ron_float_t second_u = RON_FLOAT_C(0.0);

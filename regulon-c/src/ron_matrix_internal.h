@@ -27,6 +27,8 @@
 
 #include "ron/ron_platform.h"
 
+#include "ron_util_internal.h"
+
 /** Uniform working stride for every scratch matrix / vector. */
 typedef ron_float_t ron_mat_t[RON_MAT_MAX_DIM][RON_MAT_MAX_DIM];
 typedef ron_float_t ron_vec_t[RON_MAT_MAX_DIM];
@@ -111,11 +113,14 @@ bool ron_mat_vec_finite(const ron_float_t *vec, uint8_t count);
 bool ron_mat_strided_finite(const ron_float_t *src, uint8_t src_cols, uint8_t rows, uint8_t cols);
 
 /**
- * @brief Fixed-iteration Newton square root.  Precondition: value > 0.
+ * @brief Zero the leading rows x cols block of a strided matrix.
  *
- * Satisfies: RON-FR-603 | Test: RON-TC-KF-004
+ * `dst` has a physical row stride of `dst_cols` elements.
+ *
+ * Satisfies: RON-FR-700, RON-FR-756 | Test: RON-TC-LQR-001, RON-TC-LQG-001
  */
-ron_float_t ron_mat_sqrt(ron_float_t value);
+/* Satisfies: RON-FR-700, RON-FR-756 | Test: RON-TC-LQR-001, RON-TC-LQG-001 */
+void ron_mat_zero(ron_float_t *dst, uint8_t dst_cols, uint8_t rows, uint8_t cols);
 
 /**
  * @brief In-place Cholesky factorisation.

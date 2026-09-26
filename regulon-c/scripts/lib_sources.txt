@@ -1,5 +1,6 @@
 regulon-c/src/ron_autotune.c
 regulon-c/src/ron_cascade.c
+regulon-c/src/ron_estimator.c
 regulon-c/src/ron_feedforward.c
 regulon-c/src/ron_filter.c
 regulon-c/src/ron_gain_sched.c
@@ -17,3 +18,4 @@ regulon-c/src/ron_pid_fault.c
 regulon-c/src/ron_statespace.c
 regulon-c/src/ron_trajectory_scurve.c
 regulon-c/src/ron_trajectory_trap.c
+regulon-c/src/ron_util.c

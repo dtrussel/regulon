@@ -1,25 +1,25 @@
 .. ============================================================
 .. Software Requirements Specification
-.. Regulon — PID Controller Module
+.. Regulon — Control Systems Library
 .. ============================================================
 
 .. meta::
-   :description: Software Requirements Specification for the Regulon, PID Controller Module.
+   :description: Software Requirements Specification for the Regulon Control Systems Library.
    :keywords: PID, control systems, embedded, SRS, requirements, safety-critical
 
 ########################################################################
 Software Requirements Specification
 ########################################################################
 
-**Document Title:** Software Requirements Specification — Regulon, PID Controller Module
+**Document Title:** Software Requirements Specification — Regulon Control Systems Library
 
 **Document ID:** RON-SRS-001
 
-**Version:** 1.2.1
+**Version:** 1.3.0
 
 **Status:** Draft
 
-**Date:** 2026-08-09
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -44,11 +44,11 @@ Revision History
    * - 0.1
      - 2025-03-01
      - Initial draft
-     - TBD
+     - dtrussel
    * - 1.0.0
      - 2025-04-10
      - First baseline release
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2025-04-10
      - Added requirements for: signal conditioning filters, feed-forward,
@@ -56,19 +56,27 @@ Revision History
        filter, state-space controller, Luenberger observer, relay auto-tuning,
        health monitor, performance metrics (RON-FR-100 – FR-954).
        Updated traceability matrix.
-     - TBD
+     - dtrussel
    * - 1.2.0
      - 2026-06-08
      - Added requirements for: Linear Quadratic Regulator (RON-FR-730 –
        FR-739) and Linear Quadratic Gaussian controller (RON-FR-750 –
        FR-759). Updated traceability matrix.
-     - TBD
+     - dtrussel
    * - 1.2.1
      - 2026-08-09
      - Clarified the RTOS scope exclusion: it concerns kernel coupling, not
        build-system packaging for an RTOS ecosystem. No requirements added
        or changed.
-     - TBD
+     - dtrussel
+   * - 1.3.0
+     - 2026-09-26
+     - Added RON-FR-514 (trajectory reset) and RON-FR-515 (trajectory state
+       read-back). Reworded RON-FR-061: instances are caller-owned with a
+       visible layout, accessed only through the API, rather than opaque.
+       RON-FR-701 and RON-FR-734 are now met by one shared state-estimator
+       component; the requirements themselves are unchanged.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -540,7 +548,7 @@ Multi-Instance Support
    * - RON-FR-060
      - The library **shall** support simultaneous independent instances of PID controllers, limited only by available memory.
    * - RON-FR-061
-     - All instance state **shall** be encapsulated in an opaque data structure; no global mutable state **shall** be used.
+     - All instance state **shall** be encapsulated in a caller-owned instance structure that callers access only through the API (its layout is visible so that it can be allocated statically, but its fields are not part of the contract); no global mutable state **shall** be used.
    * - RON-FR-062
      - Each instance **shall** be fully independent: configuration, state, and execution of one instance **shall** not affect any other.
 
@@ -1156,7 +1164,7 @@ Cascade Controller
      - Requirement
    * - RON-FR-400
      - The library **shall** provide a cascade controller structure that
-       encapsulates two ``ron_pid_instance_t`` objects (outer and inner) and
+       encapsulates two ``ron_pid_t`` objects (outer and inner) and
        manages their interconnection.
    * - RON-FR-401
      - The cascade ``step`` operation **shall** accept the outer setpoint
@@ -1230,6 +1238,13 @@ S-Curve (Jerk-Limited) Profile
    * - RON-FR-513
      - Both generators **shall** support a ``hold`` mode that freezes output
        without resetting kinematic state.
+   * - RON-FR-514
+     - Both generators **shall** provide a reset that re-seeds the kinematic
+       state at rest at a given position, clears hold, finished-move and
+       fault state, and preserves the configuration.
+   * - RON-FR-515
+     - Both generators **shall** provide read-only access to their complete
+       internal state.
 
 ------------------------------------------------------------------------
 
@@ -1627,7 +1642,7 @@ Appendix C: Traceability Matrix (Summary)
    * - Cascade controller
      - RON-FR-400 – FR-406
    * - Trajectory generators
-     - RON-FR-500 – FR-513
+     - RON-FR-500 – FR-515
    * - Kalman filter
      - RON-FR-600 – FR-607
    * - State-space controller

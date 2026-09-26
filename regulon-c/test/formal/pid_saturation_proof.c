@@ -20,7 +20,7 @@ extern ron_float_t nondet_ron_float_t(void);
 /* Satisfies: RON-FR-020, RON-SR-010 | Test: RON-TC-PID-015-FV */
 void pid_saturation_proof(void)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
     ron_pid_config_t cfg = {RON_FLOAT_C(10.0),
                             RON_FLOAT_C(0.0),
                             RON_FLOAT_C(0.0),

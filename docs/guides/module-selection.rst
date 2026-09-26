@@ -41,7 +41,7 @@ the same dependency behaviour. See :doc:`zephyr`.
      - :doc:`../api/kalman`
      - —
    * - ``RON_ENABLE_STATESPACE``
-     - :doc:`../api/statespace`, :doc:`../api/observer`
+     - :doc:`../api/statespace`, :doc:`../api/observer`, :doc:`../api/estimator`
      - ``KALMAN``
    * - ``RON_ENABLE_LQR``
      - :doc:`../api/lqr`

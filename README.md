@@ -77,7 +77,7 @@ cmake --build build
 ```c
 #include "ron/ron.h"
 
-static ron_pid_instance_t pid;
+static ron_pid_t pid;
 
 void init(void) {
     ron_pid_config_t cfg = {
@@ -161,7 +161,7 @@ cmake --build build_arm
 Every push and pull request runs the full [`ci_c.yml`](.github/workflows/ci_c.yml)
 matrix: GCC + ASan/UBSan, GCC double-precision, Clang, `clang-format`,
 `cppcheck`/MISRA C:2023, complexity (`lizard -C 10`), 100% statement and
-branch coverage (LLVM `llvm-cov`), CBMC formal proofs (bounded-memory /
+branch coverage and MC/DC (LLVM `llvm-cov`), CBMC formal proofs (bounded-memory /
 output-saturation properties), ARM and RISC-V cross-compile smoke builds, a
 source-manifest drift check, a minimal-subset build, the example programs,
 a timing benchmark, a package-install smoke test, and a documentation
@@ -200,7 +200,7 @@ GitHub Pages is the manually-triggered
 ```
 docs/                <- Sphinx documentation site (conf.py, guides/, api/)
 docs/specs/          <- SRS/SADS/IS/TP — requirements, architecture, API, and test specs (ground truth)
-docs/plans/          <- Per-phase implementation plans and closure evidence
+docs/plans/rust/     <- Rust port status notes
 docs/deviations/     <- MISRA C:2023 deviation records
 regulon-c/           <- C11 implementation
 zephyr/              <- Zephyr module manifest, Kconfig, build glue, and sample

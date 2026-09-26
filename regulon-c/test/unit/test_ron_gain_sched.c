@@ -25,9 +25,9 @@ void tearDown(void)
 }
 
 /* Satisfies: RON-FR-050 | Test: RON-TC-PID-030 */
-static ron_pid_instance_t test_ron_gs_init_pid(const ron_pid_config_t *cfg)
+static ron_pid_t test_ron_gs_init_pid(const ron_pid_config_t *cfg)
 {
-    ron_pid_instance_t inst;
+    ron_pid_t inst;
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_pid_init(&inst, cfg));
     return inst;
@@ -86,13 +86,13 @@ static void test_ron_gs_expect_hard_switch_update(const ron_pid_config_t *base_c
                                                   const ron_pid_config_t *next_cfg)
 {
     ron_gs_table_t table = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
 
     table.n_points = 2U;
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.0), base_cfg);
     test_ron_gs_set_point(&table, 1U, RON_FLOAT_C(1.0), next_cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&table));
     pid = test_ron_gs_init_pid(base_cfg);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_update(&table, &pid, RON_FLOAT_C(1.0)));
 }
@@ -107,7 +107,7 @@ static void test_ron_gs_expect_interp_invalid(const ron_pid_config_t *base_cfg,
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.0), base_cfg);
     test_ron_gs_set_point(&table, 1U, RON_FLOAT_C(1.0), next_cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&table));
 }
 
 /* RON-TC-GS-001 | RON-FR-300 */
@@ -116,7 +116,7 @@ void test_ron_tc_gs_001(void)
     ron_pid_config_t cfg_lo = test_ron_make_pid_cfg();
     ron_pid_config_t cfg_hi = test_ron_make_pid_cfg();
     ron_gs_table_t table    = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t u       = RON_FLOAT_C(0.0);
     ron_status_t status = RON_STATUS_OK;
 
@@ -132,7 +132,7 @@ void test_ron_tc_gs_001(void)
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.0), &cfg_lo);
     test_ron_gs_set_point(&table, 1U, RON_FLOAT_C(1.0), &cfg_hi);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&table));
     pid = test_ron_gs_init_pid(&cfg_lo);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_update(&table, &pid, RON_FLOAT_C(1.5)));
     TEST_ASSERT_FLOAT_WITHIN(TEST_GS_TOL, RON_FLOAT_C(4.0), pid.config.Kp);
@@ -164,8 +164,8 @@ void test_ron_tc_gs_002(void)
     invalid_count          = valid;
     invalid_count.n_points = (uint8_t) (RON_GS_MAX_BREAKPOINTS + 1U);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&valid));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&invalid_count));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&valid));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&invalid_count));
 }
 
 /* RON-TC-GS-003 | RON-FR-302 */
@@ -175,7 +175,7 @@ void test_ron_tc_gs_003(void)
     ron_pid_config_t cfg1 = test_ron_make_pid_cfg();
     ron_pid_config_t cfg2 = test_ron_make_pid_cfg();
     ron_gs_table_t table  = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t u       = RON_FLOAT_C(0.0);
     ron_status_t status = RON_STATUS_OK;
 
@@ -187,7 +187,7 @@ void test_ron_tc_gs_003(void)
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.0), &cfg0);
     test_ron_gs_set_point(&table, 1U, RON_FLOAT_C(1.0), &cfg1);
     test_ron_gs_set_point(&table, 2U, RON_FLOAT_C(2.0), &cfg2);
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&table));
 
     pid = test_ron_gs_init_pid(&cfg0);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_update(&table, &pid, RON_FLOAT_C(0.5)));
@@ -218,7 +218,7 @@ void test_ron_tc_gs_004(void)
     ron_pid_config_t cfg0 = test_ron_make_pid_cfg();
     ron_pid_config_t cfg1 = test_ron_make_pid_cfg();
     ron_gs_table_t table  = test_ron_gs_make_table(RON_GS_LINEAR_INTERP, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
 
     cfg0.Kp = RON_FLOAT_C(1.0);
     cfg1.Kp = RON_FLOAT_C(3.0);
@@ -226,7 +226,7 @@ void test_ron_tc_gs_004(void)
     table.n_points = 2U;
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.0), &cfg0);
     test_ron_gs_set_point(&table, 1U, RON_FLOAT_C(1.0), &cfg1);
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&table));
 
     pid = test_ron_gs_init_pid(&cfg0);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_update(&table, &pid, RON_FLOAT_C(-0.25)));
@@ -247,13 +247,13 @@ void test_ron_tc_gs_004_single_point_interp_table(void)
 {
     ron_pid_config_t cfg = test_ron_make_pid_cfg();
     ron_gs_table_t table = test_ron_gs_make_table(RON_GS_LINEAR_INTERP, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
 
     cfg.Kp         = RON_FLOAT_C(1.25);
     table.n_points = 1U;
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.5), &cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&table));
     pid = test_ron_gs_init_pid(&cfg);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_update(&table, &pid, RON_FLOAT_C(0.75)));
     TEST_ASSERT_FLOAT_WITHIN(TEST_GS_TOL, RON_FLOAT_C(1.25), pid.config.Kp);
@@ -268,7 +268,7 @@ void test_ron_tc_gs_005(void)
     ron_pid_config_t invalid_cfg = test_ron_make_pid_cfg();
     ron_gs_table_t atomic_table  = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
     ron_gs_table_t invalid_table = test_ron_gs_make_table(RON_GS_LINEAR_INTERP, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
 
     base_cfg.Kp  = RON_FLOAT_C(0.5);
     low_cfg      = base_cfg;
@@ -282,7 +282,7 @@ void test_ron_tc_gs_005(void)
     atomic_table.n_points = 2U;
     test_ron_gs_set_point(&atomic_table, 0U, RON_FLOAT_C(0.0), &low_cfg);
     test_ron_gs_set_point(&atomic_table, 1U, RON_FLOAT_C(1.0), &high_cfg);
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&atomic_table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&atomic_table));
 
     pid = test_ron_gs_init_pid(&base_cfg);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_update(&atomic_table, &pid, RON_FLOAT_C(1.0)));
@@ -451,7 +451,7 @@ void test_ron_tc_gs_006(void)
     ron_pid_config_t cfg0 = test_ron_make_pid_cfg();
     ron_pid_config_t cfg1 = test_ron_make_pid_cfg();
     ron_gs_table_t table  = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
-    ron_pid_instance_t pid;
+    ron_pid_t pid;
     ron_float_t u_before  = RON_FLOAT_C(0.0);
     ron_float_t u_after   = RON_FLOAT_C(0.0);
     ron_status_t status   = RON_STATUS_OK;
@@ -462,7 +462,7 @@ void test_ron_tc_gs_006(void)
     table.n_points = 2U;
     test_ron_gs_set_point(&table, 0U, RON_FLOAT_C(0.0), &cfg0);
     test_ron_gs_set_point(&table, 1U, RON_FLOAT_C(1.0), &cfg1);
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&table));
 
     pid = test_ron_gs_init_pid(&cfg0);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
@@ -487,8 +487,8 @@ void test_ron_tc_gs_007(void)
     ron_pid_config_t cfg1      = test_ron_make_pid_cfg();
     ron_gs_table_t reset_table = test_ron_gs_make_table(RON_GS_HARD_SWITCH, true);
     ron_gs_table_t keep_table  = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
-    ron_pid_instance_t reset_pid;
-    ron_pid_instance_t keep_pid;
+    ron_pid_t reset_pid;
+    ron_pid_t keep_pid;
     ron_float_t integral = RON_FLOAT_C(0.0);
 
     cfg0.Kp    = RON_FLOAT_C(0.0);
@@ -505,8 +505,8 @@ void test_ron_tc_gs_007(void)
     test_ron_gs_set_point(&keep_table, 0U, RON_FLOAT_C(0.0), &cfg0);
     test_ron_gs_set_point(&keep_table, 1U, RON_FLOAT_C(1.0), &cfg1);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&reset_table));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_init(&keep_table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&reset_table));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_gs_table_validate(&keep_table));
 
     reset_pid = test_ron_gs_init_pid(&cfg0);
     keep_pid  = test_ron_gs_init_pid(&cfg0);
@@ -545,8 +545,8 @@ void test_ron_tc_gs_008(void)
     ron_gs_table_t first_cfg_bad = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
     ron_gs_table_t second_sigma_nan = test_ron_gs_make_table(RON_GS_HARD_SWITCH, false);
     ron_gs_table_t interp_mixed = test_ron_gs_make_table(RON_GS_LINEAR_INTERP, false);
-    ron_pid_instance_t pid      = test_ron_gs_init_pid(&cfg);
-    ron_pid_instance_t uninit_pid = {0};
+    ron_pid_t pid      = test_ron_gs_init_pid(&cfg);
+    ron_pid_t uninit_pid = {0};
     ron_float_t nonfinite       = test_ron_gs_make_inf();
 
     unsorted.n_points = 2U;
@@ -587,16 +587,16 @@ void test_ron_tc_gs_008(void)
     cfg.aw_mode           = RON_AW_BACK_CALC;
     test_ron_gs_set_point(&interp_mixed, 1U, RON_FLOAT_C(1.0), &cfg);
 
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_gs_init(NULL));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&zero_points));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&unsorted));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&duplicate));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&invalid_cfg));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&invalid_mode));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&first_sigma_nan));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&first_cfg_bad));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&second_sigma_nan));
-    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_init(&interp_mixed));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER, ron_gs_table_validate(NULL));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&zero_points));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&unsorted));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&duplicate));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&invalid_cfg));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&invalid_mode));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&first_sigma_nan));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&first_cfg_bad));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&second_sigma_nan));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID, ron_gs_table_validate(&interp_mixed));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,
                             ron_gs_update(&unsorted, NULL, RON_FLOAT_C(0.0)));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NULL_POINTER,

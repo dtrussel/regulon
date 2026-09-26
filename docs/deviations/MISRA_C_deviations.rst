@@ -7,11 +7,11 @@ MISRA C:2023 Deviation Records
 
 **Document ID:** RON-DEV-C-001
 
-**Version:** 0.4.0 (full-library audit — Phases 0-12)
+**Version:** 0.6.0
 
 **Status:** Draft
 
-**Date:** 2026-08-07
+**Date:** 2026-09-26
 
 Introduction
 ------------
@@ -25,7 +25,7 @@ Each record contains:
 - The file(s) and line range(s) where the deviation applies
 - Justification
 - Compensating measures
-- Reviewer sign-off
+- Approval, recorded per revision in the Revision History below
 
 A deviation is required for every violation of a **Required** rule.
 **Mandatory** rules are never deviated.  **Advisory** guidelines that cannot
@@ -121,7 +121,7 @@ Deviation Table
    * - DEV-006
      - Rule 2.3 (Unused type declaration), Rule 2.4 (Unused tag declaration)
      - ``regulon-c/include/ron/ron_autotune.h``.
-     - ``ron_at_phase_t`` names the values stored in ``ron_at_state_t.phase``
+     - ``ron_autotune_phase_t`` names the values stored in ``ron_autotune_state_t.phase``
        (held as ``uint8_t`` to keep the struct layout fixed).  The library
        itself only ever uses the enumerators, never the typedef name, so a
        single-translation-unit analysis sees the type as unused — but it is
@@ -165,7 +165,7 @@ Advisory Guidelines — Non-Conformances
      - These macros are part of the public platform contract for API
        consumers (fault-handler declarations, performance-critical inline
        hints, and library version reporting). Re-verified against the full
-       Phase 0-12 active source set: no library source consumes them
+       library source set: no library source consumes them
        internally, which is expected — they exist for callers, not for the
        library's own translation units.
 
@@ -179,23 +179,23 @@ Revision History
    * - Version
      - Date
      - Description
-     - Author
+     - Author / Approver
    * - 0.1.0
      - 2026-04-11
      - Sprint 0 baseline (no deviations).
-     - TBD
+     - dtrussel
    * - 0.2.0
      - 2026-04-12
      - PID kickoff updated; still no approved deviations.
-     - TBD
+     - dtrussel
    * - 0.3.0
      - 2026-04-12
      - Added approved PID verification-closure deviations for Rules 15.5,
        20.10, and 8.7; recorded the active-slice Rule 2.5 observation.
-     - TBD
+     - dtrussel
    * - 0.4.0
      - 2026-08-07
-     - Full-library audit after Phase 12 (LQR/LQG) closed the C11 roadmap.
+     - Full-library audit.
        Re-ran ``cppcheck --addon=misra.py`` over the complete active source
        manifest (``scripts/lib_sources.txt``): widened DEV-001 (Rule 15.5)
        from the four original PID files to the whole active source set,
@@ -204,6 +204,19 @@ Revision History
        toolchain actually flags; added DEV-004 (Rule 15.7, missing final
        ``else``) to formally record a deviation that was already an active
        CI suppression but had never been documented; updated OBS-002's
-       wording now that the "active slice" is the full library, not
-       PID-only.
-     - TBD
+       wording to cover the full library rather than the PID module alone.
+     - dtrussel
+   * - 0.5.0
+     - 2026-08-09
+     - Made the cppcheck CI gate enforcing (``set -o pipefail``) and
+       resolved the findings it had hidden: added DEV-005 (Rule 20.9,
+       ``__has_include``) and DEV-006 (Rules 2.3/2.4, public
+       ``ron_at_phase_t``).
+     - dtrussel
+   * - 0.6.0
+     - 2026-09-26
+     - Re-verified with ``ron_util.c`` added to the source manifest (no new
+       findings). DEV-006 follows the 0.2.0 rename of ``ron_at_phase_t`` to
+       ``ron_autotune_phase_t``. Filled the author/approver of every
+       revision; each record's approval is its revision's entry here.
+     - dtrussel

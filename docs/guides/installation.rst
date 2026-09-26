@@ -30,9 +30,10 @@ package, and a pkg-config file. Consumers then need only:
 If the prefix is not a default search location, point CMake at it with
 ``-DCMAKE_PREFIX_PATH=/opt/regulon``.
 
-The package declares ``SameMajorVersion`` compatibility, so
-``find_package(regulon 0.1 REQUIRED)`` accepts any ``0.x`` release but
-refuses ``1.0``.
+Before 1.0 the package declares ``SameMinorVersion`` compatibility, since
+Semantic Versioning allows breaking changes between ``0.y`` releases:
+``find_package(regulon 0.1 REQUIRED)`` accepts any ``0.1.z`` but refuses
+``0.2``. From 1.0 on it will declare ``SameMajorVersion``.
 
 Vendor the source tree
 ----------------------
