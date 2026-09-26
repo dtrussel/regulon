@@ -305,6 +305,12 @@ Fixed
   tracking, flags and results, so a second run started with stale crossing
   counts, peaks and timers. It now reseeds the run state (configuration and
   initialised guard kept) before taking the PID snapshot.
+- ``ron_trap_step()`` / ``ron_scurve_step()`` were documented to return and
+  latch ``RON_FAULT_OUTPUT_NAN`` for a non-finite setpoint but never checked,
+  so an overflowing move emitted ``inf``/``NaN`` setpoints (and could report
+  ``finished``). The kinematic setpoints are now checked after integration;
+  on failure the fault latches, the status becomes ``RON_STATUS_FAULT`` and
+  the state and outputs keep the last finite setpoints.
 
 ------------------------------------------------------------------------
 

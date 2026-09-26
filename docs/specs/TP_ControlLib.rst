@@ -2486,9 +2486,18 @@ RON-TC-TRAJ-007 - Finished Flag
      - Valid trapezoidal and S-curve configurations.
    * - **Stimulus**
      - Command zero-distance and non-zero-distance moves for both generators.
+       Then, with valid finite limits, command a move whose integration
+       overflows (a target near the float range limit with a long ``dt``),
+       and poison the acceleration / velocity (and, for the S-curve, the jerk)
+       state directly so each setpoint is in turn the first non-finite one.
    * - **Pass Criterion**
      - ``finished`` is true for zero-distance commands and false while a
        non-zero move is active; it becomes true again at target convergence.
+       A step whose computed setpoint is not finite returns
+       ``RON_FAULT_OUTPUT_NAN``, latches it in ``fault_code`` with status
+       ``RON_STATUS_FAULT``, never reports ``finished``, and keeps the last
+       finite setpoints in both the state and the outputs; later steps return
+       the latched fault.
 
 RON-TC-TRAJ-008 - Hold Mode
 ----------------------------
