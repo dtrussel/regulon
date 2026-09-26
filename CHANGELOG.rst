@@ -222,6 +222,11 @@ Added
   in C) and runtime notch retuning. Kani harnesses cover RON-TC-FILT-009-FV
   and FILT-012-FV. A step whose output would not be finite leaves the
   window/section state untouched (C updates it first).
+- ``.github/workflows/ci_rust.yml``: Rust track CI for ``regulon-rs/`` —
+  rustfmt, pedantic clippy and tests in single and double precision (tests
+  also on beta), a ``thumbv7em-none-eabihf`` release build, Kani proofs,
+  ``cargo audit``, a ``cargo-llvm-cov`` coverage report (not yet enforced)
+  and the traceability check.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 

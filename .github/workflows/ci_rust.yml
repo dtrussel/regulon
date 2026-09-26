@@ -1,0 +1,184 @@
+name: CI - Rust Library
+
+# RON-TP-001 §2.6 | RON-TC-QUAL-008
+# Rust track gates (regulon-rs/). Triggers on every push/PR touching the crate,
+# the specifications it is traced against, or this workflow.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "regulon-rs/**"
+      - "docs/specs/**"
+      - "regulon-c/scripts/check_traceability.py"
+      - ".github/workflows/ci_rust.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "regulon-rs/**"
+      - "docs/specs/**"
+      - "regulon-c/scripts/check_traceability.py"
+      - ".github/workflows/ci_rust.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+defaults:
+  run:
+    working-directory: regulon-rs
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: rustfmt (RON-TC-QUAL-001)
+  # ---------------------------------------------------------------------------
+  fmt:
+    name: rustfmt Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Clippy, pedantic, both precisions (RON-TC-QUAL-001)
+  # ---------------------------------------------------------------------------
+  clippy:
+    name: Clippy (${{ matrix.precision }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - precision: single
+            features: ""
+          - precision: double
+            features: "--features double_precision"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: regulon-rs
+      - name: Clippy (library, pedantic)
+        run: cargo clippy --workspace ${{ matrix.features }} -- -D warnings -D clippy::all -D clippy::pedantic
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Unit tests, both precisions; stable and beta (RON-TC-QUAL-008)
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (${{ matrix.toolchain }}, ${{ matrix.precision }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolchain: stable
+            precision: single
+            features: ""
+          - toolchain: stable
+            precision: double
+            features: "--features double_precision"
+          - toolchain: beta
+            precision: single
+            features: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: regulon-rs
+      - name: cargo test
+        run: cargo test --workspace ${{ matrix.features }}
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Bare-metal cross build (RON-TC-QUAL-022)
+  # ---------------------------------------------------------------------------
+  cross:
+    name: Cross Build (thumbv7em-none-eabihf)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: regulon-rs
+      - name: Build (release, no_std)
+        run: cargo build --workspace --release --target thumbv7em-none-eabihf
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Kani formal proofs (RON-TP-001 §2.4, *-FV test cases)
+  # ---------------------------------------------------------------------------
+  kani:
+    name: Kani Proofs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Kani on every harness
+        uses: model-checking/kani-github-action@v1
+        with:
+          working-directory: regulon-rs
+          args: --workspace
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Dependency audit (RON-TC-QUAL-004)
+  # ---------------------------------------------------------------------------
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit Cargo.lock
+        run: cargo audit
+
+  # ---------------------------------------------------------------------------
+  # Job 7: Coverage report (RON-TC-QUAL-014). Reported, not yet enforced.
+  # ---------------------------------------------------------------------------
+  coverage:
+    name: Code Coverage (cargo-llvm-cov)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: regulon-rs
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+      - name: Measure coverage
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path coverage.lcov
+          cargo llvm-cov report --summary-only
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-rust
+          path: regulon-rs/coverage.lcov
+
+  # ---------------------------------------------------------------------------
+  # Job 8: Requirement / test / code traceability (AGENTS.md)
+  # ---------------------------------------------------------------------------
+  traceability:
+    name: Traceability Check
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify requirement / test / code traceability
+        run: python3 regulon-c/scripts/check_traceability.py
