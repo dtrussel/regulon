@@ -272,7 +272,7 @@ fn design(
     if !positive(frequency) || !positive(q) || !positive(dt) || frequency >= 1.0 / (2.0 * dt) {
         return Err(FilterFault::CONFIG_INVALID);
     }
-    let (sin, cos) = sin_cos(f64::from(TWO_PI * frequency * dt));
+    let (sin, cos) = sin_cos(widen(TWO_PI * frequency * dt));
     let (sn, c) = (narrow(sin), narrow(cos));
     let alpha = sn / (2.0 * q);
     let norm = 1.0 / (1.0 + alpha);
@@ -336,6 +336,13 @@ fn sin_cos(x: f64) -> (f64, f64) {
     ];
     let horner = |terms: &[f64]| terms.iter().fold(0.0, |acc, term| (acc * x2) + term);
     (reduced * horner(&sin_terms), cos_sign * horner(&cos_terms))
+}
+
+/// Widens the library float type to `f64` for the design-time series (a
+/// no-op in `double_precision` builds).
+#[allow(clippy::useless_conversion)]
+fn widen(value: RonFloat) -> f64 {
+    f64::from(value)
 }
 
 /// Narrows a design-time `f64` result to the library float type.

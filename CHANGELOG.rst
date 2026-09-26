@@ -236,6 +236,8 @@ Removed
 
 Fixed
 -----
+- Rust: the biquad design helpers failed pedantic clippy in
+  ``double_precision`` builds (``useless_conversion`` on the ``f64`` widening).
 - ``ron_lqg.h`` cited RON-TC-LQG-010, which does not exist; the case is
   RON-TC-LQG-010-FV.
 - ``regulon.pc`` still listed ``Libs.private: -lm`` after the libm removal,
