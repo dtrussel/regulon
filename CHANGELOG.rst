@@ -317,6 +317,15 @@ Fixed
   later call failed too. They now compute into locals and commit only a
   finite result; a rejected step leaves the state unchanged. The headers no
   longer claim the fault "latches" (these modules have no fault register).
+- ``ron_ss_step()`` and ``ron_lqr_step()`` advanced the integral accumulator
+  before the output finiteness check, so a step rejected with
+  ``RON_FAULT_OUTPUT_NAN`` still wound the integrator. The integral is now
+  computed into a local and committed only with a finite output. The
+  ``ron_statespace.h`` / ``ron_lqr.h`` / ``ron_lqg.h`` step docs said faults
+  "latch", but nothing ever sets ``faults``: they now say a rejected step
+  leaves the state unchanged, and list ``dt`` rejection under
+  ``RON_FAULT_INPUT_NAN`` (the code's actual return) rather than
+  ``RON_FAULT_CONFIG_INVALID``.
 
 ------------------------------------------------------------------------
 

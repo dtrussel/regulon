@@ -91,21 +91,27 @@ static ron_float_t ss_dot(const ron_float_t *a, const ron_float_t *b, uint8_t n)
     return sum;
 }
 
-/* Satisfies: RON-FR-700, RON-FR-702 | Test: RON-TC-SS-001, RON-TC-SS-003 */
-static ron_float_t ss_compute_raw(ron_ss_t *ss, ron_float_t r, ron_float_t dt,
-                                  const ron_float_t *x_hat)
+/*
+ * Form the unlimited output.  The advanced integral is returned through
+ * integral_next rather than stored, so the caller commits it only once the
+ * output is known to be finite.
+ */
+/* Satisfies: RON-FR-700, RON-FR-702 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-009 */
+static ron_float_t ss_compute_raw(const ron_ss_t *ss, ron_float_t r, ron_float_t dt,
+                                  const ron_float_t *x_hat, ron_float_t *integral_next)
 {
     const ron_ss_config_t *cfg = &ss->cfg;
     uint8_t n                  = cfg->n;
     ron_float_t u_fb           = -ss_dot(&cfg->K[0], x_hat, n);
     ron_float_t u_raw          = u_fb + (cfg->Kr * r);
 
+    *integral_next = ss->state.integral;
     if (cfg->use_integral) {
         ron_float_t e_reg = r - ss_dot(&cfg->C_out[0], x_hat, n);
 
-        ss->state.integral += cfg->Ki_aug * dt * e_reg;
-        ss->state.integral = ron_clamp(ss->state.integral, cfg->i_min, cfg->i_max);
-        u_raw += ss->state.integral;
+        *integral_next += cfg->Ki_aug * dt * e_reg;
+        *integral_next = ron_clamp(*integral_next, cfg->i_min, cfg->i_max);
+        u_raw += *integral_next;
     }
 
     return u_raw;
@@ -140,12 +146,13 @@ static ron_float_t ss_apply_limits(const ron_ss_t *ss, ron_float_t u_raw, ron_fl
  * Step (RON-FR-700, RON-FR-702, RON-FR-703)
  * ========================================================================= */
 
-/* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004 */
+/* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004, RON-TC-SS-009 */
 ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t *u,
                         ron_status_t *status)
 {
     ron_float_t x_hat[RON_SS_MAX_STATES];
     ron_float_t u_raw;
+    ron_float_t integral_next;
     ron_float_t u_final;
     ron_status_t step_status = RON_STATUS_OK;
     ron_fault_t fault;
@@ -165,16 +172,17 @@ ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t
         return fault;
     }
 
-    u_raw = ss_compute_raw(ss, r, dt, x_hat);
+    u_raw = ss_compute_raw(ss, r, dt, x_hat, &integral_next);
     if (!ron_util_isfinite(u_raw)) {
-        return RON_FAULT_OUTPUT_NAN;
+        return RON_FAULT_OUTPUT_NAN; /* Rejected: the integral is not advanced. */
     }
 
     u_final = ss_apply_limits(ss, u_raw, dt, &step_status);
 
-    ss->state.u_prev = u_final;
-    *u               = u_final;
-    *status          = step_status;
+    ss->state.integral = integral_next;
+    ss->state.u_prev   = u_final;
+    *u                 = u_final;
+    *status            = step_status;
 
     return RON_FAULT_NONE;
 }

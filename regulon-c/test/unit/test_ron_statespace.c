@@ -528,6 +528,23 @@ void test_ron_tc_ss_009_runtime(void)
     TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_init(&ss, &cfg));
     TEST_ASSERT_EQUAL(RON_FAULT_OUTPUT_NAN,
                       ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.1), &u, &status));
+
+    /* The rejected step does not wind the integrator: the integral stays at
+     * zero, and only a later finite step advances it (by Ki * dt * r). */
+    cfg.use_integral = true;
+    cfg.Ki_aug       = RON_FLOAT_C(1.0);
+    cfg.C_out[0]     = RON_FLOAT_C(0.0);
+    cfg.i_min        = RON_FLOAT_C(-100.0);
+    cfg.i_max        = RON_FLOAT_C(100.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_init(&ss, &cfg));
+    TEST_ASSERT_EQUAL(RON_FAULT_OUTPUT_NAN,
+                      ron_ss_step(&ss, RON_FLOAT_C(1.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), ss.state.integral);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), ss.state.u_prev);
+    x_ext[0] = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE,
+                      ron_ss_step(&ss, RON_FLOAT_C(1.0), RON_FLOAT_C(0.1), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.1), ss.state.integral);
 }
 
 /* ----------------------------------------------------------------------- */

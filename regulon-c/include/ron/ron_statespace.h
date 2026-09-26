@@ -90,7 +90,7 @@ typedef struct {
 typedef struct {
     ron_float_t integral; /**< Augmented-integral accumulator. */
     ron_float_t u_prev;   /**< Previous output (rate limiting). */
-    ron_fault_t faults;   /**< Latched fault register.          */
+    ron_fault_t faults;   /**< Reserved; always RON_FAULT_NONE. */
     bool is_initialised;  /**< Set by ron_ss_init.              */
 } ron_ss_state_t;
 
@@ -131,8 +131,8 @@ ron_fault_t ron_ss_init(ron_ss_t *ss, const ron_ss_config_t *cfg);
 /**
  * @brief Return the controller to its post-initialisation state.
  *
- * Clears the integral accumulator, output history and any latched fault, and
- * resets the embedded estimator if one is in use.
+ * Clears the integral accumulator and output history, and resets the
+ * embedded estimator if one is in use.
  *
  * @param[in,out] ss  Initialised controller instance. Must not be NULL.
  *
@@ -159,14 +159,20 @@ ron_fault_t ron_ss_reset(ron_ss_t *ss);
  * @param[out]    u       Receives the control output. Must not be NULL.
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
+ * Faults are returned, not latched: a rejected step leaves the state
+ * (integral accumulator and output history) unchanged and writes neither
+ * @p u nor @p status, and the next call is evaluated afresh.
+ *
  * @retval RON_FAULT_NONE           Output computed normally.
- * @retval RON_FAULT_NULL_POINTER   @p ss, @p u or @p status was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  @p dt was not positive.
- * @retval RON_FAULT_INPUT_NAN      @p r, @p dt or the state estimate was not
- *                                  finite; the fault latches.
+ * @retval RON_FAULT_NULL_POINTER   @p ss, @p u or @p status was NULL, or the
+ *                                  external state pointer was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ * @retval RON_FAULT_INPUT_NAN      @p r or the state estimate was not finite,
+ *                                  or @p dt was not positive and finite; the
+ *                                  step is rejected.
  * @retval RON_FAULT_OUTPUT_NAN     The computed output was not finite; the
- *                                  fault latches.
+ *                                  step is rejected and the integral is not
+ *                                  advanced.
  */
 /* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004 */
 ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t *u,

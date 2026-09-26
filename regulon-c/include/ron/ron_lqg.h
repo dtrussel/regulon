@@ -133,7 +133,7 @@ typedef struct {
     ron_float_t K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< LQR gain in use.  */
     ron_float_t P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];    /**< LQR DARE solution.*/
     ron_float_t u_prev[RON_LQR_MAX_INPUTS]; /**< Previous output (rate limiting).        */
-    ron_fault_t faults;                     /**< Latched fault register.                 */
+    ron_fault_t faults;                     /**< Reserved; always RON_FAULT_NONE.        */
     bool is_initialised;                    /**< Set by ron_lqg_init.                    */
 } ron_lqg_t;
 
@@ -249,14 +249,18 @@ ron_fault_t ron_lqg_update(ron_lqg_t *lqg, const ron_float_t z[RON_KF_MAX_MEASUR
  *                        be NULL.
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
+ * Faults are returned, not latched: a rejected step leaves the state
+ * (output history) unchanged and writes neither @p u nor @p status, and the
+ * next call is evaluated afresh.
+ *
  * @retval RON_FAULT_NONE           Output computed normally.
  * @retval RON_FAULT_NULL_POINTER   @p lqg, @p r, @p u or @p status was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  @p dt was not positive.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  * @retval RON_FAULT_INPUT_NAN      An entry of @p r, or the state estimate,
- *                                  was not finite; the fault latches.
- * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the
- *                                  fault latches.
+ *                                  was not finite, or @p dt was not positive
+ *                                  and finite; the step is rejected.
+ * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the step
+ *                                  is rejected.
  */
 /* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
 ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,

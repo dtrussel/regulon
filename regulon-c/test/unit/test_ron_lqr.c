@@ -302,6 +302,26 @@ void test_ron_tc_lqr_006(void)
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqr_reset(NULL));
     TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqr_reset(&fresh));
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqr_get_dare_solution(NULL, NULL));
+
+    /* An overflowing output is rejected without winding the integrator: the
+     * integral stays at zero, and only a later finite step advances it (by
+     * Ki * dt * r). */
+    cfg              = make_ext_cfg(1U, 1U);
+    cfg.K[0][0]      = RON_FLOAT_MAX;
+    cfg.use_integral = true;
+    cfg.Ki_aug[0]    = RON_FLOAT_C(1.0);
+    cfg.i_min[0]     = RON_FLOAT_C(-100.0);
+    cfg.i_max[0]     = RON_FLOAT_C(100.0);
+    x_ext[0]         = RON_FLOAT_MAX;
+    cfg.est.x_ext    = x_ext;
+    r[0]             = RON_FLOAT_C(1.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqr_init(&lqr, &cfg));
+    TEST_ASSERT_EQUAL(RON_FAULT_OUTPUT_NAN, ron_lqr_step(&lqr, r, RON_FLOAT_C(0.1), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), lqr.state.integral[0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), lqr.state.u_prev[0]);
+    x_ext[0] = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqr_step(&lqr, r, RON_FLOAT_C(0.1), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.1), lqr.state.integral[0]);
 }
 
 /* ----------------------------------------------------------------------- */

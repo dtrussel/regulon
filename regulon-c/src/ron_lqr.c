@@ -318,9 +318,11 @@ static void lqr_compute_fb(const ron_lqr_t *lqr, const ron_float_t *x_hat, ron_f
     }
 }
 
-/* Satisfies: RON-FR-735 | Test: RON-TC-LQR-007 */
-static void lqr_apply_integral(ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt,
-                               const ron_float_t *x_hat, ron_float_t *u_raw)
+/* Advances each integral into integral_next (not the instance). */
+/* Satisfies: RON-FR-735 | Test: RON-TC-LQR-006, RON-TC-LQR-007 */
+static void lqr_apply_integral(const ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt,
+                               const ron_float_t *x_hat, ron_float_t *u_raw,
+                               ron_float_t *integral_next)
 {
     const ron_lqr_config_t *cfg = &lqr->cfg;
     uint8_t j;
@@ -335,15 +337,21 @@ static void lqr_apply_integral(ron_lqr_t *lqr, const ron_float_t *r, ron_float_t
         }
         e_reg = r[j] - reg;
 
-        lqr->state.integral[j] += cfg->Ki_aug[j] * dt * e_reg;
-        lqr->state.integral[j] = ron_clamp(lqr->state.integral[j], cfg->i_min[j], cfg->i_max[j]);
-        u_raw[j] += lqr->state.integral[j];
+        integral_next[j] += cfg->Ki_aug[j] * dt * e_reg;
+        integral_next[j] = ron_clamp(integral_next[j], cfg->i_min[j], cfg->i_max[j]);
+        u_raw[j] += integral_next[j];
     }
 }
 
-/* Satisfies: RON-FR-730, RON-FR-735 | Test: RON-TC-LQR-001, RON-TC-LQR-007 */
-static void lqr_compute_raw(ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt,
-                            const ron_float_t *x_hat, ron_float_t *u_raw)
+/*
+ * Form the unlimited outputs.  The advanced integrals are returned through
+ * integral_next rather than stored, so the caller commits them only once
+ * every output is known to be finite.
+ */
+/* Satisfies: RON-FR-730, RON-FR-735 | Test: RON-TC-LQR-001, RON-TC-LQR-006, RON-TC-LQR-007 */
+static void lqr_compute_raw(const ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt,
+                            const ron_float_t *x_hat, ron_float_t *u_raw,
+                            ron_float_t *integral_next)
 {
     const ron_lqr_config_t *cfg = &lqr->cfg;
     uint8_t j;
@@ -351,9 +359,10 @@ static void lqr_compute_raw(ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt
     lqr_compute_fb(lqr, x_hat, u_raw);
     for (j = 0U; j < cfg->m; j++) {
         u_raw[j] += cfg->Kr[j] * r[j];
+        integral_next[j] = lqr->state.integral[j];
     }
     if (cfg->use_integral) {
-        lqr_apply_integral(lqr, r, dt, x_hat, u_raw);
+        lqr_apply_integral(lqr, r, dt, x_hat, u_raw, integral_next);
     }
 }
 
@@ -361,9 +370,14 @@ static void lqr_compute_raw(ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt
  * Output limiting (RON-FR-736, PID-equivalent semantics, per input)
  * ========================================================================= */
 
-/* Satisfies: RON-FR-020, RON-FR-022, RON-FR-736 | Test: RON-TC-LQR-004 */
-static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw, ron_float_t dt,
-                             ron_float_t *u, ron_status_t *status)
+/*
+ * Saturate and rate-limit each output, and commit it with its advanced
+ * integral.
+ */
+/* Satisfies: RON-FR-020, RON-FR-022, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-004, RON-TC-LQR-006 */
+static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw,
+                             const ron_float_t *integral_next, ron_float_t dt, ron_float_t *u,
+                             ron_status_t *status)
 {
     const ron_lqr_config_t *cfg = &lqr->cfg;
     uint8_t j;
@@ -383,8 +397,9 @@ static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw, ron_float
             *status = (ron_status_t) (*status | RON_STATUS_RATE_LIMITED);
         }
 
-        lqr->state.u_prev[j] = u_final;
-        u[j]                 = u_final;
+        lqr->state.integral[j] = integral_next[j];
+        lqr->state.u_prev[j]   = u_final;
+        u[j]                   = u_final;
     }
 }
 
@@ -407,6 +422,7 @@ ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS]
 {
     ron_float_t x_hat[RON_LQR_MAX_STATES];
     ron_float_t u_raw[RON_LQR_MAX_INPUTS];
+    ron_float_t integral_next[RON_LQR_MAX_INPUTS];
     ron_status_t step_status = RON_STATUS_OK;
     ron_fault_t fault;
 
@@ -425,12 +441,12 @@ ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS]
         return fault;
     }
 
-    lqr_compute_raw(lqr, r, dt, x_hat, u_raw);
+    lqr_compute_raw(lqr, r, dt, x_hat, u_raw, integral_next);
     if (!ron_mat_vec_finite(u_raw, lqr->cfg.m)) {
-        return RON_FAULT_OUTPUT_NAN;
+        return RON_FAULT_OUTPUT_NAN; /* Rejected: the integrals are not advanced. */
     }
 
-    lqr_apply_limits(lqr, u_raw, dt, u, &step_status);
+    lqr_apply_limits(lqr, u_raw, integral_next, dt, u, &step_status);
     *status = step_status;
 
     return RON_FAULT_NONE;

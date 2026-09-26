@@ -3019,14 +3019,18 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
        dimensions, invalid source enum, non-finite gains / limits,
        embedded-estimator dimension mismatch and invalid embedded config;
        reject non-positive ``dt`` and non-finite ``r``; drive a controller
-       and an observer into numeric overflow.
+       (without and with integral augmentation) and an observer into numeric
+       overflow, then step the integrating controller once with a finite
+       state.
    * - **Pass Criterion**
      - Max-dimension runs complete with finite outputs and no heap.
        Invalid configurations return ``RON_FAULT_CONFIG_INVALID``; null
        arguments ``RON_FAULT_NULL_POINTER``; non-finite ``r`` / non-positive
        ``dt`` ``RON_FAULT_INPUT_NAN``; overflow yields
        ``RON_FAULT_OUTPUT_NAN``, and an overflowing observer step leaves the
-       previous finite estimate in place.
+       previous finite estimate in place. The rejected controller step leaves
+       the integral and output history unchanged; the following finite step
+       advances the integral by exactly one ``Ki_aug * dt * e``.
 
 ------------------------------------------------------------------------
 
@@ -3225,10 +3229,17 @@ RON-TC-LQR-006 — Fault Detection: Null Pointer and Uninitialised
        (b) Call ``ron_lqr_step`` with ``lqr == NULL``.
        (c) Call ``ron_lqr_step`` on an instance that has not been initialised.
        (d) Call ``ron_lqr_step`` with ``u == NULL``.
+       (e) With integral augmentation enabled, call ``ron_lqr_step`` with a
+       gain and external state whose product overflows, then again with a
+       finite state.
    * - **Pass Criterion**
      - (a) and (b) return ``RON_FAULT_NULL_POINTER``.
        (c) returns ``RON_FAULT_CONFIG_INVALID``.
        (d) returns ``RON_FAULT_NULL_POINTER``. No crash in any case.
+       (e) The overflowing step returns ``RON_FAULT_OUTPUT_NAN`` and leaves
+       the integral and output history unchanged; the finite step returns
+       ``RON_FAULT_NONE`` and advances the integral by exactly one
+       ``Ki_aug * dt * e``.
 
 RON-TC-LQR-007 — Integral Augmentation: Steady-State Tracking
 --------------------------------------------------------------

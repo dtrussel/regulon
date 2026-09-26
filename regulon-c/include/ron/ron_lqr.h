@@ -131,7 +131,7 @@ typedef struct {
     ron_float_t P_solved[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< DARE solution P.*/
     ron_float_t integral[RON_LQR_MAX_INPUTS];                     /**< Integral accumulator.      */
     ron_float_t u_prev[RON_LQR_MAX_INPUTS];                       /**< Previous output (rate lim).*/
-    ron_fault_t faults;                                           /**< Latched fault register.    */
+    ron_fault_t faults;                                           /**< Reserved; always NONE.     */
     bool dare_converged;                                          /**< Set when DARE converged.   */
     bool is_initialised;                                          /**< Set by ron_lqr_init.       */
 } ron_lqr_state_t;
@@ -186,9 +186,9 @@ ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg);
 /**
  * @brief Return the controller to its post-initialisation state.
  *
- * Clears the integral accumulator, output history and any latched fault, and
- * resets the embedded estimator if one is in use. The solved gain is kept, so
- * this does not repeat the DARE solve.
+ * Clears the integral accumulator and output history, and resets the
+ * embedded estimator if one is in use. The solved gain is kept, so this does
+ * not repeat the DARE solve.
  *
  * @param[in,out] lqr  Initialised controller instance. Must not be NULL.
  *
@@ -219,14 +219,19 @@ ron_fault_t ron_lqr_reset(ron_lqr_t *lqr);
  *                        be NULL.
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
+ * Faults are returned, not latched: a rejected step leaves the state
+ * (integral accumulators and output history) unchanged and writes neither
+ * @p u nor @p status, and the next call is evaluated afresh.
+ *
  * @retval RON_FAULT_NONE           Output computed normally.
- * @retval RON_FAULT_NULL_POINTER   @p lqr, @p r, @p u or @p status was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  @p dt was not positive.
+ * @retval RON_FAULT_NULL_POINTER   @p lqr, @p r, @p u or @p status was NULL,
+ *                                  or the external state pointer was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  * @retval RON_FAULT_INPUT_NAN      An entry of @p r, or the state estimate,
- *                                  was not finite; the fault latches.
- * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the
- *                                  fault latches.
+ *                                  was not finite, or @p dt was not positive
+ *                                  and finite; the step is rejected.
+ * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the step
+ *                                  is rejected and no integral is advanced.
  */
 /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001..007 */
 ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
