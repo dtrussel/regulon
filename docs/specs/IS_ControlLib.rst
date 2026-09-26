@@ -1545,6 +1545,31 @@ This is the **only** header that library consumers include. It provides the comp
     */
    ron_fault_t ron_pid_config_validate(const ron_pid_config_t *cfg);
 
+   /**
+    * @brief Set the gains of a configuration record from the ideal (ISA) form.
+    *
+    * Converts (Kp, Ti, Td) to the parallel gains the controller uses:
+    * Ki = Kp / Ti and Kd = Kp * Td. Ti = +Inf means no integral action
+    * (Ki = 0). Only Kp, Ki and Kd are written; every other field of cfg is left
+    * as the caller set it, and nothing is written when the inputs are rejected.
+    *
+    * @param[in,out] cfg  Configuration record to update.
+    * @param[in]     Kp   Proportional gain. Must be >= 0 and finite.
+    * @param[in]     Ti   Integral time. Must be > 0 (finite) or +Inf.
+    * @param[in]     Td   Derivative time. Must be >= 0 and finite.
+    *
+    * @return  RON_FAULT_NONE           on success.
+    * @return  RON_FAULT_NULL_POINTER   if cfg is NULL.
+    * @return  RON_FAULT_CONFIG_INVALID if an input is out of range or a
+    *                                   resulting gain is not finite.
+    *
+    * Satisfies: RON-FR-002.
+    */
+   ron_fault_t ron_pid_config_from_isa(ron_pid_config_t *cfg,
+                                       ron_float_t       Kp,
+                                       ron_float_t       Ti,
+                                       ron_float_t       Td);
+
    #ifdef __cplusplus
    }
    #endif

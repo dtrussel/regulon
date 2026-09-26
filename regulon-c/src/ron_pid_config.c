@@ -3,7 +3,7 @@
  * @brief    PID controller configuration validation.
  * @module   ron_pid_config
  * @doc      RON-IS-001
- * @req      RON-FR-010, RON-FR-021, RON-FR-033, RON-FR-054, RON-SR-001,
+ * @req      RON-FR-002, RON-FR-010, RON-FR-021, RON-FR-033, RON-FR-054, RON-SR-001,
  *           RON-SR-002
  * @version  1.0.0
  * @author   TBD
@@ -166,4 +166,37 @@ ron_fault_t ron_pid_config_validate(const ron_pid_config_t *cfg)
     }
 
     return ron_feedforward_config_validate(&cfg->feedforward);
+}
+
+/* Integral time +Inf means no integral action (Ki = 0); otherwise Ti must be
+ * finite and positive. Both results are checked, since Kp / Ti overflows for
+ * a large Kp and a tiny Ti. The record is written only when all is valid. */
+/* Satisfies: RON-FR-002 | Test: RON-TC-PID-002 */
+ron_fault_t ron_pid_config_from_isa(ron_pid_config_t *cfg, ron_float_t Kp, ron_float_t Ti,
+                                    ron_float_t Td)
+{
+    ron_float_t Ki = RON_FLOAT_C(0.0);
+    ron_float_t Kd;
+    bool no_integral;
+
+    if (cfg == NULL) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    no_integral = (Ti > RON_FLOAT_MAX);
+    if (!pid_cfg_nonnegative(Kp) || !pid_cfg_nonnegative(Td) ||
+        (!no_integral && !pid_cfg_positive(Ti))) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    if (!no_integral) {
+        Ki = Kp / Ti;
+    }
+    Kd = Kp * Td;
+    if (!ron_util_isfinite(Ki) || !ron_util_isfinite(Kd)) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+
+    cfg->Kp = Kp;
+    cfg->Ki = Ki;
+    cfg->Kd = Kd;
+    return RON_FAULT_NONE;
 }

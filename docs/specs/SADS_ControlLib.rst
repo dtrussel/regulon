@@ -412,6 +412,13 @@ Holds all configuration (tuning) parameters. Treated as **read-only during compu
      Kp            : RON_FLOAT    -- Proportional gain (≥ 0.0)
      Ki            : RON_FLOAT    -- Integral gain (parallel form) (≥ 0.0)
      Kd            : RON_FLOAT    -- Derivative gain (parallel form) (≥ 0.0)
+     -- The ideal (ISA) form (RON-FR-002) is not stored: a configuration
+     -- helper converts (Kp, Ti, Td) to the parallel gains above before
+     -- init, so the computation path has one form only:
+     --   Ki = Kp / Ti   (Ti = +Inf means no integral action, Ki = 0)
+     --   Kd = Kp * Td
+     -- It rejects NULL, Kp < 0, Ti <= 0, Td < 0, NaN/-Inf inputs and a
+     -- non-finite result, leaving the record unchanged on rejection.
 
      -- ── Derivative filter ─────────────────────────────────────────
      N             : RON_FLOAT    -- Derivative LP filter bandwidth multiplier (≥ 0; 0 = disable)

@@ -1412,15 +1412,25 @@ RON-TC-PID-002 — ISA Form Parameter Conversion
    * - **Level**
      - UT / ENV-HOST
    * - **Preconditions**
-     - Two instances: one configured in parallel form, one using ISA form
-       (:math:`K_p=2.0`, :math:`T_i=5.0`, :math:`T_d=0.1`), implying
-       :math:`K_i = K_p/T_i = 0.4`, :math:`K_d = K_p \cdot T_d = 0.2`.
+     - Two instances: one configured in parallel form
+       (:math:`K_p=2.0`, :math:`K_i=0.4`, :math:`K_d=0.2`), one whose gains
+       are set by ``ron_pid_config_from_isa(&cfg, 2.0, 5.0, 0.1)``
+       (:math:`T_i=5.0`, :math:`T_d=0.1`).
    * - **Stimulus**
-     - 50 identical steps (:math:`r=1.0`, :math:`y=0.5`, :math:`dt=0.01`).
+     - Case A: 50 identical steps (:math:`r=1.0`, :math:`y=0.5`,
+       :math:`dt=0.01`). Case B: :math:`T_i=+\infty`. Case C, rejected
+       inputs: NULL ``cfg``; :math:`K_p<0` or NaN; :math:`T_i \le 0`, NaN or
+       :math:`-\infty`; :math:`T_d<0`, NaN or :math:`+\infty`;
+       :math:`K_p/T_i` or :math:`K_p \cdot T_d` overflowing.
    * - **Expected Output**
-     - Both instances produce identical output sequences within ±4 ULP.
+     - Case A: the helper returns ``RON_FAULT_NONE``, sets :math:`K_i=0.4`
+       and :math:`K_d=0.2` and leaves every other field unchanged; both
+       instances produce identical output sequences. Case B: :math:`K_i=0`.
+       Case C: ``RON_FAULT_NULL_POINTER`` for NULL, otherwise
+       ``RON_FAULT_CONFIG_INVALID``, with the record unchanged.
    * - **Pass Criterion**
-     - ``fabs(u_parallel - u_isa) < 4 * FLT_EPSILON`` for all 50 steps.
+     - ``fabs(u_parallel - u_isa) < 4 * FLT_EPSILON`` for all 50 steps, and
+       every return code and field check in cases A–C holds.
 
 ------------------------------------------------------------------------
 

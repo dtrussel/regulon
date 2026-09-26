@@ -50,6 +50,10 @@ Changed
 
 Added
 -----
+- ``ron_pid_config_from_isa()``: sets a configuration's gains from the ideal
+  (ISA) form (``Ki = Kp/Ti``, ``Kd = Kp*Td``; ``Ti = +Inf`` disables integral
+  action). RON-FR-002 required the ISA form but the C library had no support
+  for it, and RON-TC-PID-002 did the conversion in the test itself.
 - Zephyr module (``zephyr/``, ``west.yml``): Kconfig options mirroring the
   CMake ``RON_ENABLE_<MODULE>`` switches with dependency ``select``\ s, a
   PID sample, and an on-target ztest suite run nightly with ``twister``
