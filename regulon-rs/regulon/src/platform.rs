@@ -94,3 +94,29 @@ pub fn sign_nonzero(value: RonFloat) -> RonFloat {
         1.0
     }
 }
+
+/// Limits the change from `previous` to `value` to `max_rate * dt`. A
+/// non-positive `max_rate` disables limiting. Returns the limited value and
+/// whether limiting was applied.
+///
+/// **Satisfies:** RON-FR-022, RON-FR-703
+#[must_use]
+pub fn rate_limit(
+    value: RonFloat,
+    previous: RonFloat,
+    max_rate: RonFloat,
+    dt: RonFloat,
+) -> (RonFloat, bool) {
+    if max_rate <= 0.0 {
+        return (value, false);
+    }
+    let max_delta = max_rate * dt;
+    let delta = value - previous;
+    if delta > max_delta {
+        (previous + max_delta, true)
+    } else if delta < -max_delta {
+        (previous - max_delta, true)
+    } else {
+        (value, false)
+    }
+}

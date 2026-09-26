@@ -198,6 +198,11 @@ Added
   embedded ``Observer`` or an embedded ``Kalman``. The external estimate is
   supplied with ``set_external`` (rejected if not finite) instead of C's
   live pointer, so reading the state cannot fail.
+- Rust: state-feedback controller ``StateSpace<N, M, P>`` (RON-FR-700 –
+  FR-704, RON-TC-SS-001 – SS-005, SS-009): ``u = -K x_hat + K_r r`` with
+  optional integral augmentation, saturation, rate limiting and runtime
+  gain updates, over an embedded ``Estimator``. A step whose output would
+  overflow leaves the integral untouched (C winds it before the check).
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 

@@ -26,6 +26,7 @@ pub mod metrics;
 pub mod observer;
 pub mod pid;
 pub mod platform;
+pub mod statespace;
 pub mod trajectory;
 
 pub use autotune::{AutotuneConfig, AutotunePhase, AutotuneResults, Autotuner, TuningRule};
@@ -47,6 +48,7 @@ pub use pid::{
     PidStatus, SafePolicy,
 };
 pub use platform::RonFloat;
+pub use statespace::{IntegralAugmentation, OutputLimits, StateSpace, StateSpaceConfig};
 pub use trajectory::{
     SCurve, SCurveConfig, Setpoint, TrajectoryFault, Trapezoidal, TrapezoidalConfig,
 };
