@@ -3235,8 +3235,8 @@ RON-TC-LQR-006 — Fault Detection: Null Pointer and Uninitialised
        (c) Call ``ron_lqr_step`` on an instance that has not been initialised.
        (d) Call ``ron_lqr_step`` with ``u == NULL``.
        (e) With integral augmentation enabled, call ``ron_lqr_step`` with a
-       gain and external state whose product overflows, then again with a
-       finite state.
+           gain and external state whose product overflows, then again with
+           a finite state.
    * - **Pass Criterion**
      - (a) and (b) return ``RON_FAULT_NULL_POINTER``.
        (c) returns ``RON_FAULT_CONFIG_INVALID``.
