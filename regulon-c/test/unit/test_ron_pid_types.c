@@ -1,6 +1,6 @@
 /*
  * @file     test_ron_pid_types.c
- * @brief    Type, platform, and NULL-safety unit tests for the PID slice.
+ * @brief    Type, platform, and NULL-safety unit tests for the PID module.
  * @module   test_ron_pid_types
  * @doc      RON-IS-001
  * @req      RON-PR-010, RON-PR-011, RON-PR-021, RON-QR-001, RON-QR-003,

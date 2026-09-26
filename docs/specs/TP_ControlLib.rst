@@ -362,11 +362,10 @@ CI Integration and Report Generation
 Both tracks emit JUnit-compatible XML, which is consumed by CI dashboards
 (GitHub Actions ``junit-reporter``, GitLab ``artifacts: reports: junit``).
 
-During the current C11 PID vertical slice, the active C verification surface
-is limited to ``ron_platform.h``, ``ron_pid_types.h``, ``ron_pid.h``, and the
-four PID implementation units. Local Windows verification is driven via
-``regulon-c/scripts/verify_pid.ps1``; Linux CI remains the provisioned
-secondary-toolchain environment.
+The C verification surface is the full production source set listed in
+``regulon-c/scripts/lib_sources.txt``. Linux CI (``ci_c.yml``) is the
+authoritative gate; ``regulon-c/scripts/verify.ps1`` runs the same gates
+locally on Windows.
 
 **C track CI pipeline** (``ci_c.yml`` excerpt):
 
@@ -3539,9 +3538,9 @@ RON-TC-QUAL-014 — 100% Statement and Branch Coverage
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - C: build the active PID slice with Clang
-       ``-fprofile-instr-generate -fcoverage-mapping``, run the PID unit
-       suites with ``LLVM_PROFILE_FILE`` set, merge profiles with
+     - C: build the library and test suites with Clang
+       ``-fprofile-instr-generate -fcoverage-mapping``, run the unit and
+       integration suites with ``LLVM_PROFILE_FILE`` set, merge profiles with
        ``llvm-profdata``, export/report coverage with ``llvm-cov``, and
        render HTML via ``llvm-cov show -format=html``.
        Rust: ``cargo llvm-cov nextest --workspace``.
@@ -3561,7 +3560,7 @@ RON-TC-QUAL-015 — MC/DC on Safety-Critical Conditions
    * - **Level**
      - UT / ENV-HOST
    * - **Method**
-     - ``llvm-cov --mcdc`` (LLVM 18+) on the active PID slice. Targets: all
+     - ``llvm-cov --mcdc`` (LLVM 18+) on the production source set. Targets: all
        ``if`` conditions inside RON-SR-010 – SR-013 fault detection paths,
        all AW clamping conditions, and all saturation / safe-output branches.
    * - **Pass Criterion**
@@ -4185,8 +4184,8 @@ CBMC Harness Inventory (C Track)
 
 The C11 formal harnesses live under ``regulon-c/test/formal/*_proof.c`` and are
 discovered automatically by the verify script and CI (the harness file's base
-name is its CBMC entry function).  Phase 11 audited the inventory: 25 harnesses
-are present, one entry function each, covering every safety-critical module.
+name is its CBMC entry function).  27 harnesses are present, one entry
+function each, covering every safety-critical module.
 
 .. list-table::
    :header-rows: 1
@@ -4449,8 +4448,7 @@ Open Items
      - RON-TC-CASC-004-FV (outer-integral-bounded property) is listed in the
        Formal Verification Summary but has no dedicated ``cascade_*_proof.c``
        harness yet; the shared back-calculation logic is covered by
-       ``pid_backcalc_proof.c`` in the interim. (Identified by the Phase 11
-       CBMC harness inventory audit.)
+       ``pid_backcalc_proof.c`` in the interim.
      - Implementation phase
    * - OI-TP-07
      - RON-TC-LQR-003 and RON-TC-LQG-006 rely on a known analytical LQR

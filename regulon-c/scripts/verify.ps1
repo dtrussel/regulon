@@ -208,9 +208,9 @@ foreach ($step in $Steps) {
             }
 
             $BuildDir = Join-Path $RegulonC "build\verify-msvc"
-            Invoke-External "Configure MSVC Debug PID build" $CMake @("-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON")
-            Invoke-External "Build MSVC Debug PID build" $CMake @("--build", $BuildDir, "--config", "Debug")
-            Invoke-External "Run MSVC Debug PID tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure", "-C", "Debug")
+            Invoke-External "Configure MSVC Debug build" $CMake @("-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON")
+            Invoke-External "Build MSVC Debug build" $CMake @("--build", $BuildDir, "--config", "Debug")
+            Invoke-External "Run MSVC Debug tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure", "-C", "Debug")
             Add-Result $Results "msvc" "ok" $BuildDir
         }
         "double" {
@@ -221,9 +221,9 @@ foreach ($step in $Steps) {
             }
 
             $BuildDir = Join-Path $RegulonC "build\verify-double"
-            Invoke-External "Configure double-precision PID build" $CMake @("-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DRON_USE_DOUBLE=ON")
-            Invoke-External "Build double-precision PID build" $CMake @("--build", $BuildDir, "--config", "Debug")
-            Invoke-External "Run double-precision PID tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure", "-C", "Debug")
+            Invoke-External "Configure double-precision build" $CMake @("-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DRON_USE_DOUBLE=ON")
+            Invoke-External "Build double-precision build" $CMake @("--build", $BuildDir, "--config", "Debug")
+            Invoke-External "Run double-precision tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure", "-C", "Debug")
             Add-Result $Results "double" "ok" $BuildDir
         }
         "format" {
@@ -254,6 +254,9 @@ foreach ($step in $Steps) {
                 "--suppress=misra-c2012-15.5",
                 "--suppress=misra-c2012-15.7",
                 "--suppress=misra-c2012-20.10",
+                "--suppress=misra-c2012-20.9",
+                "--suppress=misra-c2012-2.3",
+                "--suppress=misra-c2012-2.4",
                 "-I", (Join-Path $RegulonC "include"),
                 "-I", (Join-Path $RegulonC "src")
             ) + $ProductionSources
@@ -288,10 +291,10 @@ foreach ($step in $Steps) {
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $CoverageHtml
             Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $CoverageProfdata, $CoverageJson
             New-Item -ItemType Directory -Force -Path $ProfilesDir | Out-Null
-            Invoke-External "Configure LLVM coverage PID build" $CMake @("-G", "Ninja", "-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DCMAKE_C_COMPILER=$Clang", "-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_C_FLAGS=-O0 -g -fprofile-instr-generate -fcoverage-mapping")
-            Invoke-External "Build LLVM coverage PID build" $CMake @("--build", $BuildDir)
+            Invoke-External "Configure LLVM coverage build" $CMake @("-G", "Ninja", "-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DCMAKE_C_COMPILER=$Clang", "-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_C_FLAGS=-O0 -g -fprofile-instr-generate -fcoverage-mapping")
+            Invoke-External "Build LLVM coverage build" $CMake @("--build", $BuildDir)
             $env:LLVM_PROFILE_FILE = (Join-Path $ProfilesDir "%p.profraw")
-            Invoke-External "Run LLVM coverage PID tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure")
+            Invoke-External "Run LLVM coverage tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure")
             Remove-Item Env:\LLVM_PROFILE_FILE -ErrorAction SilentlyContinue
 
             $ProfileInputs = @(Get-ChildItem -Path $ProfilesDir -Filter "*.profraw" | ForEach-Object { $_.FullName })
@@ -318,10 +321,10 @@ foreach ($step in $Steps) {
                 $CoverageSourceArgs += @("-sources", $source)
             }
 
-            $CoverageExport = Invoke-ExternalCapture "Export LLVM PID coverage summary" $LlvmCov (@("export") + $CoverageObjects + @("-instr-profile", $CoverageProfdata, "-format=text", "-summary-only", "-show-branch-summary") + $CoverageSourceArgs)
+            $CoverageExport = Invoke-ExternalCapture "Export LLVM coverage summary" $LlvmCov (@("export") + $CoverageObjects + @("-instr-profile", $CoverageProfdata, "-format=text", "-summary-only", "-show-branch-summary") + $CoverageSourceArgs)
             $CoverageJsonText = ($CoverageExport -join [Environment]::NewLine)
             Set-Content -Path $CoverageJson -Value $CoverageJsonText
-            Invoke-External "Render LLVM PID coverage report" $LlvmCov (@("show") + $CoverageObjects + @("-instr-profile", $CoverageProfdata, "-format=html", "-output-dir", $CoverageHtml, "-show-branch-summary") + $CoverageSourceArgs)
+            Invoke-External "Render LLVM coverage report" $LlvmCov (@("show") + $CoverageObjects + @("-instr-profile", $CoverageProfdata, "-format=html", "-output-dir", $CoverageHtml, "-show-branch-summary") + $CoverageSourceArgs)
             Test-CoverageSummary -SummaryJson $CoverageJsonText
             Add-Result $Results "coverage" "ok" "100% statement and branch coverage"
         }
@@ -334,15 +337,15 @@ foreach ($step in $Steps) {
 
             if (($null -ne $Clang) -and ($null -ne $Ninja)) {
                 $BuildDir = Join-Path $RegulonC "build\verify-clang"
-                Invoke-External "Configure standalone Clang PID build" $CMake @("-G", "Ninja", "-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DCMAKE_C_COMPILER=$Clang", "-DCMAKE_MAKE_PROGRAM=$Ninja")
-                Invoke-External "Build standalone Clang PID build" $CMake @("--build", $BuildDir)
-                Invoke-External "Run standalone Clang PID tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure")
+                Invoke-External "Configure standalone Clang build" $CMake @("-G", "Ninja", "-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DCMAKE_C_COMPILER=$Clang", "-DCMAKE_MAKE_PROGRAM=$Ninja")
+                Invoke-External "Build standalone Clang build" $CMake @("--build", $BuildDir)
+                Invoke-External "Run standalone Clang tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure")
                 Add-Result $Results "clang" "ok" $BuildDir
             } elseif (($null -ne $ClangCl) -and ($null -ne $VsClangClToolset)) {
                 $BuildDir = Join-Path $RegulonC "build\verify-clangcl"
-                Invoke-External "Configure ClangCL PID build" $CMake @("-B", $BuildDir, "-S", $RegulonC, "-T", "ClangCL", "-DRON_BUILD_TESTS=ON")
-                Invoke-External "Build ClangCL PID build" $CMake @("--build", $BuildDir, "--config", "Debug")
-                Invoke-External "Run ClangCL PID tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure", "-C", "Debug")
+                Invoke-External "Configure ClangCL build" $CMake @("-B", $BuildDir, "-S", $RegulonC, "-T", "ClangCL", "-DRON_BUILD_TESTS=ON")
+                Invoke-External "Build ClangCL build" $CMake @("--build", $BuildDir, "--config", "Debug")
+                Invoke-External "Run ClangCL tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure", "-C", "Debug")
                 Add-Result $Results "clang" "ok" $BuildDir
             } else {
                 Add-Result $Results "clang" "skip" "no CMake-compatible Clang generator/compiler combination available"

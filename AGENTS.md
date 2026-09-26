@@ -24,7 +24,7 @@ regulon-rs/                     <- Rust Edition 2021 implementation
 3. Find the test IDs: `rg "RON-FR-0XX" docs/specs/TP_ControlLib.rst`
 4. Write or update the test/proof first, then the implementation.
 5. Every test ID **must already exist** in `TP_ControlLib.rst` before you write it.
-6. Keep implementation scope aligned with the active iteration plan and do not start future modules opportunistically.
+6. Keep each change scoped to its issue; do not fold in unrelated modules or refactors.
 
 ## Test IDs
 Format: `RON-TC-<MODULE>-<NNN>` (e.g. `RON-TC-PID-015`). Formal variants: `RON-TC-PID-015-FV`.

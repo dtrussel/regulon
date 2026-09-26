@@ -392,10 +392,11 @@ C Toolchain and Free Tools
    * - **Build system**
      - CMake 3.21+ (BSD licence).
    * - **Local verification entrypoint**
-     - ``regulon-c/scripts/verify_pid.ps1`` on Windows for the active PID
-       slice. It probes the local toolchain, runs the PID-only MSVC and
-       double-precision builds, and executes any available static/formal
-       checks without widening scope to future modules.
+     - ``regulon-c/scripts/verify.ps1`` on Windows. It probes the local
+       toolchain, runs the MSVC, double-precision and Clang builds, and
+       executes whichever of the CI format, static-analysis, coverage,
+       cross-compile and CBMC gates the local tools allow, over the source
+       manifests in ``regulon-c/scripts/``.
    * - **Documentation**
      - Doxygen (GPL) for API reference. Sphinx + ``breathe`` for integration
        with ``.rst`` documentation (both free).

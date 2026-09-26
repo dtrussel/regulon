@@ -1,6 +1,6 @@
 /*
  * @file     test_ron_integration.c
- * @brief    Full-library integration tests (Phase 11).
+ * @brief    Full-library integration tests.
  * @module   test_ron_integration
  * @doc      RON-TP-001
  * @req      RON-FR-401, RON-FR-500, RON-FR-701, RON-FR-804, RON-FR-900,

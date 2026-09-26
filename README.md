@@ -200,7 +200,7 @@ GitHub Pages is the manually-triggered
 ```
 docs/                <- Sphinx documentation site (conf.py, guides/, api/)
 docs/specs/          <- SRS/SADS/IS/TP — requirements, architecture, API, and test specs (ground truth)
-docs/plans/          <- Per-phase implementation plans and closure evidence
+docs/plans/rust/     <- Rust port status notes
 docs/deviations/     <- MISRA C:2023 deviation records
 regulon-c/           <- C11 implementation
 zephyr/              <- Zephyr module manifest, Kconfig, build glue, and sample
