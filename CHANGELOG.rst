@@ -136,6 +136,8 @@ Added
   ``sphinx-build -W`` documentation build.
 - API documentation for the 66 public functions that had none.
 - MISRA deviation records DEV-005 (Rule 20.9) and DEV-006 (Rules 2.3/2.4).
+- ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
+  Rust tests and annotations are held to the same test-plan and SRS IDs.
 
 Removed
 -------
