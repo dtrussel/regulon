@@ -15,11 +15,11 @@ Software Requirements Specification
 
 **Document ID:** RON-SRS-001
 
-**Version:** 1.2.1
+**Version:** 1.3.0
 
 **Status:** Draft
 
-**Date:** 2026-08-09
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -44,11 +44,11 @@ Revision History
    * - 0.1
      - 2025-03-01
      - Initial draft
-     - TBD
+     - dtrussel
    * - 1.0.0
      - 2025-04-10
      - First baseline release
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2025-04-10
      - Added requirements for: signal conditioning filters, feed-forward,
@@ -56,19 +56,25 @@ Revision History
        filter, state-space controller, Luenberger observer, relay auto-tuning,
        health monitor, performance metrics (RON-FR-100 – FR-954).
        Updated traceability matrix.
-     - TBD
+     - dtrussel
    * - 1.2.0
      - 2026-06-08
      - Added requirements for: Linear Quadratic Regulator (RON-FR-730 –
        FR-739) and Linear Quadratic Gaussian controller (RON-FR-750 –
        FR-759). Updated traceability matrix.
-     - TBD
+     - dtrussel
    * - 1.2.1
      - 2026-08-09
      - Clarified the RTOS scope exclusion: it concerns kernel coupling, not
        build-system packaging for an RTOS ecosystem. No requirements added
        or changed.
-     - TBD
+     - dtrussel
+   * - 1.3.0
+     - 2026-09-26
+     - Added RON-FR-514 (trajectory reset) and RON-FR-515 (trajectory state
+       read-back). Reworded RON-FR-061: instances are caller-owned with a
+       visible layout, accessed only through the API, rather than opaque.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -540,7 +546,7 @@ Multi-Instance Support
    * - RON-FR-060
      - The library **shall** support simultaneous independent instances of PID controllers, limited only by available memory.
    * - RON-FR-061
-     - All instance state **shall** be encapsulated in an opaque data structure; no global mutable state **shall** be used.
+     - All instance state **shall** be encapsulated in a caller-owned instance structure that callers access only through the API (its layout is visible so that it can be allocated statically, but its fields are not part of the contract); no global mutable state **shall** be used.
    * - RON-FR-062
      - Each instance **shall** be fully independent: configuration, state, and execution of one instance **shall** not affect any other.
 

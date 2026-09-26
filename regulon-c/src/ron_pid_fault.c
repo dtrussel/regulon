@@ -5,7 +5,7 @@
  * @doc      RON-IS-001
  * @req      RON-SR-010, RON-SR-011, RON-SR-012, RON-SR-013
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  */
 

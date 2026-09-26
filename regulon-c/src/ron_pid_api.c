@@ -6,7 +6,7 @@
  * @req      RON-FR-040, RON-FR-050, RON-FR-051, RON-FR-052, RON-FR-053,
  *           RON-FR-071, RON-SR-001, RON-SR-006, RON-SR-012
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  */
 
@@ -116,7 +116,7 @@ ron_fault_t ron_pid_reset(ron_pid_t *inst)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-001 – RON-FR-035 | Test: RON-TC-PID-001 – RON-TC-PID-026 */
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-035 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-026 */
 ron_fault_t ron_pid_step(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
                          ron_float_t *u_out, ron_status_t *status)
 {

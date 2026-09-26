@@ -97,15 +97,20 @@ function Show-Or-Missing {
 
 
 function Test-CoverageSummary {
-    param([string]$SummaryJson)
+    param([string]$SummaryJson, [bool]$RequireMcdc = $false)
 
     $lineCoverage = $null
     $branchCoverage = $null
+    $mcdcCoverage = $null
 
     $summary = $SummaryJson | ConvertFrom-Json
     if (($null -ne $summary) -and ($summary.data.Count -gt 0) -and ($null -ne $summary.data[0].totals)) {
-        $lineCoverage = [double]$summary.data[0].totals.lines.percent
-        $branchCoverage = [double]$summary.data[0].totals.branches.percent
+        $totals = $summary.data[0].totals
+        $lineCoverage = [double]$totals.lines.percent
+        $branchCoverage = [double]$totals.branches.percent
+        if ($null -ne $totals.mcdc) {
+            $mcdcCoverage = [double]$totals.mcdc.percent
+        }
     }
 
     if (($null -eq $lineCoverage) -or ($null -eq $branchCoverage)) {
@@ -114,6 +119,25 @@ function Test-CoverageSummary {
     if (($lineCoverage -ne 100.0) -or ($branchCoverage -ne 100.0)) {
         throw ("Coverage below RON-QR-022 target: statements={0}%; branches={1}%." -f $lineCoverage, $branchCoverage)
     }
+    if ($RequireMcdc) {
+        if ($null -eq $mcdcCoverage) {
+            throw "Unable to parse llvm-cov MC/DC coverage summary."
+        }
+        if ($mcdcCoverage -ne 100.0) {
+            throw ("MC/DC below RON-QR-023 target: mcdc={0}%." -f $mcdcCoverage)
+        }
+    }
+}
+
+# MC/DC instrumentation (-fcoverage-mcdc) needs clang 18 or newer.
+function Test-ClangSupportsMcdc {
+    param([string]$ClangPath)
+
+    $versionText = (& $ClangPath --version 2>$null) -join " "
+    if ($versionText -match "clang version (\d+)\.") {
+        return ([int]$Matches[1] -ge 18)
+    }
+    return $false
 }
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -291,7 +315,12 @@ foreach ($step in $Steps) {
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue -LiteralPath $CoverageHtml
             Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $CoverageProfdata, $CoverageJson
             New-Item -ItemType Directory -Force -Path $ProfilesDir | Out-Null
-            Invoke-External "Configure LLVM coverage build" $CMake @("-G", "Ninja", "-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DCMAKE_C_COMPILER=$Clang", "-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_C_FLAGS=-O0 -g -fprofile-instr-generate -fcoverage-mapping")
+            $MeasureMcdc = Test-ClangSupportsMcdc -ClangPath $Clang
+            $CoverageFlags = "-O0 -g -fprofile-instr-generate -fcoverage-mapping"
+            if ($MeasureMcdc) {
+                $CoverageFlags += " -fcoverage-mcdc"
+            }
+            Invoke-External "Configure LLVM coverage build" $CMake @("-G", "Ninja", "-B", $BuildDir, "-S", $RegulonC, "-DRON_BUILD_TESTS=ON", "-DCMAKE_C_COMPILER=$Clang", "-DCMAKE_MAKE_PROGRAM=$Ninja", "-DCMAKE_C_FLAGS=$CoverageFlags")
             Invoke-External "Build LLVM coverage build" $CMake @("--build", $BuildDir)
             $env:LLVM_PROFILE_FILE = (Join-Path $ProfilesDir "%p.profraw")
             Invoke-External "Run LLVM coverage tests" $CTest @("--test-dir", $BuildDir, "--output-on-failure")
@@ -325,8 +354,12 @@ foreach ($step in $Steps) {
             $CoverageJsonText = ($CoverageExport -join [Environment]::NewLine)
             Set-Content -Path $CoverageJson -Value $CoverageJsonText
             Invoke-External "Render LLVM coverage report" $LlvmCov (@("show") + $CoverageObjects + @("-instr-profile", $CoverageProfdata, "-format=html", "-output-dir", $CoverageHtml, "-show-branch-summary") + $CoverageSourceArgs)
-            Test-CoverageSummary -SummaryJson $CoverageJsonText
-            Add-Result $Results "coverage" "ok" "100% statement and branch coverage"
+            Test-CoverageSummary -SummaryJson $CoverageJsonText -RequireMcdc $MeasureMcdc
+            if ($MeasureMcdc) {
+                Add-Result $Results "coverage" "ok" "100% statement, branch and MC/DC coverage"
+            } else {
+                Add-Result $Results "coverage" "ok" "100% statement and branch coverage (MC/DC needs clang 18+)"
+            }
         }
         "clang" {
             if (($null -eq $CMake) -or ($null -eq $CTest)) {

@@ -152,6 +152,17 @@ Fixed
   16-bit status word that never shipped, and omitted ``get_state`` and
   ``fault_clear``; ``ron_pid_set_config``, ``ron_autotune_phase_t`` and the
   ``const`` on ``ron_gs_table_validate`` were missing.
+- Specification and deviation-record revision histories named no author
+  ("TBD"); they now record ``dtrussel``, and the MISRA record states that
+  each revision's entry is its approval. RON-FR-061 no longer calls the
+  (necessarily visible) instance structs "opaque". The IS/TP Rust sections
+  are marked as describing the target, since ``regulon-sys``,
+  ``ci_rust.yml`` and the Rust deviation record do not exist yet.
+- Blanket annotations such as ``Satisfies: RON-FR-001 – RON-FR-071`` on
+  ``ron_pid_core_step`` claimed requirements the function does not implement
+  (the ISA form among them); they now name what each function satisfies.
+- ``verify.ps1`` measures and enforces MC/DC when clang 18+ is available, as
+  CI does.
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
   PID-only lint/analysis/proof commands; it now mirrors the CI gates over
   the source manifests.

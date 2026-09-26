@@ -15,7 +15,7 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 
 **Status:** Draft
 
@@ -44,21 +44,27 @@ Revision History
    * - 1.0.0
      - 2025-04-10
      - Initial baseline. Covers all RON-SRS-001 v1.1.0 requirements.
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2026-06-08
      - Added test catalog for LQR (RON-TC-LQR-001 – RON-TC-LQR-010) and LQG
        (RON-TC-LQG-001 – RON-TC-LQG-010). Added CBMC formal harness entries
        RON-TC-LQR-010-FV and RON-TC-LQG-010-FV. Updated requirement coverage
        table and test execution order.
-     - TBD
+     - dtrussel
    * - 1.2.0
      - 2026-09-26
      - Recorded RON-TC-CASC-008 – CASC-012, which the C suite already ran
        but this plan did not define. Removed development-phase wording and
        corrected the CBMC harness count (27). Earlier unversioned additions
        are included: RON-TC-QUAL-019 and RON-TC-QUAL-023.
-     - TBD
+     - dtrussel
+   * - 1.3.0
+     - 2026-09-26
+     - RON-TC-PID-002 now exercises ``ron_pid_config_from_isa``; added
+       RON-TC-TRAJ-009/-010; RON-TC-QUAL-015 (MC/DC) is enforced in CI; the
+       Rust CI pipeline is marked as planned.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -416,7 +422,8 @@ locally on Windows.
          coverage_html/
          cppcheck_results.xml
 
-**Rust track CI pipeline** (``ci_rust.yml`` excerpt):
+**Rust track CI pipeline** (planned ``ci_rust.yml``; the workflow does not
+exist yet, see ``docs/plans/rust/rust-first-rollout.md``):
 
 .. code-block:: yaml
 

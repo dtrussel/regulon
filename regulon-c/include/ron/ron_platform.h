@@ -5,7 +5,7 @@
  * @doc      RON-IS-001
  * @req      RON-PR-010, RON-PR-011, RON-DC-001, RON-DC-002, RON-QR-001
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  *
  * This header is the single point of configuration for all platform-dependent

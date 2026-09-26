@@ -15,7 +15,7 @@ Implementation Specification
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 
 **Status:** Draft
 
@@ -44,11 +44,11 @@ Revision History
    * - 0.1
      - 2025-03-20
      - Initial draft
-     - TBD
+     - dtrussel
    * - 1.0.0
      - 2025-04-10
      - First baseline release
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2025-04-10
      - Added: new module headers (ron_filter.h, ron_feedforward.h,
@@ -56,14 +56,14 @@ Revision History
        ron_statespace.h, ron_observer.h, ron_autotune.h, ron_health.h,
        ron_metrics.h). Updated directory layout, CMakeLists.txt, compile-time
        constants, and traceability table.
-     - TBD
+     - dtrussel
    * - 1.2.0
      - 2026-06-08
      - Added: ron_lqr.h (LQR controller), ron_lqg.h (LQG controller).
        Added RON_LQR_MAX_STATES and RON_LQR_MAX_INPUTS compile-time
        constants. Added RON_ENABLE_LQR and RON_ENABLE_LQG CMake options.
        Updated traceability table.
-     - TBD
+     - dtrussel
    * - 1.3.0
      - 2026-08-09
      - Lowered the default matrix dimension bounds (states 8 -> 4, inputs /
@@ -71,21 +71,30 @@ Revision History
        thread by default, and documented that scratch stack grows with the
        square of the largest bound. Added the optional ron_config.h override
        hook and the ron_mat_mul_ta matrix primitive.
-     - TBD
+     - dtrussel
    * - 1.3.1
      - 2026-08-10
      - Added the Zephyr integration track to the Integration Guide: module
        manifest declaration, Kconfig gating and precision/bounds selection,
        and the CONFIG_MINIMAL_LIBC obligation. Documents an integration path
        that was implemented and verified (RON-TC-QUAL-023) but unspecified.
-     - TBD
+     - dtrussel
    * - 1.4.0
      - 2026-09-26
      - Scope and titles cover the whole library rather than the PID module.
        Directory layout matches the repository. The build section states the
        CMake contract and includes the option and toolchain files verbatim,
        replacing hand-copied listings that had drifted from the build.
-     - TBD
+     - dtrussel
+   * - 1.5.0
+     - 2026-09-26
+     - 0.2.0 API: documented the module naming convention and applied it
+       (``ron_pid_t``, ``ron_cascade_t``, ``ron_autotune_*``,
+       ``_get_results``/``_get_status``, ``ron_gs_table_validate``); added
+       ``ron_pid_config_from_isa`` and trajectory ``reset``/``get_state``;
+       ``ron_util.c`` joins the mandatory baseline; the Rust track is marked
+       as a target description.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -414,7 +423,16 @@ C Toolchain and Free Tools
 ------------------------------------------------------------------------
 
 Rust Implementation Track
-==========================
+=========================
+
+.. note::
+
+   This track describes the **target** Rust implementation. ``regulon-rs/``
+   currently implements the PID and filter modules only (see
+   ``docs/plans/rust/rust-first-rollout.md``). Artefacts named below that do
+   not exist yet — the other module files, the ``regulon-sys`` C-ABI crate,
+   a ``ci_rust.yml`` workflow, ``rustfmt.toml`` and
+   ``docs/deviations/MISRA_Rust_deviations.rst`` — are planned, not missing.
 
 Language Standard
 -----------------
@@ -2761,7 +2779,7 @@ Every ``.c`` and ``.h`` file shall begin with the following comment block:
     * @doc      RON-IS-001
     * @req      <comma-separated RON-FR/PR/SR requirement IDs satisfied>
     * @version  1.0.0
-    * @author   TBD
+    * @author   <GitHub handle>
     * SPDX-License-Identifier: MIT
     */
 

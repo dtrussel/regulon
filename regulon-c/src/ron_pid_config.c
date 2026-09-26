@@ -6,7 +6,7 @@
  * @req      RON-FR-002, RON-FR-010, RON-FR-021, RON-FR-033, RON-FR-054, RON-SR-001,
  *           RON-SR-002
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  */
 
@@ -38,7 +38,7 @@ static bool pid_cfg_strict_range(ron_float_t minimum, ron_float_t maximum)
     return ron_util_isfinite(minimum) && ron_util_isfinite(maximum) && (minimum < maximum);
 }
 
-/* Satisfies: RON-FR-001 – RON-FR-006 | Test: RON-TC-PID-001 – RON-TC-PID-009 */
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-006, RON-SR-001 | Test: RON-TC-PID-001, RON-TC-SAFE-001 */
 static bool pid_cfg_valid_gains(const ron_pid_config_t *cfg)
 {
     return pid_cfg_nonnegative(cfg->Kp) && pid_cfg_nonnegative(cfg->Ki) &&

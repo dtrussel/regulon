@@ -15,11 +15,11 @@ Software Architecture and Design Specification
 
 **Document ID:** RON-SADS-001
 
-**Version:** 1.0.0
+**Version:** 1.3.0
 
 **Status:** Draft
 
-**Date:** 2025-04-10
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -44,11 +44,11 @@ Revision History
    * - 0.1
      - 2025-03-15
      - Initial draft skeleton
-     - TBD
+     - dtrussel
    * - 1.0.0
      - 2025-04-10
      - First baseline release
-     - TBD
+     - dtrussel
    * - 1.1.0
      - 2025-04-10
      - Added architecture and detailed design for: signal conditioning filters,
@@ -56,13 +56,18 @@ Revision History
        Kalman filter, state-space controller, Luenberger observer, relay
        auto-tuning, health monitor, performance metrics. Updated module
        decomposition and dependency diagram.
-     - TBD
+     - dtrussel
    * - 1.2.0
      - 2026-06-08
      - Added module design for ron_lqr (Linear Quadratic Regulator) and
        ron_lqg (Linear Quadratic Gaussian controller). Updated dependency
        diagram. Added design decisions DD-19 and DD-20.
-     - TBD
+     - dtrussel
+   * - 1.3.0
+     - 2026-09-26
+     - Documented the ISA-form conversion helper for RON-FR-002 and the
+       trajectory reset / state read-back operations (RON-FR-514/515).
+     - dtrussel
 
 ------------------------------------------------------------------------
 

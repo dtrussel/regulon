@@ -9,7 +9,7 @@
  *           RON-SR-010, RON-SR-011, RON-SR-012, RON-SR-013,
  *           RON-PR-021
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  *
  * All public enumerations, bitmask types, and data structures used by the
@@ -192,11 +192,11 @@ typedef struct {
  *
  * All fields are validated by ron_pid_config_validate() before use.
  *
- * Satisfies: RON-FR-001 – RON-FR-007, RON-FR-010 – RON-FR-013,
+ * Satisfies: RON-FR-001, RON-FR-003 – RON-FR-007, RON-FR-010 – RON-FR-013,
  *            RON-FR-020 – RON-FR-027, RON-FR-030 – RON-FR-035,
  *            RON-SR-010 – RON-SR-013.
  */
-/* Satisfies: RON-FR-001 – RON-FR-035 | Test: RON-TC-PID-001 – RON-TC-PID-026 */
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-035 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-026 */
 typedef struct {
     /* ── Gain parameters (parallel form) ─────────────────────────────── */
     ron_float_t Kp; /**< Proportional gain. Must be >= 0 and finite.        */

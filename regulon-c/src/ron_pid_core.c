@@ -6,7 +6,7 @@
  * @req      RON-FR-001, RON-FR-004, RON-FR-005, RON-FR-006, RON-FR-010,
  *           RON-FR-020, RON-FR-030, RON-FR-040, RON-FR-070, RON-SR-010
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  */
 
@@ -278,7 +278,7 @@ static void pid_store_step(ron_pid_state_t *state, ron_float_t y_n, ron_float_t 
     state->status      = step_status;
 }
 
-/* Satisfies: RON-FR-001 – RON-FR-071 | Test: RON-TC-PID-001 – RON-TC-PID-039 */
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-007, RON-FR-010 – RON-FR-013, RON-FR-020 – RON-FR-035, RON-FR-040, RON-FR-054, RON-FR-070 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-027, RON-TC-PID-034, RON-TC-PID-039 */
 ron_fault_t ron_pid_core_step(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
                               ron_float_t external_ff, ron_float_t *u_out, ron_status_t *status)
 {

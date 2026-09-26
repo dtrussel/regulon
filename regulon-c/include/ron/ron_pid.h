@@ -7,7 +7,7 @@
  *           RON-FR-051, RON-FR-052, RON-FR-053, RON-FR-070, RON-FR-071,
  *           RON-SR-001, RON-SR-002, RON-SR-012
  * @version  1.0.0
- * @author   TBD
+ * @author   dtrussel
  * SPDX-License-Identifier: MIT
  *
  * This is the ONLY header that library consumers shall include for PID
@@ -131,10 +131,10 @@ ron_fault_t ron_pid_reset(ron_pid_t *inst);
  * @post  *u_out ∈ [inst->config.u_min, inst->config.u_max]
  *        OR a fault is active and the safe-state policy governs *u_out.
  *
- * Satisfies: RON-FR-001 – RON-FR-007, RON-FR-020 – RON-FR-035,
+ * Satisfies: RON-FR-001, RON-FR-003 – RON-FR-007, RON-FR-020 – RON-FR-035,
  *            RON-FR-070, RON-SR-010 – RON-SR-013, RON-PR-001 – RON-PR-002.
  */
-/* Satisfies: RON-FR-001 – RON-FR-035 | Test: RON-TC-PID-001 – RON-TC-PID-026 */
+/* Satisfies: RON-FR-001, RON-FR-003 – RON-FR-035 | Test: RON-TC-PID-001, RON-TC-PID-003 – RON-TC-PID-026 */
 ron_fault_t ron_pid_step(ron_pid_t *inst, ron_float_t r, ron_float_t y, ron_float_t dt,
                          ron_float_t *u_out, ron_status_t *status);
 

@@ -7,11 +7,11 @@ MISRA C:2023 Deviation Records
 
 **Document ID:** RON-DEV-C-001
 
-**Version:** 0.5.0
+**Version:** 0.6.0
 
 **Status:** Draft
 
-**Date:** 2026-08-09
+**Date:** 2026-09-26
 
 Introduction
 ------------
@@ -25,7 +25,7 @@ Each record contains:
 - The file(s) and line range(s) where the deviation applies
 - Justification
 - Compensating measures
-- Reviewer sign-off
+- Approval, recorded per revision in the Revision History below
 
 A deviation is required for every violation of a **Required** rule.
 **Mandatory** rules are never deviated.  **Advisory** guidelines that cannot
@@ -179,20 +179,20 @@ Revision History
    * - Version
      - Date
      - Description
-     - Author
+     - Author / Approver
    * - 0.1.0
      - 2026-04-11
      - Sprint 0 baseline (no deviations).
-     - TBD
+     - dtrussel
    * - 0.2.0
      - 2026-04-12
      - PID kickoff updated; still no approved deviations.
-     - TBD
+     - dtrussel
    * - 0.3.0
      - 2026-04-12
      - Added approved PID verification-closure deviations for Rules 15.5,
        20.10, and 8.7; recorded the active-slice Rule 2.5 observation.
-     - TBD
+     - dtrussel
    * - 0.4.0
      - 2026-08-07
      - Full-library audit.
@@ -205,11 +205,18 @@ Revision History
        ``else``) to formally record a deviation that was already an active
        CI suppression but had never been documented; updated OBS-002's
        wording to cover the full library rather than the PID module alone.
-     - TBD
+     - dtrussel
    * - 0.5.0
      - 2026-08-09
      - Made the cppcheck CI gate enforcing (``set -o pipefail``) and
        resolved the findings it had hidden: added DEV-005 (Rule 20.9,
        ``__has_include``) and DEV-006 (Rules 2.3/2.4, public
-       ``ron_autotune_phase_t``).
-     - TBD
+       ``ron_at_phase_t``).
+     - dtrussel
+   * - 0.6.0
+     - 2026-09-26
+     - Re-verified with ``ron_util.c`` added to the source manifest (no new
+       findings). DEV-006 follows the 0.2.0 rename of ``ron_at_phase_t`` to
+       ``ron_autotune_phase_t``. Filled the author/approver of every
+       revision; each record's approval is its revision's entry here.
+     - dtrussel
