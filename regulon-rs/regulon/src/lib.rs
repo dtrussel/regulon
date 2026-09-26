@@ -19,6 +19,7 @@ pub mod filter;
 pub mod gain_sched;
 pub mod pid;
 pub mod platform;
+pub mod trajectory;
 
 pub use cascade::{Cascade, CascadeStatus};
 pub use error::RonError;
@@ -32,3 +33,6 @@ pub use pid::{
     PidStatus, SafePolicy,
 };
 pub use platform::RonFloat;
+pub use trajectory::{
+    SCurve, SCurveConfig, Setpoint, TrajectoryFault, Trapezoidal, TrapezoidalConfig,
+};

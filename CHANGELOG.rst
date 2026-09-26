@@ -155,6 +155,12 @@ Added
   back-calculation, switches modes in bumpless order and reports a
   ``CascadeStatus`` whose ``bits()`` match the C 32-bit layout.
   RON-TC-CASC-001 – CASC-012 run in the Rust suite.
+- Rust: trajectory generators (``trajectory``, RON-FR-500 – FR-503,
+  FR-510 – FR-515): ``Trapezoidal`` and the seven-phase jerk-limited
+  ``SCurve``, with mid-move re-targeting, hold/resume, reset, latched faults
+  and full state read-back, using the same bounded, libm-free Newton roots
+  as C (``platform::sqrt``). RON-TC-TRAJ-001 – TRAJ-010 run in the Rust
+  suite.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
