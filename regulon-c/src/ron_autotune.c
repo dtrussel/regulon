@@ -301,6 +301,10 @@ ron_fault_t ron_autotune_start(ron_autotune_t *at, ron_pid_t *pid)
         return RON_FAULT_CONFIG_INVALID;
     }
 
+    /* Discard any previous run (tracking, flags, results); cfg and the
+     * initialised guard are kept. */
+    at_seed_state(at);
+
     /* Snapshot PID context for later restore (gains are NOT modified). */
     at->state.saved_Kp   = pid->config.Kp;
     at->state.saved_Ki   = pid->config.Ki;

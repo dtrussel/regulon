@@ -301,6 +301,10 @@ Fixed
   zeroed placeholder snapshot, zeroing the PID's gains. The restore now runs
   only when ``ron_autotune_start()`` captured a snapshot (new opaque
   ``pid_saved`` state flag); the run is still marked aborted.
+- ``ron_autotune_start()`` did not clear the previous run's oscillation
+  tracking, flags and results, so a second run started with stale crossing
+  counts, peaks and timers. It now reseeds the run state (configuration and
+  initialised guard kept) before taking the PID snapshot.
 
 ------------------------------------------------------------------------
 

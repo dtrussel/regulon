@@ -151,6 +151,27 @@ void test_ron_tc_at_001(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_get_results(&at, &Ku, &Tu, NULL, NULL, NULL));
     TEST_ASSERT_TRUE(Ku > RON_FLOAT_C(0.0));
     TEST_ASSERT_TRUE(Tu > RON_FLOAT_C(0.0));
+    TEST_ASSERT_TRUE(at.state.half_period_count > 0U);
+
+    /* A second start discards the finished run: no stale tracking or
+     * results carry over into the new run. */
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_autotune_start(&at, &pid));
+    TEST_ASSERT_EQUAL_UINT8((uint8_t) RON_AUTOTUNE_SETTLING, at.state.phase);
+    TEST_ASSERT_FALSE(at.state.done);
+    TEST_ASSERT_FALSE(at.state.aborted);
+    TEST_ASSERT_TRUE(at.state.is_initialised);
+    TEST_ASSERT_EQUAL_UINT16(0U, at.state.half_period_count);
+    TEST_ASSERT_EQUAL_INT(0, (int) at.state.last_sign);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.half_period_sum);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.elapsed_s);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.time_since_cross);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.pv_min);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.pv_max);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.Ku);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, RON_FLOAT_C(0.0), at.state.Kp_result);
+    TEST_ASSERT_FLOAT_WITHIN(FLT_EPSILON, cfg.relay_amplitude, at.state.u_relay_prev);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_CONFIG_INVALID,
+                            ron_autotune_get_results(&at, &Ku, &Tu, NULL, NULL, NULL));
 }
 
 /* =========================================================================

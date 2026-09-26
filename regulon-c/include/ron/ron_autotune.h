@@ -204,9 +204,10 @@ ron_fault_t ron_autotune_init(ron_autotune_t *at, const ron_autotune_config_t *c
 /**
  * @brief Begin a relay-feedback tuning run against a PID instance.
  *
- * Snapshots the PID's current gains and operating mode for later restore, then
- * switches the PID to manual mode so it does not fight the relay.  The PID
- * gains are NOT modified (RON-FR-804).
+ * Clears any previous run (oscillation tracking, done / aborted flags and
+ * results; the configuration is kept), snapshots the PID's current gains and
+ * operating mode for later restore, then switches the PID to manual mode so
+ * it does not fight the relay.  The PID gains are NOT modified (RON-FR-804).
  *
  * @param[in,out] at   Pointer to an initialised instance.
  * @param[in,out] pid  Target PID instance.  Must be initialised.
