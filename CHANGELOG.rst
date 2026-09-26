@@ -183,6 +183,8 @@ Fixed
   (the ISA form among them); they now name what each function satisfies.
 - ``verify.ps1`` measures and enforces MC/DC when clang 18+ is available, as
   CI does.
+- Rust: the filter tests did not compile with the ``double_precision``
+  feature (an ``f32`` literal in RON-TC-FILT-005).
 - ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
   PID-only lint/analysis/proof commands; it now mirrors the CI gates over
   the source manifests.

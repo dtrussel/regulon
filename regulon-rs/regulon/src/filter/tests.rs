@@ -35,7 +35,7 @@ fn ron_tc_filt_005() {
             checkpoint = output;
         }
     }
-    approx_eq(checkpoint, 1.0 - 0.9_f32.powi(10), 0.001);
+    approx_eq(checkpoint, 1.0 - RonFloat::powi(0.9, 10), 0.001);
     assert!((filter.state().last_output - 1.0).abs() < 0.01);
 }
 
