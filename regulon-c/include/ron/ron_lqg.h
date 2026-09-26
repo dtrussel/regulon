@@ -23,9 +23,11 @@
  *   - The Kalman gain is determined by Q_noise, R_noise, A, H.
  *   - The LQR gain K is determined by Q_cost, R_cost, A, B.
  *
- * Both gains are solved via DARE at init time (RON-FR-756) and are not
- * recomputed per step.  Pre-computed gains may be supplied directly to
- * bypass the DARE solver (RON_LQG_GAIN_PRECOMPUTED).
+ * The LQR gain K is solved via DARE once at init time (RON_LQG_GAIN_DARE)
+ * or supplied pre-computed (RON_LQG_GAIN_PRECOMPUTED), and is not recomputed
+ * per step.  No Riccati equation is solved for the estimator: the embedded
+ * Kalman filter runs its normal time-varying gain, or the caller-supplied
+ * steady-state gain K_f_inf when use_kf_steady_state is set.
  *
  * All storage resides in the caller-owned ron_lqg_t instance; no dynamic
  * allocation, recursion, or VLAs are used (RON-FR-759).
@@ -74,8 +76,8 @@ extern "C" {
 
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 typedef enum {
-    RON_LQG_GAIN_PRECOMPUTED = 0, /**< K and K_f_inf supplied; DARE skipped. */
-    RON_LQG_GAIN_DARE        = 1  /**< Both gains computed via DARE at init. */
+    RON_LQG_GAIN_PRECOMPUTED = 0, /**< LQR gain K supplied; DARE skipped.   */
+    RON_LQG_GAIN_DARE        = 1  /**< LQR gain K solved via DARE at init.  */
 } ron_lqg_gain_mode_t;
 
 /* =========================================================================
@@ -146,9 +148,12 @@ typedef struct {
  *
  * LQG is the separation principle made concrete: an LQR control law driven by
  * a Kalman state estimate, with the two designed independently. This call
- * therefore performs two solves - the control Riccati equation from @c A,
- * @c B, @c Q_cost and @c R_cost, and the estimator, delegated to
- * ron_kf_init() with the noise model in @c Q_noise and @c R_noise.
+ * therefore sets up two parts - the control gain (in RON_LQG_GAIN_DARE mode
+ * the control Riccati equation is solved from @c A, @c B, @c Q_cost and
+ * @c R_cost; otherwise @c K is copied), and the estimator, delegated to
+ * ron_kf_init() with the noise model in @c Q_noise and @c R_noise. The
+ * estimator's gain is not solved here: the filter uses its time-varying
+ * gain, or @c K_f_inf when @c use_kf_steady_state is set.
  *
  * The estimator is always the embedded Kalman filter; unlike
  * ron_lqr_init() there is no choice of estimate source, because
@@ -175,9 +180,9 @@ ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
 /**
  * @brief Return the controller and its estimator to post-initialisation state.
  *
- * Clears the integral accumulator, output history and any latched fault, and
- * resets the embedded Kalman filter to its configured @c x0 and @c P0. Both
- * solved gains are kept, so neither Riccati solve is repeated.
+ * Clears the output history and resets the embedded Kalman filter to its
+ * configured @c x0 and @c P0. The LQR gain is kept, so the control Riccati
+ * solve is not repeated.
  *
  * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
  *

@@ -105,9 +105,11 @@ typedef struct {
  * @param[out] kf   Filter instance to initialise. Must not be NULL.
  * @param[in]  cfg  Configuration. Dimensions @c n, @c m and @c p must be
  *                  within their ::RON_KF_MAX_STATES,
- *                  ::RON_KF_MAX_MEASUREMENTS and ::RON_KF_MAX_INPUTS bounds,
- *                  every active matrix entry must be finite, and @c R must be
- *                  positive-definite. Must not be NULL.
+ *                  ::RON_KF_MAX_MEASUREMENTS and ::RON_KF_MAX_INPUTS bounds
+ *                  and every active matrix entry must be finite. Must not be
+ *                  NULL. Definiteness of @c R (or @c P0) is not checked here:
+ *                  an innovation covariance @c H*P*H' + R that is not
+ *                  positive-definite is rejected by ron_kf_update().
  *
  * @retval RON_FAULT_NONE           Filter ready to use.
  * @retval RON_FAULT_NULL_POINTER   @p kf or @p cfg was NULL.
@@ -180,13 +182,14 @@ ron_fault_t ron_kf_predict(ron_kf_t *kf, const ron_float_t u[RON_KF_MAX_INPUTS])
  *                                  @p z_valid was @c false.
  * @retval RON_FAULT_NULL_POINTER   @p kf, or @p z while @p z_valid was set,
  *                                  was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The filter was never initialised.
+ * @retval RON_FAULT_CONFIG_INVALID The filter was never initialised, or the
+ *                                  innovation covariance was not
+ *                                  positive-definite (time-varying gain
+ *                                  only; the state is left unchanged).
  * @retval RON_FAULT_INPUT_NAN      An entry of @p z was not finite.
- * @retval RON_FAULT_OUTPUT_NAN     The innovation covariance was not
- *                                  positive-definite or the corrected
- *                                  estimate or covariance was not finite;
- *                                  the correction is discarded and the
- *                                  filter state is left unchanged.
+ * @retval RON_FAULT_OUTPUT_NAN     The corrected estimate or covariance was
+ *                                  not finite; the correction is discarded
+ *                                  and the filter state is left unchanged.
  */
 /* Satisfies: RON-FR-602, RON-FR-603, RON-FR-604, RON-FR-605, RON-FR-606 | Test: RON-TC-KF-001, RON-TC-KF-004, RON-TC-KF-005, RON-TC-KF-006, RON-TC-KF-007 */
 ron_fault_t ron_kf_update(ron_kf_t *kf, const ron_float_t z[RON_KF_MAX_MEASUREMENTS], bool z_valid);

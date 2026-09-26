@@ -331,6 +331,16 @@ Fixed
   the ``RON_FAULT_OUTPUT_NAN`` check, so the rejected sample was committed
   (and the running sum could hold ``inf``). They now compute on locals and
   commit only a finite output; the fault still latches as before.
+- Header documentation that did not match the code (API unchanged):
+  ``ron_kf_init`` claimed to require a positive-definite ``R`` (only
+  finiteness is checked; a non-PD innovation covariance is rejected by
+  ``ron_kf_update`` with ``RON_FAULT_CONFIG_INVALID``, which its ``@retval``
+  list now says instead of ``RON_FAULT_OUTPUT_NAN``); ``ron_lqg.h`` said both
+  gains are solved via DARE at init (only the LQR gain is; the Kalman filter
+  runs its time-varying gain or the supplied ``K_f_inf``), and
+  ``ron_lqg_reset`` claimed to clear an integral accumulator LQG does not
+  have; ``ron_ma_init`` said the filter "averages only what it has" before
+  ``M`` samples (it divides by ``M`` over a zero-filled window).
 
 ------------------------------------------------------------------------
 

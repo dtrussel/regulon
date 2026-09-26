@@ -151,9 +151,10 @@ typedef struct {
 /**
  * @brief Initialise a moving-average (boxcar FIR) filter.
  *
- * Averages the most recent @c M samples. Until @c M samples have been seen
- * the filter averages only what it has, so the output is usable immediately
- * rather than being held at zero.
+ * Averages the most recent @c M samples, always dividing by @c M. The window
+ * starts zero-filled, so until @c M samples have been seen the empty slots
+ * count as zeros and the output ramps up from zero (inputs 1, 2, 3, 4 with
+ * @c M = 4 give 0.25, 0.75, 1.5, 2.5).
  *
  * @param[out] f    Filter instance to initialise. Must not be NULL.
  * @param[in]  cfg  Configuration; @c M must be in [1, ::RON_MA_MAX_WINDOW].
