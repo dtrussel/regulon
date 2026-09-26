@@ -12,34 +12,30 @@
 
 #include "ron/ron_feedforward.h"
 
-/* Satisfies: RON-SR-020 | Test: RON-TC-SAFE-011 */
-static bool pid_cfg_isfinite(ron_float_t value)
-{
-    return (value == value) && (value <= RON_FLOAT_MAX) && (value >= RON_FLOAT_MIN);
-}
+#include "ron_util_internal.h"
 
 /* Satisfies: RON-SR-001, RON-SR-002 | Test: RON-TC-SAFE-001 */
 static bool pid_cfg_nonnegative(ron_float_t value)
 {
-    return pid_cfg_isfinite(value) && (value >= RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value >= RON_FLOAT_C(0.0));
 }
 
 /* Satisfies: RON-SR-001, RON-SR-002 | Test: RON-TC-SAFE-001 */
 static bool pid_cfg_positive(ron_float_t value)
 {
-    return pid_cfg_isfinite(value) && (value > RON_FLOAT_C(0.0));
+    return ron_util_isfinite(value) && (value > RON_FLOAT_C(0.0));
 }
 
 /* Satisfies: RON-FR-007 | Test: RON-TC-PID-010 */
 static bool pid_cfg_unit_interval(ron_float_t value)
 {
-    return pid_cfg_isfinite(value) && (value >= RON_FLOAT_C(0.0)) && (value <= RON_FLOAT_C(1.0));
+    return ron_util_isfinite(value) && (value >= RON_FLOAT_C(0.0)) && (value <= RON_FLOAT_C(1.0));
 }
 
 /* Satisfies: RON-FR-021, RON-FR-035 | Test: RON-TC-PID-016, RON-TC-PID-026 */
 static bool pid_cfg_strict_range(ron_float_t minimum, ron_float_t maximum)
 {
-    return pid_cfg_isfinite(minimum) && pid_cfg_isfinite(maximum) && (minimum < maximum);
+    return ron_util_isfinite(minimum) && ron_util_isfinite(maximum) && (minimum < maximum);
 }
 
 /* Satisfies: RON-FR-001 – RON-FR-006 | Test: RON-TC-PID-001 – RON-TC-PID-009 */
@@ -83,8 +79,8 @@ static bool pid_cfg_valid_enums(const ron_pid_config_t *cfg)
 /* Satisfies: RON-FR-006, RON-FR-021, RON-SR-011 | Test: RON-TC-PID-016, RON-TC-PID-024, RON-TC-SAFE-008 */
 static bool pid_cfg_valid_runtime_scalars(const ron_pid_config_t *cfg)
 {
-    return pid_cfg_isfinite(cfg->tau_sp) && pid_cfg_isfinite(cfg->du_max) &&
-           pid_cfg_isfinite(cfg->safe_value);
+    return ron_util_isfinite(cfg->tau_sp) && ron_util_isfinite(cfg->du_max) &&
+           ron_util_isfinite(cfg->safe_value);
 }
 
 /* Satisfies: RON-FR-033 | Test: RON-TC-PID-022, RON-TC-PID-024 */
@@ -134,9 +130,9 @@ static bool pid_cfg_valid_normalisation(const ron_pid_config_t *cfg)
 
     valid = true;
     if (cfg->normalise) {
-        valid = pid_cfg_isfinite(cfg->in_min) && pid_cfg_isfinite(cfg->in_max);
+        valid = ron_util_isfinite(cfg->in_min) && ron_util_isfinite(cfg->in_max);
         valid = valid && ((cfg->in_max - cfg->in_min) > RON_FLOAT_EPSILON);
-        valid = valid && pid_cfg_isfinite(cfg->out_min) && pid_cfg_isfinite(cfg->out_max);
+        valid = valid && ron_util_isfinite(cfg->out_min) && ron_util_isfinite(cfg->out_max);
         valid = valid && ((cfg->out_max - cfg->out_min) > RON_FLOAT_EPSILON);
     }
 

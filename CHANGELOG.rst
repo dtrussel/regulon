@@ -33,7 +33,7 @@ Changed
   freestanding headers and needs **no C library at all** (RON-DC-002).
 - Numeric helpers the modules each carried a private copy of now live once
   in the internal ``ron_util.c`` (part of the mandatory baseline): the
-  finite check (12 copies, 3 implementations), the output rate limiter (4
+  finite check (15 copies, 3 implementations), the output rate limiter (4
   identical copies), square root, sign, pi, and the LQR/LQG strided matrix
   zeroing (now ``ron_mat_zero``). The trapezoidal and S-curve planners now use
   the 30-step square root the matrix module already used instead of 16/18
