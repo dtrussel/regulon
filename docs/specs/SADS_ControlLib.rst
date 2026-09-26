@@ -15,7 +15,7 @@ Software Architecture and Design Specification
 
 **Document ID:** RON-SADS-001
 
-**Version:** 1.3.0
+**Version:** 1.4.0
 
 **Status:** Draft
 
@@ -68,6 +68,13 @@ Revision History
      - Documented the ISA-form conversion helper for RON-FR-002 and the
        trajectory reset / state read-back operations (RON-FR-514/515).
        Added the ron_estimator module shared by ron_statespace and ron_lqr.
+     - dtrussel
+   * - 1.4.0
+     - 2026-09-26
+     - ron_statespace, ron_lqr and ron_lqg latch runtime faults in their
+       ``faults`` register until ``_fault_clear()`` or ``_reset()``
+       (RON-SR-012/013), holding the last output; a step commits integral and
+       output history only after every output is finite.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -1746,9 +1753,14 @@ State-Space Controller Pseudocode
 
    OPERATION ron_ss_step(inst, r, u_obs[n], dt, [out] u, [out] status) → FaultCode
 
+   -- FAIL(code): inst.state.faults |= code; *u ← inst.state.u_prev;
+   --             *status ← FAULT; RETURN inst.state.faults   (RON-SR-010..013)
+   -- 0. Null / init guards return without latching; a latched fault → FAIL(NONE)
+   IF NOT finite(r) OR NOT finite(dt) OR dt ≤ 0 THEN FAIL(INPUT_NAN)
+
    -- 1. Obtain state estimate (shared estimator component, see ron_estimator)
    fault ← ron_estimator_get_state(inst.est, x_hat, n)
-   IF fault ≠ NONE THEN latch fault, return safe output
+   IF fault ≠ NONE THEN FAIL(fault)
 
    -- 2. Compute state-feedback term
    u_fb ← -K * x_hat    -- matrix-vector product
@@ -1756,9 +1768,8 @@ State-Space Controller Pseudocode
    -- 3. Integral augmentation (if enabled)
    IF inst.cfg.use_integral THEN
      e_reg ← r - C_out * x_hat
-     inst.state.integral ← inst.state.integral + Ki_aug * dt * e_reg
-     inst.state.integral ← clamp(inst.state.integral, I_min, I_max)
-     u_raw ← u_fb + Kr * r + inst.state.integral
+     integral ← clamp(inst.state.integral + Ki_aug * dt * e_reg, I_min, I_max)
+     u_raw ← u_fb + Kr * r + integral             -- local; committed in step 5
    ELSE
      u_raw ← u_fb + Kr * r
    END
@@ -1766,6 +1777,11 @@ State-Space Controller Pseudocode
    -- 4. Saturation + rate limit (identical to PID pipeline)
    u_sat   ← clamp(u_raw, u_min, u_max)
    u_final ← rate_limit(u_sat, u_sat_prev, du_max, dt)
+
+   -- 5. Commit only a finite result
+   IF NOT RON_ISFINITE(u_raw) THEN FAIL(OUTPUT_NAN)   -- state unchanged
+   IF use_integral THEN inst.state.integral ← integral END
+   inst.state.u_prev ← u_final
    *u ← u_final
 
 Luenberger Observer Pseudocode
@@ -1859,7 +1875,7 @@ Data Structures
      P_solved[n][n]     : RON_FLOAT  -- DARE solution (zeros in PRECOMPUTED mode)
      integral[m]        : RON_FLOAT  -- per-input integral accumulator
      u_prev[m]          : RON_FLOAT  -- previous output (rate limiting)
-     faults             : FaultCode
+     faults             : FaultCode  -- latched until fault_clear / reset
      dare_converged     : bool
      is_initialised     : bool
 
@@ -1898,8 +1914,9 @@ LQR Control Step Pseudocode
 .. code-block:: none
 
    OPERATION ron_lqr_step(inst, r[m], dt, [out] u[m], [out] status) → FaultCode
-     -- 1. Null / init / fault-latch guards
-     -- 2. Validate dt > 0 and all r[j] finite
+     -- 1. Null / init guards (not latched); a latched fault → FAIL(NONE)
+     --    FAIL(code) as for ron_ss_step, holding the u_prev vector
+     -- 2. Validate dt > 0 and all r[j] finite, else FAIL(INPUT_NAN)
      -- 3. Obtain x_hat from the shared estimator (as ron_ss_step does)
      fault ← ron_estimator_get_state(inst.est, x_hat, n)
 
@@ -1911,8 +1928,8 @@ LQR Control Step Pseudocode
      IF use_integral:
        FOR j IN 0..m-1:
          e_reg[j] ← r[j] - SUM_i( C_out[j][i] * x_hat[i] )
-         integral[j] ← clamp(integral[j] + Ki_aug[j]*dt*e_reg[j], i_min[j], i_max[j])
-       u_raw[j] ← u_fb[j] + Kr[j]*r[j] + integral[j]
+         integ[j] ← clamp(integral[j] + Ki_aug[j]*dt*e_reg[j], i_min[j], i_max[j])  -- local
+       u_raw[j] ← u_fb[j] + Kr[j]*r[j] + integ[j]
      ELSE:
        u_raw[j] ← u_fb[j] + Kr[j]*r[j]
 
@@ -1920,9 +1937,9 @@ LQR Control Step Pseudocode
      FOR j IN 0..m-1:
        u_sat[j]   ← clamp(u_raw[j], u_min[j], u_max[j])
        u_final[j] ← rate_limit(u_sat[j], u_prev[j], du_max[j], dt)
-       IF NOT RON_ISFINITE(u_final[j]): latch RON_FAULT_OUTPUT_NAN; return safe
-       u_prev[j] ← u_final[j]
-       u[j] ← u_final[j]
+       IF NOT RON_ISFINITE(u_raw[j]): FAIL(OUTPUT_NAN)   -- state unchanged
+     FOR j IN 0..m-1:                   -- commit only after every output is finite
+       integral[j] ← integ[j];  u_prev[j] ← u_final[j];  u[j] ← u_final[j]
 
      -- 7. Accumulate status bits (saturated, rate-limited)
      *status ← computed_status_bits
@@ -1972,7 +1989,7 @@ Data Structures
      K_solved[m][n]     : RON_FLOAT  -- LQR gain in use
      P_lqr[n][n]        : RON_FLOAT  -- LQR DARE solution
      u_prev[m]          : RON_FLOAT
-     faults             : FaultCode
+     faults             : FaultCode  -- latched until fault_clear / reset
      is_initialised     : bool
 
 Initialisation Pseudocode
@@ -2002,7 +2019,8 @@ Combined Step Pseudocode (predict → update → control)
      RETURN ron_kf_update(&inst.kalman, z, z_valid)
 
    OPERATION ron_lqg_step(inst, r[m], dt, [out] u[m], [out] status) → FaultCode
-     -- 1. Null / init / fault-latch guards; validate dt, r finite
+     -- 1. Null / init guards; latched fault → FAIL(NONE); dt, r, x_hat finite
+     --    else FAIL(INPUT_NAN); non-finite u_raw → FAIL(OUTPUT_NAN)
      -- 2. x_hat ← inst.kalman.state.x_hat  (separation principle: always Kalman)
      -- 3. FOR j IN 0..m-1: u_raw[j] ← -SUM_i(K_solved[j][i]*x_hat[i]) + Kr[j]*r[j]
      -- 4. Per-input saturation + rate limit (identical to ron_lqr_step steps 6–7)

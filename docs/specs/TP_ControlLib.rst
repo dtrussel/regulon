@@ -15,7 +15,7 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 
 **Status:** Draft
 
@@ -71,6 +71,12 @@ Revision History
        for RON-TC-PID-015-FV, SAFE-011-FV, AT-007-FV, FILT-009-FV and
        FILT-012-FV; its CI pipeline (``ci_rust.yml``) exists and is
        described below.
+     - dtrussel
+   * - 1.5.0
+     - 2026-09-26
+     - Added RON-TC-SS-010, RON-TC-LQR-011 and RON-TC-LQG-011: the
+       state-space, LQR and LQG controllers latch runtime faults until
+       cleared (RON-SR-012, SR-013).
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -1014,11 +1020,11 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-SR-012
      - Fault state latches until cleared
      - UT
-     - RON-TC-SAFE-009
+     - RON-TC-SAFE-009, RON-TC-SS-010, RON-TC-LQR-011, RON-TC-LQG-011
    * - RON-SR-013
      - Fault code register
      - UT
-     - RON-TC-SAFE-010
+     - RON-TC-SAFE-010, RON-TC-SS-010, RON-TC-LQR-011, RON-TC-LQG-011
    * - RON-SR-020
      - NaN / Inf detection in all inputs
      - UT, FV
@@ -1332,6 +1338,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-SS-001 – SS-009
      - UT
      - RON-FR-700 – FR-723
+   * - RON-TC-SS-010
+     - UT
+     - RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013
    * - RON-TC-EST-001 – EST-003
      - UT
      - RON-FR-701, RON-FR-734
@@ -1344,12 +1353,18 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-LQR-010-FV
      - FV
      - RON-FR-736, RON-FR-737, RON-SR-003
+   * - RON-TC-LQR-011
+     - UT
+     - RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013
    * - RON-TC-LQG-001 – LQG-009
      - UT / IT
      - RON-FR-750 – FR-759
    * - RON-TC-LQG-010-FV
      - FV
      - RON-FR-757, RON-FR-759, RON-SR-003
+   * - RON-TC-LQG-011
+     - UT
+     - RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013
    * - RON-TC-AT-001 – AT-008
      - UT / IT
      - RON-FR-800 – FR-807
@@ -3034,8 +3049,42 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
        ``dt`` ``RON_FAULT_INPUT_NAN``; overflow yields
        ``RON_FAULT_OUTPUT_NAN``, and an overflowing observer step leaves the
        previous finite estimate in place. The rejected controller step leaves
-       the integral and output history unchanged; the following finite step
-       advances the integral by exactly one ``Ki_aug * dt * e``.
+       the integral and output history unchanged; after
+       ``ron_ss_fault_clear()`` the following finite step advances the
+       integral by exactly one ``Ki_aug * dt * e``.
+
+------------------------------------------------------------------------
+
+RON-TC-SS-010 — Fault Latch and Explicit Clear
+----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = 1``, ``K = 1``, ``x_ext = 1``, rate
+       limiting disabled.
+   * - **Stimulus**
+     - Step once with finite inputs; step with a non-finite reference;
+       step again with finite inputs; call ``ron_ss_fault_clear()`` and step;
+       latch a fault again and call ``ron_ss_reset()``; call
+       ``ron_ss_fault_clear()`` with ``NULL`` and on an uninitialised
+       instance; step with a ``NULL`` output pointer.
+   * - **Pass Criterion**
+     - The faulting step returns ``RON_FAULT_INPUT_NAN``, sets it in the
+       fault register, writes the last output to ``u`` and
+       ``RON_STATUS_FAULT`` to ``status``, and leaves the output history
+       unchanged. The following finite step returns the same latched fault
+       with the same held output. After ``ron_ss_fault_clear()`` (or
+       ``ron_ss_reset()``) the next finite step returns ``RON_FAULT_NONE``
+       without ``RON_STATUS_FAULT``. ``ron_ss_fault_clear()`` returns
+       ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
+       / uninitialised. A ``NULL``-argument step returns
+       ``RON_FAULT_NULL_POINTER`` without latching.
 
 ------------------------------------------------------------------------
 
@@ -3235,16 +3284,16 @@ RON-TC-LQR-006 — Fault Detection: Null Pointer and Uninitialised
        (c) Call ``ron_lqr_step`` on an instance that has not been initialised.
        (d) Call ``ron_lqr_step`` with ``u == NULL``.
        (e) With integral augmentation enabled, call ``ron_lqr_step`` with a
-           gain and external state whose product overflows, then again with
-           a finite state.
+           gain and external state whose product overflows, then call
+           ``ron_lqr_fault_clear()`` and step again with a finite state.
    * - **Pass Criterion**
      - (a) and (b) return ``RON_FAULT_NULL_POINTER``.
        (c) returns ``RON_FAULT_CONFIG_INVALID``.
        (d) returns ``RON_FAULT_NULL_POINTER``. No crash in any case.
        (e) The overflowing step returns ``RON_FAULT_OUTPUT_NAN`` and leaves
-       the integral and output history unchanged; the finite step returns
-       ``RON_FAULT_NONE`` and advances the integral by exactly one
-       ``Ki_aug * dt * e``.
+       the integral and output history unchanged; after the clear, the finite
+       step returns ``RON_FAULT_NONE`` and advances the integral by exactly
+       one ``Ki_aug * dt * e``.
 
 RON-TC-LQR-007 — Integral Augmentation: Steady-State Tracking
 --------------------------------------------------------------
@@ -3328,6 +3377,39 @@ RON-TC-LQR-010-FV — Output Bounded and No Heap (Formal)
        No heap allocation (``malloc`` / ``calloc`` / ``free``) is reachable.
    * - **Pass Criterion**
      - CBMC reports no property violations within the unwind bound.
+
+------------------------------------------------------------------------
+
+RON-TC-LQR-011 — Fault Latch and Explicit Clear
+-----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = m = 1``, ``K = 1``, ``x_ext = 1``,
+       rate limiting disabled.
+   * - **Stimulus**
+     - Step once with finite inputs; step with a non-finite reference;
+       step again with finite inputs; call ``ron_lqr_fault_clear()`` and step;
+       latch a fault again and call ``ron_lqr_reset()``; call
+       ``ron_lqr_fault_clear()`` with ``NULL`` and on an uninitialised
+       instance; step with a ``NULL`` output pointer.
+   * - **Pass Criterion**
+     - The faulting step returns ``RON_FAULT_INPUT_NAN``, sets it in the
+       fault register, writes the last output vector to ``u`` and
+       ``RON_STATUS_FAULT`` to ``status``, and leaves the output history
+       unchanged. The following finite step returns the same latched fault
+       with the same held output. After ``ron_lqr_fault_clear()`` (or
+       ``ron_lqr_reset()``) the next finite step returns ``RON_FAULT_NONE``
+       without ``RON_STATUS_FAULT``. ``ron_lqr_fault_clear()`` returns
+       ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
+       / uninitialised. A ``NULL``-argument step returns
+       ``RON_FAULT_NULL_POINTER`` without latching.
 
 ------------------------------------------------------------------------
 
@@ -3528,6 +3610,39 @@ RON-TC-LQG-010-FV — No Heap and Output Bounded (Formal)
        ``x_hat`` remains finite.
    * - **Pass Criterion**
      - CBMC reports no property violations within the unwind bound.
+
+------------------------------------------------------------------------
+
+RON-TC-LQG-011 — Fault Latch and Explicit Clear
+-----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Double-integrator LQG with pre-computed ``K``, ``Kr = 2``, ``x0 = 0``,
+       rate limiting disabled.
+   * - **Stimulus**
+     - Step once with finite inputs; step with a non-finite reference;
+       step again with finite inputs; call ``ron_lqg_fault_clear()`` and step;
+       latch a fault again and call ``ron_lqg_reset()``; call
+       ``ron_lqg_fault_clear()`` with ``NULL`` and on an uninitialised
+       instance; step with a ``NULL`` output pointer.
+   * - **Pass Criterion**
+     - The faulting step returns ``RON_FAULT_INPUT_NAN``, sets it in the
+       fault register, writes the last output vector to ``u`` and
+       ``RON_STATUS_FAULT`` to ``status``, and leaves the output history
+       unchanged. The following finite step returns the same latched fault
+       with the same held output. After ``ron_lqg_fault_clear()`` (or
+       ``ron_lqg_reset()``) the next finite step returns ``RON_FAULT_NONE``
+       without ``RON_STATUS_FAULT``. ``ron_lqg_fault_clear()`` returns
+       ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
+       / uninitialised. A ``NULL``-argument step returns
+       ``RON_FAULT_NULL_POINTER`` without latching.
 
 ------------------------------------------------------------------------
 
@@ -4775,4 +4890,4 @@ Open Items
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-TP-001 v1.4.0*
+*End of Document — RON-TP-001 v1.5.0*

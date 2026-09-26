@@ -135,7 +135,7 @@ typedef struct {
     ron_float_t K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< LQR gain in use.  */
     ron_float_t P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];    /**< LQR DARE solution.*/
     ron_float_t u_prev[RON_LQR_MAX_INPUTS]; /**< Previous output (rate limiting).        */
-    ron_fault_t faults;                     /**< Reserved; always RON_FAULT_NONE.        */
+    ron_fault_t faults;                     /**< Latched faults (RON-SR-013).            */
     bool is_initialised;                    /**< Set by ron_lqg_init.                    */
 } ron_lqg_t;
 
@@ -180,8 +180,8 @@ ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
 /**
  * @brief Return the controller and its estimator to post-initialisation state.
  *
- * Clears the output history and resets the embedded Kalman filter to its
- * configured @c x0 and @c P0. The LQR gain is kept, so the control Riccati
+ * Clears the output history and latched faults, and resets the embedded
+ * Kalman filter to its configured @c x0 and @c P0. The LQR gain is kept, so the control Riccati
  * solve is not repeated.
  *
  * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
@@ -190,8 +190,23 @@ ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
  * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
  * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  */
-/* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+/* Satisfies: RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
 ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
+
+/**
+ * @brief Clear the latched faults so stepping can resume.
+ *
+ * Only the fault register is cleared; the output history and Kalman filter are left as they were when the
+ * fault latched.
+ *
+ * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Faults cleared.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ */
+/* Satisfies: RON-SR-012 | Test: RON-TC-LQG-011 */
+ron_fault_t ron_lqg_fault_clear(ron_lqg_t *lqg);
 
 /* Advance the embedded Kalman filter prediction step (RON-FR-753). */
 /**
@@ -254,20 +269,25 @@ ron_fault_t ron_lqg_update(ron_lqg_t *lqg, const ron_float_t z[RON_KF_MAX_MEASUR
  *                        be NULL.
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
- * Faults are returned, not latched: a rejected step leaves the state
- * (output history) unchanged and writes neither @p u nor @p status, and the
- * next call is evaluated afresh.
+ * Runtime faults latch (RON-SR-012): the fault is ORed into @c faults, the
+ * step holds the last output vector in @p u, reports ::RON_STATUS_FAULT in
+ * @p status and leaves the output history unchanged. Every later step does
+ * the same and returns the latched fault until ron_lqg_fault_clear() or
+ * ron_lqg_reset() is called. Null-pointer and uninitialised calls are
+ * rejected without latching and write neither @p u nor @p status. The
+ * estimator calls (ron_lqg_predict(), ron_lqg_update()) are not blocked by a
+ * latched fault.
  *
  * @retval RON_FAULT_NONE           Output computed normally.
  * @retval RON_FAULT_NULL_POINTER   @p lqg, @p r, @p u or @p status was NULL.
  * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  * @retval RON_FAULT_INPUT_NAN      An entry of @p r, or the state estimate,
  *                                  was not finite, or @p dt was not positive
- *                                  and finite; the step is rejected.
- * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the step
- *                                  is rejected.
+ *                                  and finite.
+ * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite.
+ * @retval other                    The faults latched by an earlier step.
  */
-/* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
+/* Satisfies: RON-FR-755, RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-005, RON-TC-LQG-008, RON-TC-LQG-011 */
 ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
                          ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status);
 

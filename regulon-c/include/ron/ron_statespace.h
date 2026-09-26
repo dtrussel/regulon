@@ -90,7 +90,7 @@ typedef struct {
 typedef struct {
     ron_float_t integral; /**< Augmented-integral accumulator. */
     ron_float_t u_prev;   /**< Previous output (rate limiting). */
-    ron_fault_t faults;   /**< Reserved; always RON_FAULT_NONE. */
+    ron_fault_t faults;   /**< Latched faults (RON-SR-013).     */
     bool is_initialised;  /**< Set by ron_ss_init.              */
 } ron_ss_state_t;
 
@@ -131,8 +131,8 @@ ron_fault_t ron_ss_init(ron_ss_t *ss, const ron_ss_config_t *cfg);
 /**
  * @brief Return the controller to its post-initialisation state.
  *
- * Clears the integral accumulator and output history, and resets the
- * embedded estimator if one is in use.
+ * Clears the integral accumulator, output history and latched faults, and
+ * resets the embedded estimator if one is in use.
  *
  * @param[in,out] ss  Initialised controller instance. Must not be NULL.
  *
@@ -140,8 +140,23 @@ ron_fault_t ron_ss_init(ron_ss_t *ss, const ron_ss_config_t *cfg);
  * @retval RON_FAULT_NULL_POINTER   @p ss was NULL.
  * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  */
-/* Satisfies: RON-FR-702 | Test: RON-TC-SS-003 */
+/* Satisfies: RON-FR-702, RON-SR-012 | Test: RON-TC-SS-003, RON-TC-SS-010 */
 ron_fault_t ron_ss_reset(ron_ss_t *ss);
+
+/**
+ * @brief Clear the latched faults so stepping can resume.
+ *
+ * Only the fault register is cleared; the integral accumulator, output
+ * history and estimator are left as they were when the fault latched.
+ *
+ * @param[in,out] ss  Initialised controller instance. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Faults cleared.
+ * @retval RON_FAULT_NULL_POINTER   @p ss was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ */
+/* Satisfies: RON-SR-012 | Test: RON-TC-SS-010 */
+ron_fault_t ron_ss_fault_clear(ron_ss_t *ss);
 
 /**
  * @brief Compute one control output from the current state estimate.
@@ -159,22 +174,25 @@ ron_fault_t ron_ss_reset(ron_ss_t *ss);
  * @param[out]    u       Receives the control output. Must not be NULL.
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
- * Faults are returned, not latched: a rejected step leaves the state
- * (integral accumulator and output history) unchanged and writes neither
- * @p u nor @p status, and the next call is evaluated afresh.
+ * Runtime faults latch (RON-SR-012): the fault is ORed into
+ * @c state.faults, the step holds the last output in @p u, reports
+ * ::RON_STATUS_FAULT in @p status and leaves the integral accumulator and
+ * output history unchanged. Every later step does the same and returns the
+ * latched fault until ron_ss_fault_clear() or ron_ss_reset() is called.
+ * Null-pointer and uninitialised calls are rejected without latching and
+ * write neither @p u nor @p status.
  *
  * @retval RON_FAULT_NONE           Output computed normally.
- * @retval RON_FAULT_NULL_POINTER   @p ss, @p u or @p status was NULL, or the
- *                                  external state pointer was NULL.
+ * @retval RON_FAULT_NULL_POINTER   @p ss, @p u or @p status was NULL (not
+ *                                  latched), or the external state pointer
+ *                                  was NULL (latched).
  * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  * @retval RON_FAULT_INPUT_NAN      @p r or the state estimate was not finite,
- *                                  or @p dt was not positive and finite; the
- *                                  step is rejected.
- * @retval RON_FAULT_OUTPUT_NAN     The computed output was not finite; the
- *                                  step is rejected and the integral is not
- *                                  advanced.
+ *                                  or @p dt was not positive and finite.
+ * @retval RON_FAULT_OUTPUT_NAN     The computed output was not finite.
+ * @retval other                    The faults latched by an earlier step.
  */
-/* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004 */
+/* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703, RON-SR-012 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004, RON-TC-SS-010 */
 ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t *u,
                         ron_status_t *status);
 

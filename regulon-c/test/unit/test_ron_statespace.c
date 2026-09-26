@@ -495,11 +495,14 @@ void test_ron_tc_ss_009_runtime(void)
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_estimator_kalman_predict(NULL, NULL));
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_estimator_kalman_update(NULL, x_ext, true));
 
-    /* Non-finite r / non-positive dt rejection. */
+    /* Non-finite r / non-positive dt rejection (each latches; cleared so
+     * the next case reaches its own check). */
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
                       ron_ss_step(&ss, ss_make_inf(), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_fault_clear(&ss));
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
                       ron_ss_step(&ss, RON_FLOAT_C(0.0), ss_make_nan(), &u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_fault_clear(&ss));
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
                       ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.0), &u, &status));
 
@@ -542,9 +545,70 @@ void test_ron_tc_ss_009_runtime(void)
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), ss.state.integral);
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.0), ss.state.u_prev);
     x_ext[0] = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_fault_clear(&ss));
     TEST_ASSERT_EQUAL(RON_FAULT_NONE,
                       ron_ss_step(&ss, RON_FLOAT_C(1.0), RON_FLOAT_C(0.1), &u, &status));
     TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-6), RON_FLOAT_C(0.1), ss.state.integral);
+}
+
+/* ----------------------------------------------------------------------- */
+/* RON-TC-SS-010 — Fault Latch and Explicit Clear                          */
+/* ----------------------------------------------------------------------- */
+
+/* RON-TC-SS-010 | RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013 */
+void test_ron_tc_ss_010(void)
+{
+    ron_ss_t ss;
+    ron_ss_t fresh       = {0};
+    ron_ss_config_t cfg  = make_ext_cfg(1U);
+    ron_float_t x_ext[1] = {RON_FLOAT_C(1.0)};
+    ron_float_t u        = RON_FLOAT_C(0.0);
+    ron_status_t status  = RON_STATUS_OK;
+
+    cfg.K[0]      = RON_FLOAT_C(1.0);
+    cfg.est.x_ext = x_ext;
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_init(&ss, &cfg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE,
+                      ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(SS_TOL, RON_FLOAT_C(-1.0), u);
+
+    /* The fault latches: the last output is held and FAULT reported. */
+    x_ext[0] = RON_FLOAT_C(2.0);
+    u        = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                      ron_ss_step(&ss, ss_make_nan(), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ss.state.faults);
+    TEST_ASSERT_FLOAT_WITHIN(SS_TOL, RON_FLOAT_C(-1.0), u);
+    TEST_ASSERT_EQUAL(RON_STATUS_FAULT, status);
+    TEST_ASSERT_FLOAT_WITHIN(SS_TOL, RON_FLOAT_C(-1.0), ss.state.u_prev);
+
+    /* Finite inputs do not clear it. */
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                      ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(SS_TOL, RON_FLOAT_C(-1.0), u);
+    TEST_ASSERT_EQUAL(RON_STATUS_FAULT, status);
+
+    /* An explicit clear resumes normal stepping. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_fault_clear(&ss));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE,
+                      ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(SS_TOL, RON_FLOAT_C(-2.0), u);
+    TEST_ASSERT_EQUAL(0, status & RON_STATUS_FAULT);
+
+    /* Reset clears a latched fault too. */
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                      ron_ss_step(&ss, RON_FLOAT_C(0.0), ss_make_nan(), &u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_ss_reset(&ss));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ss.state.faults);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE,
+                      ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), &u, &status));
+
+    /* Defensive paths; argument faults are not latched. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_ss_fault_clear(NULL));
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_ss_fault_clear(&fresh));
+    TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER,
+                      ron_ss_step(&ss, RON_FLOAT_C(0.0), RON_FLOAT_C(0.01), NULL, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ss.state.faults);
 }
 
 /* ----------------------------------------------------------------------- */
@@ -561,5 +625,6 @@ int main(void)
     RUN_TEST(test_ron_tc_ss_005);
     RUN_TEST(test_ron_tc_ss_009_validation);
     RUN_TEST(test_ron_tc_ss_009_runtime);
+    RUN_TEST(test_ron_tc_ss_010);
     return UNITY_END();
 }

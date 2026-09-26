@@ -13,7 +13,7 @@ use super::{Lqg, LqgConfig, LqgGain};
 use crate::{
     lqr::{solve_dare, DareConfig},
     matrix::{Matrix, MATRIX_MAX_DIM},
-    pid::PidStatus,
+    pid::{PidFault, PidStatus},
     statespace::OutputLimits,
     RonError, RonFloat,
 };
@@ -204,10 +204,11 @@ fn ron_tc_lqg_009() {
         ([0.0], 0.0),
         ([RonFloat::INFINITY], 0.01),
     ] {
-        assert!(matches!(
+        assert_eq!(
             lqg.step(&r, dt),
-            Err(RonError::InvalidArgument(_))
-        ));
+            Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
+        );
+        lqg.clear_fault();
     }
     lqg.predict(&[1.0]).unwrap();
     lqg.reset();
@@ -225,10 +226,10 @@ fn ron_tc_lqg_009() {
     .unwrap();
     overflowing.predict(&[0.0]).unwrap();
     overflowing.update(Some(&[RonFloat::MAX])).unwrap();
-    assert!(matches!(
+    assert_eq!(
         overflowing.step(&[0.0], 0.1),
-        Err(RonError::Numerical(_))
-    ));
+        Err(RonError::Fault(PidFault::OUTPUT_NOT_FINITE))
+    );
 }
 
 /// RON-TC-LQG-009 | RON-FR-750, RON-FR-751
@@ -351,4 +352,39 @@ fn ron_tc_lqg_009_validation() {
     })
     .unwrap();
     assert!(largest.step(&[0.0; N], 0.01).is_ok());
+}
+
+/// RON-TC-LQG-011 | RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013
+#[test]
+fn ron_tc_lqg_011() {
+    let mut lqg = Lqg::new(LqgConfig {
+        kr: [2.0],
+        ..base()
+    })
+    .unwrap();
+    approx_eq(lqg.step(&[1.0], 0.01).unwrap().0[0], 2.0);
+
+    // The fault latches and the last output is held.
+    let latched = Err(RonError::Fault(PidFault::INPUT_NOT_FINITE));
+    assert_eq!(lqg.step(&[RonFloat::NAN], 0.01), latched);
+    assert_eq!(lqg.fault(), PidFault::INPUT_NOT_FINITE);
+    approx_eq(lqg.output()[0], 2.0);
+
+    // Finite inputs do not clear it, and the estimator still runs.
+    assert_eq!(lqg.step(&[3.0], 0.01), latched);
+    approx_eq(lqg.output()[0], 2.0);
+    lqg.predict(&[0.0]).unwrap();
+    lqg.update(None).unwrap();
+
+    // An explicit clear resumes normal stepping.
+    lqg.clear_fault();
+    let (output, status) = lqg.step(&[3.0], 0.01).unwrap();
+    approx_eq(output[0], 6.0);
+    assert!(!status.contains(PidStatus::FAULT));
+
+    // Reset clears a latched fault too.
+    assert_eq!(lqg.step(&[3.0], 0.0), latched);
+    lqg.reset();
+    assert_eq!(lqg.fault(), PidFault::NONE);
+    assert!(lqg.step(&[3.0], 0.01).is_ok());
 }

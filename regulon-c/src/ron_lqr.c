@@ -4,7 +4,8 @@
  * @module   ron_lqr
  * @doc      RON-IS-001
  * @req      RON-FR-730, RON-FR-731, RON-FR-732, RON-FR-733, RON-FR-734,
- *           RON-FR-735, RON-FR-736, RON-FR-737, RON-FR-738, RON-FR-739
+ *           RON-FR-735, RON-FR-736, RON-FR-737, RON-FR-738, RON-FR-739,
+ *           RON-SR-012, RON-SR-013
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  */
@@ -370,14 +371,10 @@ static void lqr_compute_raw(const ron_lqr_t *lqr, const ron_float_t *r, ron_floa
  * Output limiting (RON-FR-736, PID-equivalent semantics, per input)
  * ========================================================================= */
 
-/*
- * Saturate and rate-limit each output, and commit it with its advanced
- * integral.
- */
+/* Saturate and rate-limit each output; the instance is not modified. */
 /* Satisfies: RON-FR-020, RON-FR-022, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-004, RON-TC-LQR-006 */
-static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw,
-                             const ron_float_t *integral_next, ron_float_t dt, ron_float_t *u,
-                             ron_status_t *status)
+static void lqr_apply_limits(const ron_lqr_t *lqr, const ron_float_t *u_raw, ron_float_t dt,
+                             ron_float_t *u_final, ron_status_t *status)
 {
     const ron_lqr_config_t *cfg = &lqr->cfg;
     uint8_t j;
@@ -385,21 +382,16 @@ static void lqr_apply_limits(ron_lqr_t *lqr, const ron_float_t *u_raw,
     for (j = 0U; j < cfg->m; j++) {
         ron_float_t u_sat = ron_clamp(u_raw[j], cfg->u_min[j], cfg->u_max[j]);
         bool rate_limited = false;
-        ron_float_t u_final;
 
         if (u_sat != u_raw[j]) {
             *status = (ron_status_t) (*status | RON_STATUS_SATURATED);
         }
 
-        u_final =
+        u_final[j] =
             ron_util_rate_limit(u_sat, lqr->state.u_prev[j], cfg->du_max[j], dt, &rate_limited);
         if (rate_limited) {
             *status = (ron_status_t) (*status | RON_STATUS_RATE_LIMITED);
         }
-
-        lqr->state.integral[j] = integral_next[j];
-        lqr->state.u_prev[j]   = u_final;
-        u[j]                   = u_final;
     }
 }
 
@@ -416,22 +408,39 @@ static bool lqr_step_args_valid(const ron_lqr_t *lqr, const ron_float_t *r, ron_
     return dt > RON_FLOAT_C(0.0);
 }
 
+/*
+ * Latch a runtime fault (RON-SR-012): OR it into the fault register, hold the
+ * last output vector and report FAULT.  The integrals and output history are
+ * not touched.  Passing RON_FAULT_NONE re-reports an already latched fault.
+ */
+/* Satisfies: RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013 | Test: RON-TC-LQR-006, RON-TC-LQR-011 */
+static ron_fault_t lqr_fail_step(ron_lqr_t *lqr, ron_fault_t code, ron_float_t *u,
+                                 ron_status_t *status)
+{
+    uint8_t j;
+
+    lqr->state.faults = (ron_fault_t) (lqr->state.faults | code);
+    for (j = 0U; j < lqr->cfg.m; j++) {
+        u[j] = lqr->state.u_prev[j];
+    }
+    *status = RON_STATUS_FAULT;
+
+    return lqr->state.faults;
+}
+
+/*
+ * Evaluate one step without changing the instance.  On success the limited
+ * outputs and the advanced integrals are returned for the caller to commit.
+ */
 /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001, RON-TC-LQR-004, RON-TC-LQR-006, RON-TC-LQR-007 */
-ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
-                         ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status)
+static ron_fault_t lqr_evaluate(const ron_lqr_t *lqr, const ron_float_t *r, ron_float_t dt,
+                                ron_float_t *u_final, ron_float_t *integral_next,
+                                ron_status_t *status)
 {
     ron_float_t x_hat[RON_LQR_MAX_STATES];
     ron_float_t u_raw[RON_LQR_MAX_INPUTS];
-    ron_float_t integral_next[RON_LQR_MAX_INPUTS];
-    ron_status_t step_status = RON_STATUS_OK;
     ron_fault_t fault;
 
-    if ((lqr == NULL) || (r == NULL) || (u == NULL) || (status == NULL)) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!lqr->state.is_initialised) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
     if (!lqr_step_args_valid(lqr, r, dt)) {
         return RON_FAULT_INPUT_NAN;
     }
@@ -443,10 +452,44 @@ ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS]
 
     lqr_compute_raw(lqr, r, dt, x_hat, u_raw, integral_next);
     if (!ron_mat_vec_finite(u_raw, lqr->cfg.m)) {
-        return RON_FAULT_OUTPUT_NAN; /* Rejected: the integrals are not advanced. */
+        return RON_FAULT_OUTPUT_NAN;
     }
 
-    lqr_apply_limits(lqr, u_raw, integral_next, dt, u, &step_status);
+    lqr_apply_limits(lqr, u_raw, dt, u_final, status);
+
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736, RON-SR-012 | Test: RON-TC-LQR-001, RON-TC-LQR-004, RON-TC-LQR-006, RON-TC-LQR-007, RON-TC-LQR-011 */
+ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
+                         ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status)
+{
+    ron_float_t u_final[RON_LQR_MAX_INPUTS];
+    ron_float_t integral_next[RON_LQR_MAX_INPUTS];
+    ron_status_t step_status = RON_STATUS_OK;
+    ron_fault_t fault;
+    uint8_t j;
+
+    if ((lqr == NULL) || (r == NULL) || (u == NULL) || (status == NULL)) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!lqr->state.is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    if (lqr->state.faults != RON_FAULT_NONE) {
+        return lqr_fail_step(lqr, RON_FAULT_NONE, u, status);
+    }
+
+    fault = lqr_evaluate(lqr, r, dt, u_final, integral_next, &step_status);
+    if (fault != RON_FAULT_NONE) {
+        return lqr_fail_step(lqr, fault, u, status);
+    }
+
+    for (j = 0U; j < lqr->cfg.m; j++) {
+        lqr->state.integral[j] = integral_next[j];
+        lqr->state.u_prev[j]   = u_final[j];
+        u[j]                   = u_final[j];
+    }
     *status = step_status;
 
     return RON_FAULT_NONE;
@@ -493,7 +536,7 @@ static ron_fault_t lqr_resolve_gain(ron_lqr_t *lqr)
     return lqr_resolve_gain_dare(lqr);
 }
 
-/* Satisfies: RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001 */
+/* Satisfies: RON-FR-735, RON-FR-736, RON-SR-012 | Test: RON-TC-LQR-001, RON-TC-LQR-011 */
 static void lqr_seed_state(ron_lqr_t *lqr)
 {
     uint8_t j;
@@ -537,7 +580,7 @@ ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-735 | Test: RON-TC-LQR-006 */
+/* Satisfies: RON-FR-735, RON-SR-012 | Test: RON-TC-LQR-006, RON-TC-LQR-011 */
 ron_fault_t ron_lqr_reset(ron_lqr_t *lqr)
 {
     if (lqr == NULL) {
@@ -549,6 +592,21 @@ ron_fault_t ron_lqr_reset(ron_lqr_t *lqr)
 
     lqr_seed_state(lqr);
     (void) ron_estimator_reset(&lqr->est);
+
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-SR-012 | Test: RON-TC-LQR-011 */
+ron_fault_t ron_lqr_fault_clear(ron_lqr_t *lqr)
+{
+    if (lqr == NULL) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!lqr->state.is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+
+    lqr->state.faults = RON_FAULT_NONE;
 
     return RON_FAULT_NONE;
 }

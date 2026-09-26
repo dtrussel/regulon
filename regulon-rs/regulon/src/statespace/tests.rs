@@ -15,7 +15,7 @@ use crate::{
     kalman::KalmanConfig,
     matrix::{Matrix, MATRIX_MAX_DIM},
     observer::ObserverConfig,
-    pid::PidStatus,
+    pid::{PidFault, PidStatus},
     RonError, RonFloat,
 };
 
@@ -275,10 +275,11 @@ fn ron_tc_ss_009_runtime() {
         StateSpace::new(external([1.0; MATRIX_MAX_DIM], [0.5; MATRIX_MAX_DIM])).unwrap();
     assert!(largest.step(0.0, 0.01).is_ok());
     for (r, dt) in [(RonFloat::INFINITY, 0.01), (0.0, RonFloat::NAN), (0.0, 0.0)] {
-        assert!(matches!(
+        assert_eq!(
             largest.step(r, dt),
-            Err(RonError::InvalidArgument(_))
-        ));
+            Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
+        );
+        largest.clear_fault();
     }
 
     let mut overflowing = StateSpace::new(StateSpaceConfig {
@@ -286,8 +287,38 @@ fn ron_tc_ss_009_runtime() {
         ..external([RonFloat::MAX], [RonFloat::MAX])
     })
     .unwrap();
-    assert!(matches!(
+    assert_eq!(
         overflowing.step(0.0, 0.1),
-        Err(RonError::Numerical(_))
-    ));
+        Err(RonError::Fault(PidFault::OUTPUT_NOT_FINITE))
+    );
+}
+
+/// RON-TC-SS-010 | RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013
+#[test]
+fn ron_tc_ss_010() {
+    let mut controller = StateSpace::new(external([1.0], [1.0])).unwrap();
+    approx_eq(controller.step(0.0, 0.01).unwrap().0, -1.0);
+
+    // The fault latches and the last output is held.
+    controller.estimator_mut().set_external(&[2.0]).unwrap();
+    let latched = Err(RonError::Fault(PidFault::INPUT_NOT_FINITE));
+    assert_eq!(controller.step(RonFloat::NAN, 0.01), latched);
+    assert_eq!(controller.fault(), PidFault::INPUT_NOT_FINITE);
+    approx_eq(controller.output(), -1.0);
+
+    // Finite inputs do not clear it.
+    assert_eq!(controller.step(0.0, 0.01), latched);
+    approx_eq(controller.output(), -1.0);
+
+    // An explicit clear resumes normal stepping.
+    controller.clear_fault();
+    let (output, status) = controller.step(0.0, 0.01).unwrap();
+    approx_eq(output, -2.0);
+    assert!(!status.contains(PidStatus::FAULT));
+
+    // Reset clears a latched fault too.
+    assert_eq!(controller.step(0.0, 0.0), latched);
+    controller.reset();
+    assert_eq!(controller.fault(), PidFault::NONE);
+    assert!(controller.step(0.0, 0.01).is_ok());
 }

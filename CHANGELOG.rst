@@ -106,6 +106,19 @@ Changed
 - ``check_manifest.sh`` also fails when ``RON_VERSION_*`` in
   ``ron_platform.h`` and ``project(VERSION)`` disagree.
 - ``ron_autotune_apply`` takes ``const ron_autotune_t *`` (source-compatible).
+- **Behaviour:** ``ron_ss_step``, ``ron_lqr_step`` and ``ron_lqg_step`` now
+  latch runtime faults as the PID does (RON-SR-012, SR-013). The fault is
+  kept in the existing ``faults`` field, which was never set before; the
+  faulting step and every later one hold the last output, report
+  ``RON_STATUS_FAULT`` and return the latched fault until the new
+  ``ron_ss_fault_clear()`` / ``ron_lqr_fault_clear()`` /
+  ``ron_lqg_fault_clear()`` or ``_reset()`` is called. Previously a rejected
+  step left ``u`` and ``status`` unwritten and the next step ran normally.
+  Rust: ``StateSpace``, ``Lqr`` and ``Lqg`` latch the same way; ``step``
+  returns ``RonError::Fault`` with the latched ``PidFault`` bits (instead of
+  ``InvalidArgument`` / ``Numerical``) until ``clear_fault()`` or ``reset()``,
+  and ``fault()`` / ``output()`` read the register and the held output.
+  Tests: RON-TC-SS-010, RON-TC-LQR-011, RON-TC-LQG-011.
 - The specifications no longer plan a ``regulon-sys`` C-ABI crate:
   ``regulon-rs`` is for Rust-native use only and C users use the C11 track.
   The IS drops the C-ABI naming rows and the ``#[repr(C)]`` rule, states that

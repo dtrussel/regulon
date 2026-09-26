@@ -3,7 +3,8 @@
  * @brief    Discrete-time state-feedback controller with integral augmentation.
  * @module   ron_statespace
  * @doc      RON-IS-001
- * @req      RON-FR-700, RON-FR-701, RON-FR-702, RON-FR-703, RON-FR-704
+ * @req      RON-FR-700, RON-FR-701, RON-FR-702, RON-FR-703, RON-FR-704,
+ *           RON-SR-012, RON-SR-013
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  */
@@ -146,23 +147,35 @@ static ron_float_t ss_apply_limits(const ron_ss_t *ss, ron_float_t u_raw, ron_fl
  * Step (RON-FR-700, RON-FR-702, RON-FR-703)
  * ========================================================================= */
 
+/*
+ * Latch a runtime fault (RON-SR-012): OR it into the fault register, hold the
+ * last output and report FAULT.  The integral and output history are not
+ * touched.  Passing RON_FAULT_NONE re-reports an already latched fault.
+ */
+/* Satisfies: RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013 | Test: RON-TC-SS-009, RON-TC-SS-010 */
+static ron_fault_t ss_fail_step(ron_ss_t *ss, ron_fault_t code, ron_float_t *u,
+                                ron_status_t *status)
+{
+    ss->state.faults = (ron_fault_t) (ss->state.faults | code);
+    *u               = ss->state.u_prev;
+    *status          = RON_STATUS_FAULT;
+
+    return ss->state.faults;
+}
+
+/*
+ * Evaluate one step without changing the instance.  On success the limited
+ * output and the advanced integral are returned for the caller to commit.
+ */
 /* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004, RON-TC-SS-009 */
-ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t *u,
-                        ron_status_t *status)
+static ron_fault_t ss_evaluate(const ron_ss_t *ss, ron_float_t r, ron_float_t dt,
+                               ron_float_t *u_final, ron_float_t *integral_next,
+                               ron_status_t *status)
 {
     ron_float_t x_hat[RON_SS_MAX_STATES];
     ron_float_t u_raw;
-    ron_float_t integral_next;
-    ron_float_t u_final;
-    ron_status_t step_status = RON_STATUS_OK;
     ron_fault_t fault;
 
-    if ((ss == NULL) || (u == NULL) || (status == NULL)) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!ss->state.is_initialised) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
     if (!ron_util_isfinite(r) || !ron_util_isfinite(dt) || (dt <= RON_FLOAT_C(0.0))) {
         return RON_FAULT_INPUT_NAN;
     }
@@ -172,12 +185,39 @@ ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t
         return fault;
     }
 
-    u_raw = ss_compute_raw(ss, r, dt, x_hat, &integral_next);
+    u_raw = ss_compute_raw(ss, r, dt, x_hat, integral_next);
     if (!ron_util_isfinite(u_raw)) {
-        return RON_FAULT_OUTPUT_NAN; /* Rejected: the integral is not advanced. */
+        return RON_FAULT_OUTPUT_NAN;
     }
 
-    u_final = ss_apply_limits(ss, u_raw, dt, &step_status);
+    *u_final = ss_apply_limits(ss, u_raw, dt, status);
+
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-FR-700, RON-FR-702, RON-FR-703, RON-SR-012 | Test: RON-TC-SS-001, RON-TC-SS-003, RON-TC-SS-004, RON-TC-SS-009, RON-TC-SS-010 */
+ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t *u,
+                        ron_status_t *status)
+{
+    ron_float_t integral_next = RON_FLOAT_C(0.0);
+    ron_float_t u_final       = RON_FLOAT_C(0.0);
+    ron_status_t step_status  = RON_STATUS_OK;
+    ron_fault_t fault;
+
+    if ((ss == NULL) || (u == NULL) || (status == NULL)) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!ss->state.is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+    if (ss->state.faults != RON_FAULT_NONE) {
+        return ss_fail_step(ss, RON_FAULT_NONE, u, status);
+    }
+
+    fault = ss_evaluate(ss, r, dt, &u_final, &integral_next, &step_status);
+    if (fault != RON_FAULT_NONE) {
+        return ss_fail_step(ss, fault, u, status);
+    }
 
     ss->state.integral = integral_next;
     ss->state.u_prev   = u_final;
@@ -191,7 +231,7 @@ ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t
  * Lifecycle, runtime gains, embedded estimators
  * ========================================================================= */
 
-/* Satisfies: RON-FR-702, RON-FR-703 | Test: RON-TC-SS-003 */
+/* Satisfies: RON-FR-702, RON-FR-703, RON-SR-012 | Test: RON-TC-SS-003, RON-TC-SS-010 */
 static void ss_seed_state(ron_ss_t *ss)
 {
     ss->state.integral = RON_FLOAT_C(0.0);
@@ -226,7 +266,7 @@ ron_fault_t ron_ss_init(ron_ss_t *ss, const ron_ss_config_t *cfg)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-702 | Test: RON-TC-SS-003 */
+/* Satisfies: RON-FR-702, RON-SR-012 | Test: RON-TC-SS-003, RON-TC-SS-010 */
 ron_fault_t ron_ss_reset(ron_ss_t *ss)
 {
     if (ss == NULL) {
@@ -238,6 +278,21 @@ ron_fault_t ron_ss_reset(ron_ss_t *ss)
 
     ss_seed_state(ss);
     (void) ron_estimator_reset(&ss->est);
+
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-SR-012 | Test: RON-TC-SS-010 */
+ron_fault_t ron_ss_fault_clear(ron_ss_t *ss)
+{
+    if (ss == NULL) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!ss->state.is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+
+    ss->state.faults = RON_FAULT_NONE;
 
     return RON_FAULT_NONE;
 }

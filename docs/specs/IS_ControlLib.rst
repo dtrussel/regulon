@@ -2213,7 +2213,7 @@ update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
    typedef struct {
        ron_float_t  integral;
        ron_float_t  u_prev;
-       ron_fault_t  faults;
+       ron_fault_t  faults;          /* latched until cleared (RON-SR-012) */
        bool         is_initialised;
    } ron_ss_state_t;
 
@@ -2223,6 +2223,7 @@ update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
 
    ron_fault_t ron_ss_init           (ron_ss_t *ss, const ron_ss_config_t *cfg);
    ron_fault_t ron_ss_reset          (ron_ss_t *ss);
+   ron_fault_t ron_ss_fault_clear    (ron_ss_t *ss);
    ron_fault_t ron_ss_step           (ron_ss_t *ss, ron_float_t r, ron_float_t dt,
                                          ron_float_t *u, ron_status_t *status);
    ron_fault_t ron_ss_set_gains      (ron_ss_t *ss,
@@ -2246,6 +2247,12 @@ in ``status`` (``RON-FR-703``).  ``K`` and ``Kr`` may be replaced at run time vi
 ``ron_ss_set_gains`` (``RON-FR-704``).  The embedded observer / Kalman estimators
 are advanced through ``ron_estimator.h`` on ``&ss.est`` before the consuming
 ``ron_ss_step`` call.
+
+Runtime faults latch as for the PID module (``RON-SR-012``, ``RON-SR-013``): the
+fault is ORed into the ``faults`` register, the step writes the last output to
+``u`` and ``RON_STATUS_FAULT`` to ``status``, and the controller state is left
+unchanged. Later steps repeat this until ``ron_ss_fault_clear`` or ``ron_ss_reset`` clears the
+register. Null-pointer and uninitialised calls return without latching.
 
 ``ron_lqr.h`` — Discrete-Time MIMO LQR Controller
 --------------------------------------------------
@@ -2305,7 +2312,7 @@ transitively).
        ron_float_t P_solved[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];
        ron_float_t integral[RON_LQR_MAX_INPUTS];
        ron_float_t u_prev[RON_LQR_MAX_INPUTS];
-       ron_fault_t faults;
+       ron_fault_t faults;           /* latched until cleared (RON-SR-012) */
        bool        dare_converged;
        bool        is_initialised;
    } ron_lqr_state_t;
@@ -2320,10 +2327,13 @@ transitively).
    /* Satisfies: RON-FR-730, RON-FR-733 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
    ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg);
 
-   /* Satisfies: RON-FR-736 | Test: RON-TC-LQR-006 */
+   /* Satisfies: RON-FR-736, RON-SR-012 | Test: RON-TC-LQR-006, RON-TC-LQR-011 */
    ron_fault_t ron_lqr_reset(ron_lqr_t *lqr);
 
-   /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001..007 */
+   /* Satisfies: RON-SR-012 | Test: RON-TC-LQR-011 */
+   ron_fault_t ron_lqr_fault_clear(ron_lqr_t *lqr);
+
+   /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736, RON-SR-012 | Test: RON-TC-LQR-001..007, RON-TC-LQR-011 */
    ron_fault_t ron_lqr_step(ron_lqr_t *lqr,
                              const ron_float_t r[RON_LQR_MAX_INPUTS],
                              ron_float_t dt,
@@ -2351,6 +2361,8 @@ In PRECOMPUTED mode the supplied ``K`` is copied directly.  The embedded
 observer or Kalman filter is also initialised if the corresponding source is
 selected.  As for the state-space controller, the application advances it
 through ``ron_estimator.h`` on ``&lqr.est`` before ``ron_lqr_step`` each cycle.
+Runtime faults latch exactly as for ``ron_ss_step``; ``ron_lqr_fault_clear`` or
+``ron_lqr_reset`` clears them.
 
 ``ron_lqg.h`` — Discrete-Time MIMO LQG Controller
 --------------------------------------------------
@@ -2412,15 +2424,18 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
        ron_float_t      K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES];
        ron_float_t      P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];
        ron_float_t      u_prev[RON_LQR_MAX_INPUTS];
-       ron_fault_t      faults;
+       ron_fault_t      faults;      /* latched until cleared (RON-SR-012) */
        bool             is_initialised;
    } ron_lqg_t;
 
    /* Satisfies: RON-FR-750, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
    ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
 
-   /* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+   /* Satisfies: RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
    ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
+
+   /* Satisfies: RON-SR-012 | Test: RON-TC-LQG-011 */
+   ron_fault_t ron_lqg_fault_clear(ron_lqg_t *lqg);
 
    /* Satisfies: RON-FR-753 | Test: RON-TC-LQG-002 */
    ron_fault_t ron_lqg_predict(ron_lqg_t *lqg,
@@ -2431,7 +2446,7 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
                                const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
                                bool z_valid);
 
-   /* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
+   /* Satisfies: RON-FR-755, RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-005, RON-TC-LQG-008, RON-TC-LQG-011 */
    ron_fault_t ron_lqg_step(ron_lqg_t *lqg,
                              const ron_float_t r[RON_LQR_MAX_INPUTS],
                              ron_float_t dt,
@@ -2453,7 +2468,9 @@ initialises the embedded ``ron_kf_t`` from the system matrices and noise
 covariances.  The typical per-step call sequence is:
 ``ron_lqg_predict`` → ``ron_lqg_update`` → ``ron_lqg_step``.  The predict and
 update steps are separate to accommodate sample-rate mismatches between
-control and sensing.
+control and sensing.  Runtime faults in ``ron_lqg_step`` latch exactly as for
+``ron_ss_step``; ``ron_lqg_fault_clear`` or ``ron_lqg_reset`` clears them, and
+a latched fault does not block ``ron_lqg_predict`` / ``ron_lqg_update``.
 
 ``ron_autotune.h`` — Relay Feedback Auto-Tuning
 -------------------------------------------------

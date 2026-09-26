@@ -336,7 +336,9 @@ void test_ron_tc_lqg_009(void)
                       ron_lqg_step(&lqg, NULL, RON_FLOAT_C(0.01), u, &status));
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, NULL));
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, lqg_make_nan(), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.0), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
     {
         ron_float_t bad_r[RON_LQR_MAX_INPUTS] = {lqg_make_inf()};
 
@@ -565,6 +567,62 @@ void test_ron_tc_lqg_validation(void)
 }
 
 /* ----------------------------------------------------------------------- */
+/* RON-TC-LQG-011 — Fault Latch and Explicit Clear                         */
+/* ----------------------------------------------------------------------- */
+
+/* RON-TC-LQG-011 | RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013 */
+void test_ron_tc_lqg_011(void)
+{
+    ron_lqg_t lqg;
+    ron_lqg_t fresh                       = {0};
+    ron_lqg_config_t cfg                  = make_base_cfg();
+    ron_float_t r[RON_LQR_MAX_INPUTS]     = {RON_FLOAT_C(1.0)};
+    ron_float_t bad_r[RON_LQR_MAX_INPUTS] = {RON_FLOAT_C(0.0)};
+    ron_float_t u[RON_LQR_MAX_INPUTS]     = {RON_FLOAT_C(0.0)};
+    ron_status_t status                   = RON_STATUS_OK;
+
+    bad_r[0]  = lqg_make_nan();
+    cfg.Kr[0] = RON_FLOAT_C(2.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), u[0]);
+
+    /* The fault latches: the last output is held and FAULT reported. */
+    r[0] = RON_FLOAT_C(3.0);
+    u[0] = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                      ron_lqg_step(&lqg, bad_r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, lqg.faults);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), u[0]);
+    TEST_ASSERT_EQUAL(RON_STATUS_FAULT, status);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), lqg.u_prev[0]);
+
+    /* Finite inputs do not clear it. */
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), u[0]);
+    TEST_ASSERT_EQUAL(RON_STATUS_FAULT, status);
+
+    /* An explicit clear resumes normal stepping. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(6.0), u[0]);
+    TEST_ASSERT_EQUAL(0, status & RON_STATUS_FAULT);
+
+    /* Reset clears a latched fault too. */
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, lqg_make_nan(), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_reset(&lqg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, lqg.faults);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+
+    /* Defensive paths; argument faults are not latched. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqg_fault_clear(NULL));
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_fault_clear(&fresh));
+    TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER,
+                      ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), NULL, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, lqg.faults);
+}
+
+/* ----------------------------------------------------------------------- */
 /* Test runner                                                             */
 /* ----------------------------------------------------------------------- */
 
@@ -581,5 +639,6 @@ int main(void)
     RUN_TEST(test_ron_tc_lqg_008);
     RUN_TEST(test_ron_tc_lqg_009);
     RUN_TEST(test_ron_tc_lqg_validation);
+    RUN_TEST(test_ron_tc_lqg_011);
     return UNITY_END();
 }

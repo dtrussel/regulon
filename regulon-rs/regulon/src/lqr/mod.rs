@@ -5,8 +5,8 @@
 //! algebraic Riccati equation (DARE) by bounded value iteration.
 //!
 //! **Document:** RON-IS-001
-//! **Satisfies:** RON-FR-730-RON-FR-739
-//! **Tests:** RON-TC-LQR-001-RON-TC-LQR-009
+//! **Satisfies:** RON-FR-730-RON-FR-739, RON-SR-012, RON-SR-013
+//! **Tests:** RON-TC-LQR-001-RON-TC-LQR-009, RON-TC-LQR-011
 //! **SPDX-License-Identifier:** MIT
 
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
@@ -18,7 +18,7 @@ use crate::{
     error::RonError,
     estimator::{Estimator, EstimatorConfig},
     matrix::{dimension_valid, vector_is_finite, Matrix},
-    pid::PidStatus,
+    pid::{PidFault, PidStatus},
     platform::{abs, clamp, is_finite, RonFloat},
     statespace::OutputLimits,
 };
@@ -198,6 +198,7 @@ pub struct Lqr<const N: usize, const U: usize, const Y: usize> {
     limits: [OutputLimits; U],
     integral: [RonFloat; U],
     output_prev: [RonFloat; U],
+    fault: PidFault,
 }
 
 impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
@@ -244,6 +245,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
             limits: config.limits,
             integral: [0.0; U],
             output_prev: [0.0; U],
+            fault: PidFault::NONE,
         })
     }
 
@@ -251,22 +253,50 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
     /// reference, optional integral, then per-input saturation and rate
     /// limiting. The estimate is not advanced here.
     ///
-    /// **Satisfies:** RON-FR-730, RON-FR-735, RON-FR-736
+    /// A runtime fault latches (RON-SR-012): it is OR-ed into [`Self::fault`],
+    /// the integrals and output history are left unchanged (so
+    /// [`Self::output`] holds the last output), and every later step returns
+    /// the latched fault until [`Self::clear_fault`] or [`Self::reset`].
+    ///
+    /// **Satisfies:** RON-FR-730, RON-FR-735, RON-FR-736, RON-SR-010,
+    /// RON-SR-012, RON-SR-013
     ///
     /// # Errors
     ///
-    /// Returns [`RonError::InvalidArgument`] when `r` is not finite or `dt` is
-    /// not positive and finite, and [`RonError::Numerical`] when the control
-    /// law overflows; the controller state is unchanged on error.
+    /// Returns [`RonError::Fault`] with the latched bits:
+    /// [`PidFault::INPUT_NOT_FINITE`] when `r` is not finite or `dt` is not
+    /// positive and finite, [`PidFault::OUTPUT_NOT_FINITE`] when the control
+    /// law overflows, or the bits latched by an earlier step.
     pub fn step(
         &mut self,
         r: &[RonFloat; U],
         dt: RonFloat,
     ) -> Result<([RonFloat; U], PidStatus), RonError> {
+        if self.fault.is_none() {
+            match self.evaluate(r, dt) {
+                Ok((output, integral, status)) => {
+                    self.integral = integral;
+                    self.output_prev = output;
+                    return Ok((output, status));
+                }
+                Err(fault) => self.fault |= fault,
+            }
+        }
+        Err(RonError::Fault(self.fault))
+    }
+
+    /// Evaluates one step without changing the controller, returning the
+    /// limited outputs, the advanced integrals and the status word.
+    ///
+    /// **Satisfies:** RON-FR-730, RON-FR-735, RON-FR-736
+    #[allow(clippy::type_complexity)]
+    fn evaluate(
+        &self,
+        r: &[RonFloat; U],
+        dt: RonFloat,
+    ) -> Result<([RonFloat; U], [RonFloat; U], PidStatus), PidFault> {
         if !vector_is_finite(r) || !is_finite(dt) || dt <= 0.0 {
-            return Err(RonError::InvalidArgument(
-                "reference must be finite and dt positive",
-            ));
+            return Err(PidFault::INPUT_NOT_FINITE);
         }
         let x_hat = self.estimator.state();
         let feedback = self.k.mul_vec(&x_hat);
@@ -291,7 +321,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
             }
         }
         if !vector_is_finite(&raw) {
-            return Err(RonError::Numerical("LQR output is not finite"));
+            return Err(PidFault::OUTPUT_NOT_FINITE);
         }
         let mut output = [0.0; U];
         let mut status = PidStatus::OK;
@@ -300,9 +330,31 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
             output[j] = value;
             status |= input_status;
         }
-        self.integral = integral;
-        self.output_prev = output;
-        Ok((output, status))
+        Ok((output, integral, status))
+    }
+
+    /// Clears the latched fault register; the integrals, output history and
+    /// estimator are left as they were when the fault latched.
+    ///
+    /// **Satisfies:** RON-SR-012
+    pub fn clear_fault(&mut self) {
+        self.fault = PidFault::NONE;
+    }
+
+    /// Returns the latched fault bits.
+    ///
+    /// **Satisfies:** RON-SR-013
+    #[must_use]
+    pub const fn fault(&self) -> PidFault {
+        self.fault
+    }
+
+    /// Returns the last committed output vector, which a faulted step holds.
+    ///
+    /// **Satisfies:** RON-FR-736
+    #[must_use]
+    pub const fn output(&self) -> [RonFloat; U] {
+        self.output_prev
     }
 
     /// Replaces `K` and `K_r`, bypassing the DARE: the mechanism for
@@ -324,13 +376,14 @@ impl<const N: usize, const U: usize, const Y: usize> Lqr<N, U, Y> {
         Ok(())
     }
 
-    /// Clears the integral and output history and resets the estimator. The
-    /// solved gain is kept.
+    /// Clears the integrals, output history and latched faults and resets the
+    /// estimator. The solved gain is kept.
     ///
-    /// **Satisfies:** RON-FR-735, RON-FR-736
+    /// **Satisfies:** RON-FR-735, RON-FR-736, RON-SR-012
     pub fn reset(&mut self) {
         self.integral = [0.0; U];
         self.output_prev = [0.0; U];
+        self.fault = PidFault::NONE;
         self.estimator.reset();
     }
 

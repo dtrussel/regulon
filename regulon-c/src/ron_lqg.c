@@ -4,7 +4,8 @@
  * @module   ron_lqg
  * @doc      RON-IS-001
  * @req      RON-FR-750, RON-FR-751, RON-FR-752, RON-FR-753, RON-FR-754,
- *           RON-FR-755, RON-FR-756, RON-FR-757, RON-FR-758, RON-FR-759
+ *           RON-FR-755, RON-FR-756, RON-FR-757, RON-FR-758, RON-FR-759,
+ *           RON-SR-012, RON-SR-013
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  */
@@ -189,7 +190,7 @@ static ron_fault_t lqg_init_kalman(ron_lqg_t *lqg)
     return ron_kf_init(&lqg->kalman, &kf_cfg);
 }
 
-/* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+/* Satisfies: RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
 static void lqg_seed_state(ron_lqg_t *lqg)
 {
     uint8_t j;
@@ -232,7 +233,7 @@ ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+/* Satisfies: RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
 ron_fault_t ron_lqg_reset(ron_lqg_t *lqg)
 {
     if (lqg == NULL) {
@@ -329,7 +330,27 @@ static bool lqg_step_inputs_finite(const ron_lqg_t *lqg, const ron_float_t *r, r
     return ron_mat_vec_finite(&lqg->kalman.state.x_hat[0], lqg->cfg.n);
 }
 
-/* Satisfies: RON-FR-752, RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008, RON-TC-LQG-009 */
+/*
+ * Latch a runtime fault (RON-SR-012): OR it into the fault register, hold the
+ * last output vector and report FAULT.  The output history is not touched.
+ * Passing RON_FAULT_NONE re-reports an already latched fault.
+ */
+/* Satisfies: RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
+static ron_fault_t lqg_fail_step(ron_lqg_t *lqg, ron_fault_t code, ron_float_t *u,
+                                 ron_status_t *status)
+{
+    uint8_t j;
+
+    lqg->faults = (ron_fault_t) (lqg->faults | code);
+    for (j = 0U; j < lqg->cfg.m; j++) {
+        u[j] = lqg->u_prev[j];
+    }
+    *status = RON_STATUS_FAULT;
+
+    return lqg->faults;
+}
+
+/* Satisfies: RON-FR-752, RON-FR-755, RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-005, RON-TC-LQG-008, RON-TC-LQG-009, RON-TC-LQG-011 */
 ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
                          ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status)
 {
@@ -342,17 +363,35 @@ ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS]
     if (!lqg->is_initialised) {
         return RON_FAULT_CONFIG_INVALID;
     }
+    if (lqg->faults != RON_FAULT_NONE) {
+        return lqg_fail_step(lqg, RON_FAULT_NONE, u, status);
+    }
     if (!lqg_step_inputs_finite(lqg, r, dt)) {
-        return RON_FAULT_INPUT_NAN;
+        return lqg_fail_step(lqg, RON_FAULT_INPUT_NAN, u, status);
     }
 
     lqg_compute_raw(lqg, r, &lqg->kalman.state.x_hat[0], u_raw);
     if (!ron_mat_vec_finite(u_raw, lqg->cfg.m)) {
-        return RON_FAULT_OUTPUT_NAN;
+        return lqg_fail_step(lqg, RON_FAULT_OUTPUT_NAN, u, status);
     }
 
     lqg_apply_limits(lqg, u_raw, dt, u, &step_status);
     *status = step_status;
+
+    return RON_FAULT_NONE;
+}
+
+/* Satisfies: RON-SR-012 | Test: RON-TC-LQG-011 */
+ron_fault_t ron_lqg_fault_clear(ron_lqg_t *lqg)
+{
+    if (lqg == NULL) {
+        return RON_FAULT_NULL_POINTER;
+    }
+    if (!lqg->is_initialised) {
+        return RON_FAULT_CONFIG_INVALID;
+    }
+
+    lqg->faults = RON_FAULT_NONE;
 
     return RON_FAULT_NONE;
 }

@@ -6,8 +6,8 @@
 //! caller advances each cycle through [`StateSpace::estimator_mut`].
 //!
 //! **Document:** RON-IS-001
-//! **Satisfies:** RON-FR-700-RON-FR-704
-//! **Tests:** RON-TC-SS-001-RON-TC-SS-005, RON-TC-SS-009
+//! **Satisfies:** RON-FR-700-RON-FR-704, RON-SR-012, RON-SR-013
+//! **Tests:** RON-TC-SS-001-RON-TC-SS-005, RON-TC-SS-009, RON-TC-SS-010
 //! **SPDX-License-Identifier:** MIT
 
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
@@ -19,7 +19,7 @@ use crate::{
     error::RonError,
     estimator::{Estimator, EstimatorConfig},
     matrix::{dimension_valid, vector_is_finite},
-    pid::PidStatus,
+    pid::{PidFault, PidStatus},
     platform::{clamp, is_finite, rate_limit, RonFloat},
 };
 
@@ -128,6 +128,7 @@ pub struct StateSpace<const N: usize, const M: usize, const P: usize> {
     limits: OutputLimits,
     integral: RonFloat,
     output_prev: RonFloat,
+    fault: PidFault,
 }
 
 impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
@@ -161,24 +162,52 @@ impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
             limits: config.limits,
             integral: 0.0,
             output_prev: 0.0,
+            fault: PidFault::NONE,
         })
     }
 
     /// Computes one control output from the current estimate. The estimate
     /// is not advanced here; drive the estimator separately each cycle.
     ///
-    /// **Satisfies:** RON-FR-700, RON-FR-702, RON-FR-703
+    /// A runtime fault latches (RON-SR-012): it is OR-ed into [`Self::fault`],
+    /// the integral and output history are left unchanged (so
+    /// [`Self::output`] holds the last output), and every later step returns
+    /// the latched fault until [`Self::clear_fault`] or [`Self::reset`].
+    ///
+    /// **Satisfies:** RON-FR-700, RON-FR-702, RON-FR-703, RON-SR-010,
+    /// RON-SR-012, RON-SR-013
     ///
     /// # Errors
     ///
-    /// Returns [`RonError::InvalidArgument`] when `r` is not finite or `dt` is
-    /// not positive and finite, and [`RonError::Numerical`] when the control
-    /// law overflows; the controller state is unchanged on error.
+    /// Returns [`RonError::Fault`] with the latched bits:
+    /// [`PidFault::INPUT_NOT_FINITE`] when `r` is not finite or `dt` is not
+    /// positive and finite, [`PidFault::OUTPUT_NOT_FINITE`] when the control
+    /// law overflows, or the bits latched by an earlier step.
     pub fn step(&mut self, r: RonFloat, dt: RonFloat) -> Result<(RonFloat, PidStatus), RonError> {
+        if self.fault.is_none() {
+            match self.evaluate(r, dt) {
+                Ok((output, integral, status)) => {
+                    self.integral = integral;
+                    self.output_prev = output;
+                    return Ok((output, status));
+                }
+                Err(fault) => self.fault |= fault,
+            }
+        }
+        Err(RonError::Fault(self.fault))
+    }
+
+    /// Evaluates one step without changing the controller, returning the
+    /// limited output, the advanced integral and the status word.
+    ///
+    /// **Satisfies:** RON-FR-700, RON-FR-702, RON-FR-703
+    fn evaluate(
+        &self,
+        r: RonFloat,
+        dt: RonFloat,
+    ) -> Result<(RonFloat, RonFloat, PidStatus), PidFault> {
         if !is_finite(r) || !is_finite(dt) || dt <= 0.0 {
-            return Err(RonError::InvalidArgument(
-                "reference must be finite and dt positive",
-            ));
+            return Err(PidFault::INPUT_NOT_FINITE);
         }
         let x_hat = self.estimator.state();
         let mut raw = -dot(&self.k, &x_hat) + (self.kr * r);
@@ -193,12 +222,34 @@ impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
             raw += integral;
         }
         if !is_finite(raw) {
-            return Err(RonError::Numerical("state-feedback output is not finite"));
+            return Err(PidFault::OUTPUT_NOT_FINITE);
         }
         let (output, status) = self.limits.apply(raw, self.output_prev, dt);
-        self.integral = integral;
-        self.output_prev = output;
-        Ok((output, status))
+        Ok((output, integral, status))
+    }
+
+    /// Clears the latched fault register; the integral, output history and
+    /// estimator are left as they were when the fault latched.
+    ///
+    /// **Satisfies:** RON-SR-012
+    pub fn clear_fault(&mut self) {
+        self.fault = PidFault::NONE;
+    }
+
+    /// Returns the latched fault bits.
+    ///
+    /// **Satisfies:** RON-SR-013
+    #[must_use]
+    pub const fn fault(&self) -> PidFault {
+        self.fault
+    }
+
+    /// Returns the last committed output, which a faulted step holds.
+    ///
+    /// **Satisfies:** RON-FR-703
+    #[must_use]
+    pub const fn output(&self) -> RonFloat {
+        self.output_prev
     }
 
     /// Replaces `K` and `K_r` without touching the estimator, integral or
@@ -221,12 +272,14 @@ impl<const N: usize, const M: usize, const P: usize> StateSpace<N, M, P> {
         Ok(())
     }
 
-    /// Clears the integral and output history and resets the estimator.
+    /// Clears the integral, output history and latched faults and resets the
+    /// estimator.
     ///
-    /// **Satisfies:** RON-FR-702
+    /// **Satisfies:** RON-FR-702, RON-SR-012
     pub fn reset(&mut self) {
         self.integral = 0.0;
         self.output_prev = 0.0;
+        self.fault = PidFault::NONE;
         self.estimator.reset();
     }
 

@@ -9,8 +9,8 @@
 //! `no_std` and never links `alloc`.
 //!
 //! **Document:** RON-IS-001
-//! **Satisfies:** RON-FR-750-RON-FR-759
-//! **Tests:** RON-TC-LQG-001-RON-TC-LQG-009, RON-TC-LQG-010-FV
+//! **Satisfies:** RON-FR-750-RON-FR-759, RON-SR-012, RON-SR-013
+//! **Tests:** RON-TC-LQG-001-RON-TC-LQG-009, RON-TC-LQG-010-FV, RON-TC-LQG-011
 //! **SPDX-License-Identifier:** MIT
 
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
@@ -23,7 +23,7 @@ use crate::{
     kalman::{Kalman, KalmanConfig},
     lqr::{solve_dare, DareConfig},
     matrix::{dimension_valid, vector_is_finite, Matrix},
-    pid::PidStatus,
+    pid::{PidFault, PidStatus},
     platform::{is_finite, RonFloat},
     statespace::OutputLimits,
 };
@@ -90,6 +90,7 @@ pub struct Lqg<const N: usize, const U: usize, const Y: usize> {
     dare_solution: Option<Matrix<N, N>>,
     limits: [OutputLimits; U],
     output_prev: [RonFloat; U],
+    fault: PidFault,
 }
 
 impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
@@ -160,6 +161,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
             dare_solution,
             limits: config.limits,
             output_prev: [0.0; U],
+            fault: PidFault::NONE,
         })
     }
 
@@ -190,22 +192,49 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
     /// per-input saturation and rate limiting. Call [`Lqg::predict`] and
     /// [`Lqg::update`] first.
     ///
-    /// **Satisfies:** RON-FR-755, RON-FR-757
+    /// A runtime fault latches (RON-SR-012): it is OR-ed into [`Self::fault`],
+    /// the output history is left unchanged (so [`Self::output`] holds the
+    /// last output), and every later step returns the latched fault until
+    /// [`Self::clear_fault`] or [`Self::reset`]. A latched fault does not block
+    /// [`Lqg::predict`] or [`Lqg::update`].
+    ///
+    /// **Satisfies:** RON-FR-755, RON-FR-757, RON-SR-010, RON-SR-012,
+    /// RON-SR-013
     ///
     /// # Errors
     ///
-    /// Returns [`RonError::InvalidArgument`] when `r` is not finite or `dt` is
-    /// not positive and finite, and [`RonError::Numerical`] when the control
-    /// law overflows; the controller state is unchanged on error.
+    /// Returns [`RonError::Fault`] with the latched bits:
+    /// [`PidFault::INPUT_NOT_FINITE`] when `r` is not finite or `dt` is not
+    /// positive and finite, [`PidFault::OUTPUT_NOT_FINITE`] when the control
+    /// law overflows, or the bits latched by an earlier step.
     pub fn step(
         &mut self,
         r: &[RonFloat; U],
         dt: RonFloat,
     ) -> Result<([RonFloat; U], PidStatus), RonError> {
+        if self.fault.is_none() {
+            match self.evaluate(r, dt) {
+                Ok((output, status)) => {
+                    self.output_prev = output;
+                    return Ok((output, status));
+                }
+                Err(fault) => self.fault |= fault,
+            }
+        }
+        Err(RonError::Fault(self.fault))
+    }
+
+    /// Evaluates one step without changing the controller, returning the
+    /// limited outputs and the status word.
+    ///
+    /// **Satisfies:** RON-FR-755, RON-FR-757
+    fn evaluate(
+        &self,
+        r: &[RonFloat; U],
+        dt: RonFloat,
+    ) -> Result<([RonFloat; U], PidStatus), PidFault> {
         if !vector_is_finite(r) || !is_finite(dt) || dt <= 0.0 {
-            return Err(RonError::InvalidArgument(
-                "reference must be finite and dt positive",
-            ));
+            return Err(PidFault::INPUT_NOT_FINITE);
         }
         let feedback = self.k.mul_vec(&self.kalman.state());
         let mut raw = [0.0; U];
@@ -217,7 +246,7 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
             *value = -fb + (gain * reference);
         }
         if !vector_is_finite(&raw) {
-            return Err(RonError::Numerical("LQG output is not finite"));
+            return Err(PidFault::OUTPUT_NOT_FINITE);
         }
         let mut output = [0.0; U];
         let mut status = PidStatus::OK;
@@ -226,16 +255,41 @@ impl<const N: usize, const U: usize, const Y: usize> Lqg<N, U, Y> {
             output[j] = value;
             status |= input_status;
         }
-        self.output_prev = output;
         Ok((output, status))
     }
 
-    /// Clears the output history and resets the Kalman filter to `x0`/`P0`.
-    /// Both designs are kept, so no Riccati solve is repeated.
+    /// Clears the latched fault register; the output history and Kalman
+    /// filter are left as they were when the fault latched.
+    ///
+    /// **Satisfies:** RON-SR-012
+    pub fn clear_fault(&mut self) {
+        self.fault = PidFault::NONE;
+    }
+
+    /// Returns the latched fault bits.
+    ///
+    /// **Satisfies:** RON-SR-013
+    #[must_use]
+    pub const fn fault(&self) -> PidFault {
+        self.fault
+    }
+
+    /// Returns the last committed output vector, which a faulted step holds.
     ///
     /// **Satisfies:** RON-FR-757
+    #[must_use]
+    pub const fn output(&self) -> [RonFloat; U] {
+        self.output_prev
+    }
+
+    /// Clears the output history and latched faults and resets the Kalman
+    /// filter to `x0`/`P0`. Both designs are kept, so no Riccati solve is
+    /// repeated.
+    ///
+    /// **Satisfies:** RON-FR-757, RON-SR-012
     pub fn reset(&mut self) {
         self.output_prev = [0.0; U];
+        self.fault = PidFault::NONE;
         self.kalman.reset();
     }
 

@@ -15,7 +15,7 @@ use crate::{
     kalman::KalmanConfig,
     matrix::{Matrix, MATRIX_MAX_DIM},
     observer::ObserverConfig,
-    pid::PidStatus,
+    pid::{PidFault, PidStatus},
     statespace::OutputLimits,
     RonError, RonFloat,
 };
@@ -182,10 +182,11 @@ fn ron_tc_lqr_006() {
         ([0.0], 0.0),
         ([RonFloat::INFINITY], 0.01),
     ] {
-        assert!(matches!(
+        assert_eq!(
             lqr.step(&r, dt),
-            Err(RonError::InvalidArgument(_))
-        ));
+            Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
+        );
+        lqr.clear_fault();
     }
     let mut overflowing = Lqr::new(LqrConfig {
         limits: [OutputLimits {
@@ -196,10 +197,10 @@ fn ron_tc_lqr_006() {
         ..external([RonFloat::MAX], [RonFloat::MAX])
     })
     .unwrap();
-    assert!(matches!(
+    assert_eq!(
         overflowing.step(&[0.0], 0.1),
-        Err(RonError::Numerical(_))
-    ));
+        Err(RonError::Fault(PidFault::OUTPUT_NOT_FINITE))
+    );
 }
 
 /// RON-TC-LQR-007 | RON-FR-735
@@ -462,4 +463,34 @@ fn ron_tc_lqr_006_validation() {
         limits: [WIDE],
     })
     .is_err());
+}
+
+/// RON-TC-LQR-011 | RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013
+#[test]
+fn ron_tc_lqr_011() {
+    let mut lqr = Lqr::new(external([1.0], [1.0])).unwrap();
+    approx_eq(lqr.step(&[0.0], 0.01).unwrap().0[0], -1.0);
+
+    // The fault latches and the last output is held.
+    lqr.estimator_mut().set_external(&[2.0]).unwrap();
+    let latched = Err(RonError::Fault(PidFault::INPUT_NOT_FINITE));
+    assert_eq!(lqr.step(&[RonFloat::NAN], 0.01), latched);
+    assert_eq!(lqr.fault(), PidFault::INPUT_NOT_FINITE);
+    approx_eq(lqr.output()[0], -1.0);
+
+    // Finite inputs do not clear it.
+    assert_eq!(lqr.step(&[0.0], 0.01), latched);
+    approx_eq(lqr.output()[0], -1.0);
+
+    // An explicit clear resumes normal stepping.
+    lqr.clear_fault();
+    let (output, status) = lqr.step(&[0.0], 0.01).unwrap();
+    approx_eq(output[0], -2.0);
+    assert!(!status.contains(PidStatus::FAULT));
+
+    // Reset clears a latched fault too.
+    assert_eq!(lqr.step(&[0.0], RonFloat::NAN), latched);
+    lqr.reset();
+    assert_eq!(lqr.fault(), PidFault::NONE);
+    assert!(lqr.step(&[0.0], 0.01).is_ok());
 }
