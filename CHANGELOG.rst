@@ -23,8 +23,9 @@ Migrating from 0.1
 Public names now follow one convention (IS "C Track — Naming Conventions"):
 one module token across header, types, constants and functions, and
 ``_get_state`` / ``_get_results`` / ``_get_status`` / ``_validate`` for the
-read-back and validation roles. Behaviour is unchanged; a word-boundary
-search-and-replace of this table is the whole migration.
+read-back and validation roles, and the state-space controller and LQR share
+one state-estimator component. Behaviour is unchanged; applying this table is
+the whole migration.
 
 .. list-table::
    :header-rows: 1
@@ -50,6 +51,20 @@ search-and-replace of this table is the whole migration.
      - ``ron_health_get_status()``
    * - ``ron_gs_init()`` (it only ever validated the table)
      - ``ron_gs_table_validate()``
+   * - ``ron_ss_source_t`` / ``RON_SS_SOURCE_*``, ``ron_lqr_source_t`` /
+       ``RON_LQR_SOURCE_*``
+     - ``ron_estimator_source_t`` / ``RON_ESTIMATOR_*``
+   * - ``cfg.source``, ``cfg.x_ext``, ``cfg.obs_cfg``, ``cfg.kf_cfg`` of
+       ``ron_ss_config_t`` / ``ron_lqr_config_t``
+     - ``cfg.est.source``, ``cfg.est.x_ext``, ``cfg.est.obs_cfg``,
+       ``cfg.est.kf_cfg``
+   * - ``ss.observer`` / ``ss.kalman`` (likewise ``lqr.``)
+     - ``ss.est.observer`` / ``ss.est.kalman``
+   * - ``ron_ss_observer_step(&ss, …)``, ``ron_ss_kalman_predict(&ss, …)``,
+       ``ron_ss_kalman_update(&ss, …)`` (likewise ``ron_lqr_*``)
+     - ``ron_estimator_observer_step(&ss.est, …)``,
+       ``ron_estimator_kalman_predict(&ss.est, …)``,
+       ``ron_estimator_kalman_update(&ss.est, …)``
 
 The lowered default dimension bounds (below) are the other breaking change:
 plants with more than 4 states or 2 inputs/outputs must now set the
@@ -58,6 +73,11 @@ plants with more than 4 states or 2 inputs/outputs must now set the
 Changed
 -------
 - **Breaking:** the public API renames in the migration table above.
+- **Breaking:** the state-space controller and the LQR each carried their own
+  copy of the state-estimate plumbing (source enum, validation, embedded
+  observer/Kalman init and reset, estimate fetch, and three wrappers each).
+  Both now embed one ``ron_estimator`` component (``ron_estimator.h``,
+  compiled with ``RON_ENABLE_STATESPACE``); see the migration table.
 - **Breaking default:** the compile-time dimension bounds in
   ``ron_platform.h`` were lowered to cut estimator/optimal-control stack
   usage by 4.2x (largest frame 2448 B -> 576 B). State bounds

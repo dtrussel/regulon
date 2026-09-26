@@ -236,9 +236,9 @@ ZTEST(regulon_module, test_lqr_dare_solve_stabilises_on_target)
 
     cfg->n         = 2U;
     cfg->m         = 1U;
-    cfg->source    = RON_LQR_SOURCE_EXTERNAL;
+    cfg->est.source    = RON_ESTIMATOR_EXTERNAL;
     cfg->gain_mode = RON_LQR_GAIN_DARE;
-    cfg->x_ext     = x;
+    cfg->est.x_ext     = x;
 
     /* Double integrator, dt = 0.1. */
     cfg->A[0][0] = RON_FLOAT_C(1.0); cfg->A[0][1] = RON_FLOAT_C(0.1);

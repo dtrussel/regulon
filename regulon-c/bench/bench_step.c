@@ -173,16 +173,16 @@ int main(void)
     (void) ron_kf_init(&kf, &kf_cfg);
 
     ss_cfg.n      = (uint8_t) RON_SS_MAX_STATES;
-    ss_cfg.source = RON_SS_SOURCE_EXTERNAL;
-    ss_cfg.x_ext  = x_ext;
+    ss_cfg.est.source = RON_ESTIMATOR_EXTERNAL;
+    ss_cfg.est.x_ext  = x_ext;
     ss_cfg.u_min  = RON_FLOAT_C(-10.0);
     ss_cfg.u_max  = RON_FLOAT_C(10.0);
     (void) ron_ss_init(&ss, &ss_cfg);
 
     lqr_cfg.n         = (uint8_t) RON_LQR_MAX_STATES;
     lqr_cfg.m         = (uint8_t) RON_LQR_MAX_INPUTS;
-    lqr_cfg.source    = RON_LQR_SOURCE_EXTERNAL;
-    lqr_cfg.x_ext     = x_ext;
+    lqr_cfg.est.source    = RON_ESTIMATOR_EXTERNAL;
+    lqr_cfg.est.x_ext     = x_ext;
     lqr_cfg.gain_mode = RON_LQR_GAIN_PRECOMPUTED;
     {
         uint8_t j;

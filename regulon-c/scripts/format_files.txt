@@ -18,6 +18,7 @@ regulon-c/src/ron_matrix_internal.h
 regulon-c/src/ron_lqr_internal.h
 regulon-c/src/ron_pid_internal.h
 regulon-c/src/ron_statespace.c
+regulon-c/src/ron_estimator.c
 regulon-c/src/ron_trajectory_scurve.c
 regulon-c/src/ron_trajectory_trap.c
 regulon-c/src/ron_util.c
@@ -38,4 +39,5 @@ regulon-c/include/ron/ron_pid.h
 regulon-c/include/ron/ron_pid_types.h
 regulon-c/include/ron/ron_platform.h
 regulon-c/include/ron/ron_statespace.h
+regulon-c/include/ron/ron_estimator.h
 regulon-c/include/ron/ron_trajectory.h

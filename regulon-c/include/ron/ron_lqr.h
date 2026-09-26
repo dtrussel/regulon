@@ -23,10 +23,9 @@
  *   RON_LQR_GAIN_PRECOMPUTED — K supplied directly by the caller; DARE
  *                              is skipped.
  *
- * Three state-estimate sources are supported (RON-FR-734):
- *   RON_LQR_SOURCE_EXTERNAL   — x_hat from a caller-owned vector.
- *   RON_LQR_SOURCE_LUENBERGER — x_hat from an embedded ron_obs_t.
- *   RON_LQR_SOURCE_KALMAN     — x_hat from an embedded ron_kf_t.
+ * The state estimate comes from the shared ron_estimator component
+ * (cfg.est / est, RON-FR-734): a caller-owned vector, an embedded ron_obs_t
+ * or an embedded ron_kf_t, advanced through ron_estimator_*(&lqr.est, ...).
  *
  * Optional per-input integral augmentation is available for steady-state
  * output regulation (RON-FR-735).  Per-input output saturation, rate
@@ -41,9 +40,9 @@
  *   void init(void) {
  *       ron_lqr_config_t cfg = {
  *           .n = 2U, .m = 1U,
- *           .source    = RON_LQR_SOURCE_EXTERNAL,
+ *           .est       = { .source = RON_ESTIMATOR_EXTERNAL,
+ *                          .x_ext  = state_vector },
  *           .gain_mode = RON_LQR_GAIN_PRECOMPUTED,
- *           .x_ext     = state_vector,
  *           .K  = {{2.0F, 1.0F}},
  *           .Kr = {1.0F},
  *           .u_min = {-10.0F}, .u_max = {10.0F},
@@ -64,23 +63,11 @@
 #ifndef RON_LQR_H
 #define RON_LQR_H
 
-#include "ron/ron_kalman.h"   /* embedded Kalman source (RON-FR-734)     */
-#include "ron/ron_observer.h" /* embedded Luenberger source (RON-FR-734) */
+#include "ron/ron_estimator.h" /* shared state-estimate source (RON-FR-734) */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* =========================================================================
- * State-estimate source selection (RON-FR-734)
- * ========================================================================= */
-
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-002, RON-TC-LQR-008, RON-TC-LQR-009 */
-typedef enum {
-    RON_LQR_SOURCE_EXTERNAL   = 0, /**< x_hat from cfg.x_ext.             */
-    RON_LQR_SOURCE_LUENBERGER = 1, /**< x_hat from the embedded observer. */
-    RON_LQR_SOURCE_KALMAN     = 2  /**< x_hat from the embedded Kalman.   */
-} ron_lqr_source_t;
 
 /* =========================================================================
  * Gain computation mode (RON-FR-732)
@@ -96,8 +83,7 @@ typedef enum {
  * Controller configuration (RON-FR-730 .. RON-FR-737)
  *
  * Only the leading n rows/columns and m rows of each 2-D array are used.
- * obs_cfg is consumed only when source == RON_LQR_SOURCE_LUENBERGER;
- * kf_cfg  is consumed only when source == RON_LQR_SOURCE_KALMAN.
+ * est selects the state-estimate source (see ron_estimator.h).
  * A and B are required in DARE mode or when an embedded estimator is used.
  * ========================================================================= */
 
@@ -105,9 +91,8 @@ typedef enum {
 typedef struct {
     uint8_t n;                     /**< State dim (1..RON_LQR_MAX_STATES). */
     uint8_t m;                     /**< Input dim (1..RON_LQR_MAX_INPUTS). */
-    ron_lqr_source_t source;       /**< State estimate source.             */
+    ron_estimator_config_t est;    /**< State-estimate source (FR-734).    */
     ron_lqr_gain_mode_t gain_mode; /**< Pre-computed gain or DARE.         */
-    const ron_float_t *x_ext;      /**< External state (EXTERNAL source).  */
 
     /* System matrices — used by DARE solver and embedded estimators. */
     ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< State transition. */
@@ -134,10 +119,6 @@ typedef struct {
     ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input sat lower bound.  */
     ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input sat upper bound.  */
     ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit (≤ 0 disables). */
-
-    /* Embedded estimator configs. */
-    ron_obs_config_t obs_cfg; /**< Observer config (LUENBERGER source). */
-    ron_kf_config_t kf_cfg;   /**< Kalman config  (KALMAN source).       */
 } ron_lqr_config_t;
 
 /* =========================================================================
@@ -159,8 +140,7 @@ typedef struct {
 typedef struct {
     ron_lqr_config_t cfg;
     ron_lqr_state_t state;
-    ron_obs_t observer; /**< Embedded Luenberger observer. */
-    ron_kf_t kalman;    /**< Embedded Kalman filter.       */
+    ron_estimator_t est; /**< State-estimate source (RON-FR-734). */
 } ron_lqr_t;
 
 /* =========================================================================
@@ -295,76 +275,6 @@ ron_fault_t ron_lqr_set_gains(ron_lqr_t *lqr,
 /* Satisfies: RON-FR-739 | Test: RON-TC-LQR-003 */
 ron_fault_t ron_lqr_get_dare_solution(const ron_lqr_t *lqr,
                                       ron_float_t P[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]);
-
-/* Advance the embedded Luenberger observer (LUENBERGER source). */
-/**
- * @brief Advance the embedded Luenberger observer by one sample.
- *
- * Only meaningful when the instance was configured with
- * ::RON_LQR_SOURCE_LUENBERGER. Call it once per cycle before ron_lqr_step().
- *
- * @param[in,out] lqr  Initialised controller instance. Must not be NULL.
- * @param[in]     y    Measured output vector, all entries finite. Must not be
- *                     NULL.
- * @param[in]     u    Previously applied input vector, all entries finite.
- *                     May be NULL when the observer's input dimension is
- *                     zero.
- *
- * @retval RON_FAULT_NONE           Observer advanced.
- * @retval RON_FAULT_NULL_POINTER   @p lqr or @p y was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  its estimate source is not the embedded
- *                                  observer.
- * @retval other                    Any fault reported by the observer.
- */
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008 */
-ron_fault_t ron_lqr_observer_step(ron_lqr_t *lqr, const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                  const ron_float_t u[RON_SS_MAX_INPUTS]);
-
-/* Advance the embedded Kalman filter prediction (KALMAN source). */
-/**
- * @brief Run the embedded Kalman filter's time update.
- *
- * Only meaningful when the instance was configured with
- * ::RON_LQR_SOURCE_KALMAN.
- *
- * @param[in,out] lqr  Initialised controller instance. Must not be NULL.
- * @param[in]     u    Control input vector, all entries finite. May be NULL
- *                     when the filter's input dimension is zero.
- *
- * @retval RON_FAULT_NONE           Estimate propagated.
- * @retval RON_FAULT_NULL_POINTER   @p lqr was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  its estimate source is not the embedded
- *                                  Kalman filter.
- * @retval other                    Any fault reported by the filter.
- */
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-ron_fault_t ron_lqr_kalman_predict(ron_lqr_t *lqr, const ron_float_t u[RON_KF_MAX_INPUTS]);
-
-/* Correct the embedded Kalman filter with a measurement (KALMAN source). */
-/**
- * @brief Run the embedded Kalman filter's measurement update.
- *
- * Only meaningful when the instance was configured with
- * ::RON_LQR_SOURCE_KALMAN. Pass @p z_valid as @c false to skip the correction
- * for a sample with no usable measurement.
- *
- * @param[in,out] lqr      Initialised controller instance. Must not be NULL.
- * @param[in]     z        Measurement vector, all entries finite. Ignored
- *                         when @p z_valid is @c false.
- * @param[in]     z_valid  Whether @p z holds a usable measurement.
- *
- * @retval RON_FAULT_NONE           Estimate corrected, or correction skipped.
- * @retval RON_FAULT_NULL_POINTER   @p lqr was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  its estimate source is not the embedded
- *                                  Kalman filter.
- * @retval other                    Any fault reported by the filter.
- */
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-ron_fault_t ron_lqr_kalman_update(ron_lqr_t *lqr, const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                  bool z_valid);
 
 #ifdef __cplusplus
 }

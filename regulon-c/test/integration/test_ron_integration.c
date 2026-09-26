@@ -288,21 +288,21 @@ void test_ron_tc_int_003(void)
     unsigned k;
 
     cfg.n               = 1U;
-    cfg.source          = RON_SS_SOURCE_LUENBERGER;
+    cfg.est.source          = RON_ESTIMATOR_LUENBERGER;
     cfg.K[0]            = RON_FLOAT_C(1.5);
     cfg.Kr              = RON_FLOAT_C(1.5);
     cfg.use_integral    = false;
     cfg.u_min           = -umx;
     cfg.u_max           = umx;
     cfg.du_max          = RON_FLOAT_C(0.0);
-    cfg.obs_cfg.n       = 1U;
-    cfg.obs_cfg.m       = 1U;
-    cfg.obs_cfg.p       = 1U;
-    cfg.obs_cfg.A[0][0] = a;
-    cfg.obs_cfg.B[0][0] = b;
-    cfg.obs_cfg.C[0][0] = RON_FLOAT_C(1.0);
-    cfg.obs_cfg.L[0][0] = RON_FLOAT_C(0.5);
-    cfg.obs_cfg.x0[0]   = RON_FLOAT_C(0.0);
+    cfg.est.obs_cfg.n       = 1U;
+    cfg.est.obs_cfg.m       = 1U;
+    cfg.est.obs_cfg.p       = 1U;
+    cfg.est.obs_cfg.A[0][0] = a;
+    cfg.est.obs_cfg.B[0][0] = b;
+    cfg.est.obs_cfg.C[0][0] = RON_FLOAT_C(1.0);
+    cfg.est.obs_cfg.L[0][0] = RON_FLOAT_C(0.5);
+    cfg.est.obs_cfg.x0[0]   = RON_FLOAT_C(0.0);
 
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ss_init(&ss, &cfg));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_lp1_init(&filt, &fcfg));
@@ -318,7 +318,7 @@ void test_ron_tc_int_003(void)
         (void) ron_lp1_step(&filt, y_meas, &y_filt);
         y_vec[0] = y_filt;
         u_vec[0] = u_prev;
-        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_ss_observer_step(&ss, y_vec, u_vec));
+        TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_estimator_observer_step(&ss.est, y_vec, u_vec));
         TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
                                 ron_ss_step(&ss, RON_FLOAT_C(5.0), dt, &u, &status));
 
@@ -337,7 +337,7 @@ void test_ron_tc_int_003(void)
     TEST_ASSERT_TRUE(saturated_seen);
 
     /* The embedded observer estimate has converged to the true plant state. */
-    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.01), x, ss.observer.state.x_hat[0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(0.01), x, ss.est.observer.state.x_hat[0]);
 }
 
 /* =========================================================================

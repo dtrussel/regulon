@@ -67,6 +67,7 @@ Revision History
      - 2026-09-26
      - Documented the ISA-form conversion helper for RON-FR-002 and the
        trajectory reset / state read-back operations (RON-FR-514/515).
+       Added the ron_estimator module shared by ron_statespace and ron_lqr.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -1745,14 +1746,9 @@ State-Space Controller Pseudocode
 
    OPERATION ron_ss_step(inst, r, u_obs[n], dt, [out] u, [out] status) → FaultCode
 
-   -- 1. Obtain state estimate
-   IF inst.cfg.state_source = EXTERNAL THEN
-     x_hat ← inst.cfg.x_ext_ptr[0..n-1]
-   ELSE IF inst.cfg.state_source = LUENBERGER THEN
-     x_hat ← inst.observer.state.x_hat
-   ELSE  -- KALMAN
-     x_hat ← inst.kalman.state.x_hat
-   END
+   -- 1. Obtain state estimate (shared estimator component, see ron_estimator)
+   fault ← ron_estimator_get_state(inst.est, x_hat, n)
+   IF fault ≠ NONE THEN latch fault, return safe output
 
    -- 2. Compute state-feedback term
    u_fb ← -K * x_hat    -- matrix-vector product
@@ -1784,6 +1780,50 @@ Luenberger Observer Pseudocode
 
 ------------------------------------------------------------------------
 
+Module Design: ron_estimator
+==============================
+
+The state-space controller (RON-FR-701) and the LQR (RON-FR-734) take their
+state estimate from the same three sources. One component owns that choice so
+both controllers share a single implementation and a single API.
+
+.. code-block:: none
+
+   ENUM EstimatorSource: EXTERNAL | LUENBERGER | KALMAN
+
+   STRUCTURE EstimatorConfig:
+     source  : EstimatorSource
+     x_ext   : pointer to caller-owned state vector (EXTERNAL)
+     obs_cfg : ObserverConfig   (LUENBERGER)
+     kf_cfg  : KalmanConfig     (KALMAN)
+
+   STRUCTURE Estimator:
+     source, x_ext, observer : Observer, kalman : Kalman, is_initialised
+
+   OPERATION validate(cfg, n) → FaultCode
+     source not one of the three            → CONFIG_INVALID
+     LUENBERGER and obs_cfg.n ≠ n           → CONFIG_INVALID
+     KALMAN and kf_cfg.n ≠ n                → CONFIG_INVALID
+
+   OPERATION init(est, cfg, n) → FaultCode
+     validate(cfg, n); initialise only the selected embedded component
+     (its own fault is returned unchanged)
+
+   OPERATION reset(est)       -- resets the selected embedded component
+   OPERATION observer_step / kalman_predict / kalman_update(est, …)
+     -- NULL → NULL_POINTER; not initialised or other source → CONFIG_INVALID;
+     -- otherwise delegate to ron_obs_step / ron_kf_predict / ron_kf_update
+
+   OPERATION get_state(est, x_hat, n) → FaultCode
+     src ← x_ext (NULL → NULL_POINTER) | observer.x_hat | kalman.x_hat
+     any of src[0..n-1] non-finite → INPUT_NAN
+     x_hat[0..n-1] ← src[0..n-1]
+
+The controllers embed the configuration as ``cfg.est`` and the instance as
+``est``; callers advance an embedded estimator through this component's API.
+
+------------------------------------------------------------------------
+
 Module Design: ron_lqr
 ========================
 
@@ -1792,18 +1832,14 @@ Data Structures
 
 .. code-block:: none
 
-   ENUM LqrSource:
-     LQR_SOURCE_EXTERNAL | LQR_SOURCE_LUENBERGER | LQR_SOURCE_KALMAN
-
    ENUM LqrGainMode:
      LQR_GAIN_PRECOMPUTED | LQR_GAIN_DARE
 
    STRUCTURE LqrConfig:
      n, m               : uint8_t     -- state dim (1..RON_LQR_MAX_STATES),
                                          input dim (1..RON_LQR_MAX_INPUTS)
-     source             : LqrSource
+     est                : EstimatorConfig -- state-estimate source (ron_estimator)
      gain_mode          : LqrGainMode
-     x_ext              : ptr         -- external state pointer (EXTERNAL)
      A[n][n], B[n][m]   : RON_FLOAT  -- system matrices (for DARE / observer)
      Q_cost[n][n]       : RON_FLOAT  -- state cost matrix (DARE mode)
      R_cost[m][m]       : RON_FLOAT  -- input cost matrix (DARE mode)
@@ -1817,8 +1853,6 @@ Data Structures
      i_min[m], i_max[m] : RON_FLOAT  -- integral clamp per input
      u_min[m], u_max[m] : RON_FLOAT  -- output saturation per input
      du_max[m]          : RON_FLOAT  -- rate limit per input
-     obs_cfg            : ObsConfig   -- LUENBERGER source
-     kf_cfg             : KfConfig    -- KALMAN source
 
    STRUCTURE LqrState:
      K_solved[m][n]     : RON_FLOAT  -- gain in use (from config or DARE)
@@ -1832,8 +1866,7 @@ Data Structures
    STRUCTURE LqrInstance:
      cfg                : LqrConfig
      state              : LqrState
-     observer           : ron_obs_t   -- used when source = LUENBERGER
-     kalman             : ron_kf_t    -- used when source = KALMAN
+     est                : Estimator   -- shared state-estimate source
 
 DARE Solver Pseudocode (called once during ron_lqr_init, DARE mode only)
 -------------------------------------------------------------------------
@@ -1867,10 +1900,8 @@ LQR Control Step Pseudocode
    OPERATION ron_lqr_step(inst, r[m], dt, [out] u[m], [out] status) → FaultCode
      -- 1. Null / init / fault-latch guards
      -- 2. Validate dt > 0 and all r[j] finite
-     -- 3. Obtain x_hat (three-source dispatch, identical to ron_ss_step)
-     IF source = EXTERNAL   THEN x_hat ← *inst.cfg.x_ext
-     IF source = LUENBERGER THEN x_hat ← inst.observer.state.x_hat
-     IF source = KALMAN     THEN x_hat ← inst.kalman.state.x_hat
+     -- 3. Obtain x_hat from the shared estimator (as ron_ss_step does)
+     fault ← ron_estimator_get_state(inst.est, x_hat, n)
 
      -- 4. State-feedback term (matrix-vector multiply)
      FOR j IN 0..m-1:
@@ -2225,7 +2256,7 @@ Appendix A: Design Decision Log
      - Schur-based DARE solvers require complex eigenvalue decomposition with :math:`O(n^3)` complex arithmetic per iteration that is impractical on constrained embedded targets without a floating-point unit of sufficient precision. The iterative value recursion :math:`P_{i+1} = Q + A^\top P_i A - A^\top P_i B(R + B^\top P_i B)^{-1}B^\top P_i A` is fully real, :math:`O(n^3)` per iteration, bounded by ``dare_max_iter``, and converges for all stabilisable/detectable system pairs. It is run once at init time, so per-step latency is unaffected.
    * - DD-20
      - LQG forces the Kalman filter as the state source; Luenberger source is omitted from LQG.
-     - LQG is defined as the combination of an LQR control law with a Kalman filter estimator. Allowing a Luenberger source in LQG would create an LQR-with-Luenberger, which is already covered by ``ron_lqr`` with ``LQR_SOURCE_LUENBERGER``. Conflating the two would duplicate configuration paths, complicate the separation-principle validation proof, and obscure the optimality guarantee that motivates the LQG design. Users who want a non-optimal estimator should use ``ron_lqr`` directly.
+     - LQG is defined as the combination of an LQR control law with a Kalman filter estimator. Allowing a Luenberger source in LQG would create an LQR-with-Luenberger, which is already covered by ``ron_lqr`` with ``RON_ESTIMATOR_LUENBERGER``. Conflating the two would duplicate configuration paths, complicate the separation-principle validation proof, and obscure the optimality guarantee that motivates the LQG design. Users who want a non-optimal estimator should use ``ron_lqr`` directly.
 
 ------------------------------------------------------------------------
 

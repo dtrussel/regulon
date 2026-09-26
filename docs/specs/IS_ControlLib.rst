@@ -93,7 +93,9 @@ Revision History
        ``_get_results``/``_get_status``, ``ron_gs_table_validate``); added
        ``ron_pid_config_from_isa`` and trajectory ``reset``/``get_state``;
        ``ron_util.c`` joins the mandatory baseline; the Rust track is marked
-       as a target description.
+       as a target description. New ``ron_estimator.h`` replaces the
+       per-controller source enums, estimator fields and wrappers of
+       ``ron_statespace.h`` and ``ron_lqr.h``.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -713,7 +715,8 @@ specifications) live at the root.
    │   │   ├── ron_pid.h
    │   │   ├── ron_<module>.h          -- filter, feedforward, gain_sched,
    │   │   │                              cascade, trajectory, kalman,
-   │   │   │                              statespace, observer, lqr, lqg,
+   │   │   │                              statespace, observer, estimator,
+   │   │   │                              lqr, lqg,
    │   │   │                              autotune, health, metrics
    │   │   └── ron_modules.h           -- generated at build time (RON_HAVE_*)
    │   ├── src/
@@ -721,6 +724,7 @@ specifications) live at the root.
    │   │   ├── ron_trajectory_{trap,scurve}.c
    │   │   ├── ron_<module>.c          -- one per remaining module
    │   │   ├── ron_util.c              -- internal scalar helpers (baseline)
+   │   │   ├── ron_estimator.c         -- shared state-estimate source
    │   │   ├── ron_matrix.c            -- internal fixed-size matrix helper
    │   │   └── ron_*_internal.h        -- internal headers (not installed)
    │   ├── test/
@@ -2131,6 +2135,66 @@ sample period, so no ``dt`` argument is taken.  Storage is bounded by the
 ``RON_SS_MAX_*`` constants (``RON-FR-723``) and the full estimate is read back
 via ``ron_obs_get_state`` (``RON-FR-722``).
 
+``ron_estimator.h`` — State-Estimate Source
+--------------------------------------------
+
+Shared by the state-space controller (``RON-FR-701``) and the LQR
+(``RON-FR-734``): one component selects where ``x_hat`` comes from and owns the
+embedded observer and Kalman filter.
+
+.. code-block:: c
+
+   #ifndef RON_ESTIMATOR_H
+   #define RON_ESTIMATOR_H
+   #include "ron/ron_kalman.h"
+   #include "ron/ron_observer.h"
+
+   typedef enum {
+       RON_ESTIMATOR_EXTERNAL   = 0,
+       RON_ESTIMATOR_LUENBERGER = 1,
+       RON_ESTIMATOR_KALMAN     = 2
+   } ron_estimator_source_t;
+
+   typedef struct {
+       ron_estimator_source_t source;
+       const ron_float_t     *x_ext;     /* EXTERNAL   */
+       ron_obs_config_t       obs_cfg;   /* LUENBERGER */
+       ron_kf_config_t        kf_cfg;    /* KALMAN     */
+   } ron_estimator_config_t;
+
+   typedef struct {
+       ron_estimator_source_t source;
+       const ron_float_t     *x_ext;
+       ron_obs_t              observer;
+       ron_kf_t               kalman;
+       bool                   is_initialised;
+   } ron_estimator_t;
+
+   ron_fault_t ron_estimator_config_validate(const ron_estimator_config_t *cfg,
+                                             uint8_t n);
+   ron_fault_t ron_estimator_init(ron_estimator_t *est,
+                                  const ron_estimator_config_t *cfg, uint8_t n);
+   ron_fault_t ron_estimator_reset(ron_estimator_t *est);
+   ron_fault_t ron_estimator_observer_step(ron_estimator_t *est,
+                                           const ron_float_t y[RON_SS_MAX_OUTPUTS],
+                                           const ron_float_t u[RON_SS_MAX_INPUTS]);
+   ron_fault_t ron_estimator_kalman_predict(ron_estimator_t *est,
+                                            const ron_float_t u[RON_KF_MAX_INPUTS]);
+   ron_fault_t ron_estimator_kalman_update(ron_estimator_t *est,
+                                           const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
+                                           bool z_valid);
+   ron_fault_t ron_estimator_get_state(const ron_estimator_t *est,
+                                       ron_float_t *x_hat, uint8_t n);
+
+   #endif /* RON_ESTIMATOR_H */
+
+A controller embeds the configuration as ``cfg.est`` and the instance as
+``est``. The caller advances an embedded estimator with
+``ron_estimator_observer_step`` / ``ron_estimator_kalman_predict`` /
+``ron_estimator_kalman_update`` on ``&ctrl.est`` before the controller's step,
+which reads the estimate with ``ron_estimator_get_state``. The step, predict and
+update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
+
 ``ron_statespace.h`` — State-Feedback Controller
 --------------------------------------------------
 
@@ -2138,22 +2202,14 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
 
    #ifndef RON_STATESPACE_H
    #define RON_STATESPACE_H
-   #include "ron/ron_kalman.h"
-   #include "ron/ron_observer.h"
+   #include "ron/ron_estimator.h"
    #ifdef __cplusplus
    extern "C" {
    #endif
 
-   typedef enum {
-       RON_SS_SOURCE_EXTERNAL   = 0,
-       RON_SS_SOURCE_LUENBERGER = 1,
-       RON_SS_SOURCE_KALMAN     = 2
-   } ron_ss_source_t;
-
    typedef struct {
-       uint8_t            n;
-       ron_ss_source_t    source;
-       const ron_float_t *x_ext;
+       uint8_t                n;
+       ron_estimator_config_t est;
        ron_float_t        K[RON_SS_MAX_STATES];
        ron_float_t        Kr;
        bool               use_integral;
@@ -2161,8 +2217,6 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
        ron_float_t        C_out[RON_SS_MAX_STATES];
        ron_float_t        i_min, i_max;
        ron_float_t        u_min, u_max, du_max;
-       ron_obs_config_t   obs_cfg;
-       ron_kf_config_t    kf_cfg;
    } ron_ss_config_t;
 
    typedef struct {
@@ -2174,8 +2228,7 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
 
    typedef struct { ron_ss_config_t cfg;
                     ron_ss_state_t  state;
-                    ron_obs_t       observer;
-                    ron_kf_t        kalman; } ron_ss_t;
+                    ron_estimator_t est; } ron_ss_t;
 
    ron_fault_t ron_ss_init           (ron_ss_t *ss, const ron_ss_config_t *cfg);
    ron_fault_t ron_ss_reset          (ron_ss_t *ss);
@@ -2184,14 +2237,6 @@ via ``ron_obs_get_state`` (``RON-FR-722``).
    ron_fault_t ron_ss_set_gains      (ron_ss_t *ss,
                                          const ron_float_t K[RON_SS_MAX_STATES],
                                          ron_float_t Kr);
-   ron_fault_t ron_ss_observer_step  (ron_ss_t *ss,
-                                         const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                         const ron_float_t u[RON_SS_MAX_INPUTS]);
-   ron_fault_t ron_ss_kalman_predict (ron_ss_t *ss,
-                                         const ron_float_t u[RON_KF_MAX_INPUTS]);
-   ron_fault_t ron_ss_kalman_update  (ron_ss_t *ss,
-                                         const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                         bool z_valid);
 
    #ifdef __cplusplus
    }
@@ -2208,33 +2253,25 @@ to the control (``RON-FR-702``).  The output is then saturated to
 PID module, with ``RON_STATUS_SATURATED`` / ``RON_STATUS_RATE_LIMITED`` reported
 in ``status`` (``RON-FR-703``).  ``K`` and ``Kr`` may be replaced at run time via
 ``ron_ss_set_gains`` (``RON-FR-704``).  The embedded observer / Kalman estimators
-are advanced by ``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` /
-``ron_ss_kalman_update`` before the consuming ``ron_ss_step`` call.
+are advanced through ``ron_estimator.h`` on ``&ss.est`` before the consuming
+``ron_ss_step`` call.
 
 ``ron_lqr.h`` — Discrete-Time MIMO LQR Controller
 --------------------------------------------------
 
-Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
-``ron_observer.h`` (pulled in transitively).
+Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_estimator.h`` (pulled in
+transitively).
 
 .. code-block:: c
 
    #ifndef RON_LQR_H
    #define RON_LQR_H
 
-   #include "ron/ron_kalman.h"
-   #include "ron/ron_observer.h"
+   #include "ron/ron_estimator.h"
 
    #ifdef __cplusplus
    extern "C" {
    #endif
-
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-002 */
-   typedef enum {
-       RON_LQR_SOURCE_EXTERNAL   = 0,
-       RON_LQR_SOURCE_LUENBERGER = 1,
-       RON_LQR_SOURCE_KALMAN     = 2
-   } ron_lqr_source_t;
 
    /* Satisfies: RON-FR-732 | Test: RON-TC-LQR-001 */
    typedef enum {
@@ -2246,9 +2283,8 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
    typedef struct {
        uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES). */
        uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS). */
-       ron_lqr_source_t   source;     /**< State estimate source.              */
+       ron_estimator_config_t est;    /**< State-estimate source (FR-734).     */
        ron_lqr_gain_mode_t gain_mode; /**< Pre-computed or DARE.               */
-       const ron_float_t *x_ext;      /**< External state (EXTERNAL source).   */
 
        ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]; /**< System A.  */
        ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];  /**< System B.  */
@@ -2270,9 +2306,6 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
        ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input lower sat limit. */
        ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input upper sat limit. */
        ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit.      */
-
-       ron_obs_config_t obs_cfg; /**< Embedded observer (LUENBERGER source).  */
-       ron_kf_config_t  kf_cfg;  /**< Embedded Kalman  (KALMAN source).        */
    } ron_lqr_config_t;
 
    /* Satisfies: RON-FR-737..FR-739 | Test: RON-TC-LQR-001, RON-TC-LQR-010 */
@@ -2290,8 +2323,7 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
    typedef struct {
        ron_lqr_config_t cfg;
        ron_lqr_state_t  state;
-       ron_obs_t        observer;
-       ron_kf_t         kalman;
+       ron_estimator_t  est;
    } ron_lqr_t;
 
    /* Satisfies: RON-FR-730, RON-FR-733 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
@@ -2316,20 +2348,6 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
    ron_fault_t ron_lqr_get_dare_solution(const ron_lqr_t *lqr,
                                           ron_float_t P[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES]);
 
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008 */
-   ron_fault_t ron_lqr_observer_step(ron_lqr_t *lqr,
-                                      const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                      const ron_float_t u[RON_SS_MAX_INPUTS]);
-
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-   ron_fault_t ron_lqr_kalman_predict(ron_lqr_t *lqr,
-                                       const ron_float_t u[RON_KF_MAX_INPUTS]);
-
-   /* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-   ron_fault_t ron_lqr_kalman_update(ron_lqr_t *lqr,
-                                      const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                      bool z_valid);
-
    #ifdef __cplusplus
    }
    #endif
@@ -2340,9 +2358,8 @@ Satisfies RON-FR-730 – RON-FR-739.  Requires ``ron_kalman.h`` and
 solver to compute ``K_solved`` and ``P_solved`` from ``Q_cost`` and ``R_cost``.
 In PRECOMPUTED mode the supplied ``K`` is copied directly.  The embedded
 observer or Kalman filter is also initialised if the corresponding source is
-selected.  The observer and Kalman step helpers mirror the pattern of
-``ron_ss_observer_step`` / ``ron_ss_kalman_predict`` / ``ron_ss_kalman_update``
-and must be called by the application before ``ron_lqr_step`` each cycle.
+selected.  As for the state-space controller, the application advances it
+through ``ron_estimator.h`` on ``&lqr.est`` before ``ron_lqr_step`` each cycle.
 
 ``ron_lqg.h`` — Discrete-Time MIMO LQG Controller
 --------------------------------------------------

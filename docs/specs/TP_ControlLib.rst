@@ -62,8 +62,8 @@ Revision History
    * - 1.3.0
      - 2026-09-26
      - RON-TC-PID-002 now exercises ``ron_pid_config_from_isa``; added
-       RON-TC-TRAJ-009/-010; RON-TC-QUAL-015 (MC/DC) is enforced in CI; the
-       Rust CI pipeline is marked as planned.
+       RON-TC-TRAJ-009/-010 and RON-TC-EST-001 – EST-003; RON-TC-QUAL-015
+       (MC/DC) is enforced in CI; the Rust CI pipeline is marked as planned.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -270,6 +270,9 @@ zero-padded three-digit sequence number.
    * - ``SS``
      - State-space + observer
      - RON-FR-700 – FR-723
+   * - ``EST``
+     - State-estimator component (shared by state-space and LQR)
+     - RON-FR-701, RON-FR-734
    * - ``AT``
      - Auto-tuning
      - RON-FR-800 – FR-807
@@ -857,7 +860,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-FR-701
      - State source selection
      - UT
-     - RON-TC-SS-002
+     - RON-TC-SS-002, RON-TC-EST-001 – EST-003
    * - RON-FR-702
      - Integral augmentation
      - UT
@@ -1315,6 +1318,9 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-SS-001 – SS-009
      - UT
      - RON-FR-700 – FR-723
+   * - RON-TC-EST-001 – EST-003
+     - UT
+     - RON-FR-701, RON-FR-734
    * - RON-TC-SS-004-FV
      - FV
      - RON-FR-703, RON-FR-020
@@ -2807,8 +2813,9 @@ RON-TC-SS-002 — State-Estimate Source Selection
        embedded Kalman filter seeded to ``x0 = [1, 2]``.
    * - **Stimulus**
      - One step at ``r = 0`` for each; advance the embedded observer
-       (``ron_ss_observer_step``) and Kalman (``ron_ss_kalman_predict`` /
-       ``ron_ss_kalman_update``); issue cross-source estimator calls.
+       (``ron_estimator_observer_step``) and Kalman
+       (``ron_estimator_kalman_predict`` / ``ron_estimator_kalman_update``) on
+       ``&ss.est``; issue cross-source estimator calls.
    * - **Pass Criterion**
      - Every source yields ``u = -(2·1 + 1·2) = -4``.  Estimator-advance
        calls on the matching source return ``RON_FAULT_NONE``; estimator
@@ -2993,6 +3000,81 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
 
 ------------------------------------------------------------------------
 
+State-Estimator Tests (RON-TC-EST-xxx)
+======================================
+
+``ron_estimator`` is the state-estimate source shared by the state-space
+controller (RON-FR-701) and the LQR (RON-FR-734). These cases test it on its
+own; RON-TC-SS-002/-009 and RON-TC-LQR-008/-009 exercise it through the
+controllers.
+
+RON-TC-EST-001 - Source Selection and Initialisation
+----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Validate and initialise one estimator per source (external,
+       Luenberger, Kalman) for :math:`n=2`; then an out-of-range source, an
+       embedded configuration whose dimension differs from :math:`n`, an
+       invalid embedded configuration, and NULL arguments. Reset each
+       initialised estimator after stepping it.
+   * - **Pass Criterion**
+     - Valid configurations return ``RON_FAULT_NONE`` and initialise only the
+       selected embedded component. An out-of-range source or dimension
+       mismatch returns ``RON_FAULT_CONFIG_INVALID``; an invalid embedded
+       configuration returns that component's fault; NULL returns
+       ``RON_FAULT_NULL_POINTER``. Reset restores the embedded component's
+       initial estimate; reset of an uninitialised estimator returns
+       ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-EST-002 - Estimator Update Guards
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Call observer step, Kalman predict and Kalman update on the matching
+       source, on each other source, with a NULL estimator and on an
+       uninitialised estimator.
+   * - **Pass Criterion**
+     - The matching source advances the embedded component and returns its
+       result. Any other source or an uninitialised estimator returns
+       ``RON_FAULT_CONFIG_INVALID``; NULL returns ``RON_FAULT_NULL_POINTER``.
+
+RON-TC-EST-003 - State-Estimate Read-Back
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-701, RON-FR-734
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Read the estimate from each source; then with a NULL external vector,
+       a non-finite external vector, NULL arguments and an uninitialised
+       estimator.
+   * - **Pass Criterion**
+     - The leading :math:`n` entries equal the external vector or the
+       embedded component's ``x_hat``. A NULL external vector or NULL
+       argument returns ``RON_FAULT_NULL_POINTER``; a non-finite estimate
+       returns ``RON_FAULT_INPUT_NAN``; an uninitialised estimator returns
+       ``RON_FAULT_CONFIG_INVALID``.
+
+------------------------------------------------------------------------
+
 LQR Controller Tests (RON-TC-LQR-xxx)
 =======================================
 
@@ -3028,7 +3110,7 @@ RON-TC-LQR-002 — External State Source
    * - **Level**
      - UT / ENV-HOST
    * - **Preconditions**
-     - 2-state, 1-input system with ``LQR_SOURCE_EXTERNAL`` and a
+     - 2-state, 1-input system with ``RON_ESTIMATOR_EXTERNAL`` and a
        caller-owned state vector.
    * - **Stimulus**
      - Mutate the external state vector between successive ``ron_lqr_step``
@@ -3150,10 +3232,10 @@ RON-TC-LQR-008 — Luenberger Observer Source (Integration)
    * - **Level**
      - IT / ENV-HOST
    * - **Preconditions**
-     - 2-state, 1-input system with ``LQR_SOURCE_LUENBERGER``.
-       Valid ``obs_cfg`` configured.
+     - 2-state, 1-input system with ``RON_ESTIMATOR_LUENBERGER``.
+       Valid ``est.obs_cfg`` configured.
    * - **Stimulus**
-     - For each of 200 steps: call ``ron_lqr_observer_step`` with a
+     - For each of 200 steps: call ``ron_estimator_observer_step(&lqr.est, …)`` with a
        simulated measurement and the previous control output; then call
        ``ron_lqr_step`` to compute the new control.
    * - **Pass Criterion**
@@ -3172,10 +3254,10 @@ RON-TC-LQR-009 — Kalman Filter Source (Integration)
    * - **Level**
      - IT / ENV-HOST
    * - **Preconditions**
-     - 2-state, 1-input system with ``LQR_SOURCE_KALMAN``. Valid ``kf_cfg``.
+     - 2-state, 1-input system with ``RON_ESTIMATOR_KALMAN``. Valid ``est.kf_cfg``.
    * - **Stimulus**
-     - For each of 200 steps: ``ron_lqr_kalman_predict`` → ``ron_lqr_kalman_update``
-       → ``ron_lqr_step``.
+     - For each of 200 steps: ``ron_estimator_kalman_predict`` →
+       ``ron_estimator_kalman_update`` (on ``&lqr.est``) → ``ron_lqr_step``.
    * - **Pass Criterion**
      - No fault raised. Control output is finite and within
        ``[u_min, u_max]``. Kalman state estimate tracks a known trajectory

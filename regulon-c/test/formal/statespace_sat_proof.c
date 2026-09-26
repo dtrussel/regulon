@@ -79,8 +79,8 @@ void statespace_sat_proof(void)
 
     x_ext[0]   = x0;
     cfg.n      = 1U;
-    cfg.source = RON_SS_SOURCE_EXTERNAL;
-    cfg.x_ext  = x_ext;
+    cfg.est.source = RON_ESTIMATOR_EXTERNAL;
+    cfg.est.x_ext  = x_ext;
     cfg.K[0]   = RON_FLOAT_C(2.0);
     cfg.Kr     = RON_FLOAT_C(1.0);
     cfg.u_min  = RON_FLOAT_C(-5.0);

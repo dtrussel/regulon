@@ -55,33 +55,10 @@ static bool ss_dims_valid(const ron_ss_config_t *cfg)
     return (cfg->n >= 1U) && (cfg->n <= (uint8_t) RON_SS_MAX_STATES);
 }
 
-/* Satisfies: RON-FR-701 | Test: RON-TC-SS-002, RON-TC-SS-009 */
-static bool ss_source_valid(ron_ss_source_t source)
-{
-    return (source == RON_SS_SOURCE_EXTERNAL) || (source == RON_SS_SOURCE_LUENBERGER) ||
-           (source == RON_SS_SOURCE_KALMAN);
-}
-
-/* Satisfies: RON-FR-701 | Test: RON-TC-SS-009 */
-static bool ss_embedded_dims_ok(const ron_ss_config_t *cfg)
-{
-    if ((cfg->source == RON_SS_SOURCE_LUENBERGER) && (cfg->obs_cfg.n != cfg->n)) {
-        return false;
-    }
-    if ((cfg->source == RON_SS_SOURCE_KALMAN) && (cfg->kf_cfg.n != cfg->n)) {
-        return false;
-    }
-
-    return true;
-}
-
 /* Satisfies: RON-FR-700, RON-FR-701, RON-FR-723 | Test: RON-TC-SS-002, RON-TC-SS-009 */
 static ron_fault_t ss_validate_config(const ron_ss_config_t *cfg)
 {
     if (!ss_dims_valid(cfg)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-    if (!ss_source_valid(cfg->source)) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if (!ron_mat_vec_finite(&cfg->K[0], cfg->n) || !ron_util_isfinite(cfg->Kr)) {
@@ -90,45 +67,8 @@ static ron_fault_t ss_validate_config(const ron_ss_config_t *cfg)
     if (!ss_limits_valid(cfg)) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!ss_embedded_dims_ok(cfg)) {
+    if (ron_estimator_config_validate(&cfg->est, cfg->n) != RON_FAULT_NONE) {
         return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return RON_FAULT_NONE;
-}
-
-/* =========================================================================
- * State-estimate acquisition (RON-FR-701)
- * ========================================================================= */
-
-/* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
-static ron_fault_t ss_fetch_state(const ron_ss_t *ss, ron_float_t *x_hat, uint8_t n)
-{
-    const ron_float_t *src;
-    uint8_t i;
-
-    /* A successful ron_ss_init guarantees the selected embedded estimator is
-     * initialised, so no further is_initialised check is needed here. */
-    switch (ss->cfg.source) {
-    case RON_SS_SOURCE_LUENBERGER:
-        src = &ss->observer.state.x_hat[0];
-        break;
-    case RON_SS_SOURCE_KALMAN:
-        src = &ss->kalman.state.x_hat[0];
-        break;
-    default: /* RON_SS_SOURCE_EXTERNAL */
-        if (ss->cfg.x_ext == NULL) {
-            return RON_FAULT_NULL_POINTER;
-        }
-        src = ss->cfg.x_ext;
-        break;
-    }
-
-    if (!ron_mat_vec_finite(src, n)) {
-        return RON_FAULT_INPUT_NAN;
-    }
-    for (i = 0U; i < n; i++) {
-        x_hat[i] = src[i];
     }
 
     return RON_FAULT_NONE;
@@ -220,7 +160,7 @@ ron_fault_t ron_ss_step(ron_ss_t *ss, ron_float_t r, ron_float_t dt, ron_float_t
         return RON_FAULT_INPUT_NAN;
     }
 
-    fault = ss_fetch_state(ss, x_hat, ss->cfg.n);
+    fault = ron_estimator_get_state(&ss->est, x_hat, ss->cfg.n);
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
@@ -267,18 +207,9 @@ ron_fault_t ron_ss_init(ron_ss_t *ss, const ron_ss_config_t *cfg)
 
     ss->cfg = *cfg;
 
-    if (cfg->source == RON_SS_SOURCE_LUENBERGER) {
-        fault = ron_obs_init(&ss->observer, &cfg->obs_cfg);
-        if (fault != RON_FAULT_NONE) {
-            return fault;
-        }
-    } else if (cfg->source == RON_SS_SOURCE_KALMAN) {
-        fault = ron_kf_init(&ss->kalman, &cfg->kf_cfg);
-        if (fault != RON_FAULT_NONE) {
-            return fault;
-        }
-    } else {
-        /* EXTERNAL: no embedded estimator to initialise. */
+    fault = ron_estimator_init(&ss->est, &cfg->est, cfg->n);
+    if (fault != RON_FAULT_NONE) {
+        return fault;
     }
 
     ss_seed_state(ss);
@@ -298,14 +229,7 @@ ron_fault_t ron_ss_reset(ron_ss_t *ss)
     }
 
     ss_seed_state(ss);
-
-    if (ss->cfg.source == RON_SS_SOURCE_LUENBERGER) {
-        (void) ron_obs_reset(&ss->observer);
-    } else if (ss->cfg.source == RON_SS_SOURCE_KALMAN) {
-        (void) ron_kf_reset(&ss->kalman);
-    } else {
-        /* EXTERNAL: nothing to reset. */
-    }
+    (void) ron_estimator_reset(&ss->est);
 
     return RON_FAULT_NONE;
 }
@@ -331,45 +255,4 @@ ron_fault_t ron_ss_set_gains(ron_ss_t *ss, const ron_float_t K[RON_SS_MAX_STATES
     ss->cfg.Kr = Kr;
 
     return RON_FAULT_NONE;
-}
-
-/* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
-ron_fault_t ron_ss_observer_step(ron_ss_t *ss, const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                 const ron_float_t u[RON_SS_MAX_INPUTS])
-{
-    if (ss == NULL) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!ss->state.is_initialised || (ss->cfg.source != RON_SS_SOURCE_LUENBERGER)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return ron_obs_step(&ss->observer, y, u);
-}
-
-/* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
-ron_fault_t ron_ss_kalman_predict(ron_ss_t *ss, const ron_float_t u[RON_KF_MAX_INPUTS])
-{
-    if (ss == NULL) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!ss->state.is_initialised || (ss->cfg.source != RON_SS_SOURCE_KALMAN)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return ron_kf_predict(&ss->kalman, u);
-}
-
-/* Satisfies: RON-FR-701 | Test: RON-TC-SS-002 */
-ron_fault_t ron_ss_kalman_update(ron_ss_t *ss, const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                 bool z_valid)
-{
-    if (ss == NULL) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!ss->state.is_initialised || (ss->cfg.source != RON_SS_SOURCE_KALMAN)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return ron_kf_update(&ss->kalman, z, z_valid);
 }

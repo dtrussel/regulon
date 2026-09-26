@@ -45,6 +45,7 @@ of them.
 
    kalman
    observer
+   estimator
    statespace
    lqr
    lqg

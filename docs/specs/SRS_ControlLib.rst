@@ -74,6 +74,8 @@ Revision History
      - Added RON-FR-514 (trajectory reset) and RON-FR-515 (trajectory state
        read-back). Reworded RON-FR-061: instances are caller-owned with a
        visible layout, accessed only through the API, rather than opaque.
+       RON-FR-701 and RON-FR-734 are now met by one shared state-estimator
+       component; the requirements themselves are unchanged.
      - dtrussel
 
 ------------------------------------------------------------------------

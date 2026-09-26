@@ -181,13 +181,6 @@ static bool lqr_dims_valid(const ron_lqr_config_t *cfg)
     return (cfg->m >= 1U) && (cfg->m <= (uint8_t) RON_LQR_MAX_INPUTS);
 }
 
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-002 */
-static bool lqr_source_valid(ron_lqr_source_t source)
-{
-    return (source == RON_LQR_SOURCE_EXTERNAL) || (source == RON_LQR_SOURCE_LUENBERGER) ||
-           (source == RON_LQR_SOURCE_KALMAN);
-}
-
 /* Satisfies: RON-FR-732 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
 static bool lqr_gain_mode_valid(ron_lqr_gain_mode_t mode)
 {
@@ -223,7 +216,8 @@ static bool lqr_gain_valid(const ron_lqr_config_t *cfg)
 /* Satisfies: RON-FR-731, RON-FR-734 | Test: RON-TC-LQR-001, RON-TC-LQR-008, RON-TC-LQR-009 */
 static bool lqr_system_matrices_ok(const ron_lqr_config_t *cfg)
 {
-    bool needed = (cfg->gain_mode == RON_LQR_GAIN_DARE) || (cfg->source != RON_LQR_SOURCE_EXTERNAL);
+    bool needed =
+        (cfg->gain_mode == RON_LQR_GAIN_DARE) || (cfg->est.source != RON_ESTIMATOR_EXTERNAL);
 
     if (!needed) {
         return true;
@@ -274,25 +268,13 @@ static bool lqr_limits_valid(const ron_lqr_config_t *cfg)
     return true;
 }
 
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008, RON-TC-LQR-009 */
-static bool lqr_embedded_dims_ok(const ron_lqr_config_t *cfg)
-{
-    if ((cfg->source == RON_LQR_SOURCE_LUENBERGER) && (cfg->obs_cfg.n != cfg->n)) {
-        return false;
-    }
-    if ((cfg->source == RON_LQR_SOURCE_KALMAN) && (cfg->kf_cfg.n != cfg->n)) {
-        return false;
-    }
-    return true;
-}
-
 /* Satisfies: RON-FR-730, RON-FR-732, RON-FR-734, RON-FR-736, RON-FR-737 | Test: RON-TC-LQR-001, RON-TC-LQR-006 */
 static ron_fault_t lqr_validate_config(const ron_lqr_config_t *cfg)
 {
     if (!lqr_dims_valid(cfg)) {
         return RON_FAULT_CONFIG_INVALID;
     }
-    if (!lqr_source_valid(cfg->source)) {
+    if (ron_estimator_config_validate(&cfg->est, cfg->n) != RON_FAULT_NONE) {
         return RON_FAULT_CONFIG_INVALID;
     }
     if (!lqr_gain_mode_valid(cfg->gain_mode)) {
@@ -309,44 +291,6 @@ static ron_fault_t lqr_validate_config(const ron_lqr_config_t *cfg)
     }
     if (!lqr_limits_valid(cfg)) {
         return RON_FAULT_CONFIG_INVALID;
-    }
-    if (!lqr_embedded_dims_ok(cfg)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return RON_FAULT_NONE;
-}
-
-/* =========================================================================
- * State-estimate acquisition (RON-FR-734)
- * ========================================================================= */
-
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-002 */
-static ron_fault_t lqr_fetch_state(const ron_lqr_t *lqr, ron_float_t *x_hat, uint8_t n)
-{
-    const ron_float_t *src;
-    uint8_t i;
-
-    switch (lqr->cfg.source) {
-    case RON_LQR_SOURCE_LUENBERGER:
-        src = &lqr->observer.state.x_hat[0];
-        break;
-    case RON_LQR_SOURCE_KALMAN:
-        src = &lqr->kalman.state.x_hat[0];
-        break;
-    default: /* RON_LQR_SOURCE_EXTERNAL */
-        if (lqr->cfg.x_ext == NULL) {
-            return RON_FAULT_NULL_POINTER;
-        }
-        src = lqr->cfg.x_ext;
-        break;
-    }
-
-    if (!ron_mat_vec_finite(src, n)) {
-        return RON_FAULT_INPUT_NAN;
-    }
-    for (i = 0U; i < n; i++) {
-        x_hat[i] = src[i];
     }
 
     return RON_FAULT_NONE;
@@ -476,7 +420,7 @@ ron_fault_t ron_lqr_step(ron_lqr_t *lqr, const ron_float_t r[RON_LQR_MAX_INPUTS]
         return RON_FAULT_INPUT_NAN;
     }
 
-    fault = lqr_fetch_state(lqr, x_hat, lqr->cfg.n);
+    fault = ron_estimator_get_state(&lqr->est, x_hat, lqr->cfg.n);
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
@@ -533,20 +477,6 @@ static ron_fault_t lqr_resolve_gain(ron_lqr_t *lqr)
     return lqr_resolve_gain_dare(lqr);
 }
 
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008, RON-TC-LQR-009 */
-static ron_fault_t lqr_init_estimator(ron_lqr_t *lqr)
-{
-    const ron_lqr_config_t *cfg = &lqr->cfg;
-
-    if (cfg->source == RON_LQR_SOURCE_LUENBERGER) {
-        return ron_obs_init(&lqr->observer, &cfg->obs_cfg);
-    }
-    if (cfg->source == RON_LQR_SOURCE_KALMAN) {
-        return ron_kf_init(&lqr->kalman, &cfg->kf_cfg);
-    }
-    return RON_FAULT_NONE;
-}
-
 /* Satisfies: RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001 */
 static void lqr_seed_state(ron_lqr_t *lqr)
 {
@@ -580,7 +510,7 @@ ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg)
         return fault;
     }
 
-    fault = lqr_init_estimator(lqr);
+    fault = ron_estimator_init(&lqr->est, &cfg->est, cfg->n);
     if (fault != RON_FAULT_NONE) {
         return fault;
     }
@@ -602,14 +532,7 @@ ron_fault_t ron_lqr_reset(ron_lqr_t *lqr)
     }
 
     lqr_seed_state(lqr);
-
-    if (lqr->cfg.source == RON_LQR_SOURCE_LUENBERGER) {
-        (void) ron_obs_reset(&lqr->observer);
-    } else if (lqr->cfg.source == RON_LQR_SOURCE_KALMAN) {
-        (void) ron_kf_reset(&lqr->kalman);
-    } else {
-        /* EXTERNAL: nothing to reset. */
-    }
+    (void) ron_estimator_reset(&lqr->est);
 
     return RON_FAULT_NONE;
 }
@@ -662,45 +585,4 @@ ron_fault_t ron_lqr_get_dare_solution(const ron_lqr_t *lqr,
     ron_mat_store(&P[0][0], (uint8_t) RON_LQR_MAX_STATES, p_work, lqr->cfg.n, lqr->cfg.n);
 
     return RON_FAULT_NONE;
-}
-
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-008 */
-ron_fault_t ron_lqr_observer_step(ron_lqr_t *lqr, const ron_float_t y[RON_SS_MAX_OUTPUTS],
-                                  const ron_float_t u[RON_SS_MAX_INPUTS])
-{
-    if (lqr == NULL) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!lqr->state.is_initialised || (lqr->cfg.source != RON_LQR_SOURCE_LUENBERGER)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return ron_obs_step(&lqr->observer, y, u);
-}
-
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-ron_fault_t ron_lqr_kalman_predict(ron_lqr_t *lqr, const ron_float_t u[RON_KF_MAX_INPUTS])
-{
-    if (lqr == NULL) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!lqr->state.is_initialised || (lqr->cfg.source != RON_LQR_SOURCE_KALMAN)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return ron_kf_predict(&lqr->kalman, u);
-}
-
-/* Satisfies: RON-FR-734 | Test: RON-TC-LQR-009 */
-ron_fault_t ron_lqr_kalman_update(ron_lqr_t *lqr, const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
-                                  bool z_valid)
-{
-    if (lqr == NULL) {
-        return RON_FAULT_NULL_POINTER;
-    }
-    if (!lqr->state.is_initialised || (lqr->cfg.source != RON_LQR_SOURCE_KALMAN)) {
-        return RON_FAULT_CONFIG_INVALID;
-    }
-
-    return ron_kf_update(&lqr->kalman, z, z_valid);
 }

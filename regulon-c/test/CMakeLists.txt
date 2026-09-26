@@ -110,9 +110,11 @@ if(RON_ENABLE_KALMAN)
     ron_add_test(test_ron_kalman     unit/test_ron_kalman.c)
 endif()
 
-# Luenberger observer + state-space controller (TC-SS-001..009)
+# Luenberger observer, state-estimator component, state-space controller
+# (TC-SS-001..009, TC-EST-001..003)
 if(RON_ENABLE_STATESPACE)
     ron_add_test(test_ron_observer   unit/test_ron_observer.c)
+    ron_add_test(test_ron_estimator  unit/test_ron_estimator.c)
     ron_add_test(test_ron_statespace unit/test_ron_statespace.c)
 endif()
 
