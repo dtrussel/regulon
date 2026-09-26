@@ -170,7 +170,7 @@ static ron_float_t pid_integral(const ron_pid_config_t *cfg, const ron_pid_state
     return ron_clamp(i_new, cfg->I_min, cfg->I_max);
 }
 
-/* Satisfies: RON-FR-022 | Test: RON-TC-PID-017 */
+/* Satisfies: RON-FR-022, RON-FR-026 | Test: RON-TC-PID-017, RON-TC-PID-019 */
 static ron_float_t pid_rate_limit(ron_float_t u_sat, ron_float_t u_prev, ron_float_t du_max,
                                   ron_float_t dt, bool *limited)
 {

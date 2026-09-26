@@ -1,17 +1,17 @@
 .. ============================================================
 .. Software Architecture and Design Specification
-.. Regulon — PID Controller Module
+.. Regulon — Control Systems Library
 .. ============================================================
 
 .. meta::
-   :description: Software Architecture and Design Specification for the Regulon, PID Controller Module.
+   :description: Software Architecture and Design Specification for the Regulon Control Systems Library.
    :keywords: PID, control systems, embedded, SADS, architecture, design, safety-critical
 
 ########################################################################
 Software Architecture and Design Specification
 ########################################################################
 
-**Document Title:** Software Architecture and Design Specification — Regulon, PID Controller Module
+**Document Title:** Software Architecture and Design Specification — Regulon Control Systems Library
 
 **Document ID:** RON-SADS-001
 
@@ -72,7 +72,7 @@ Introduction
 Purpose
 -------
 
-This document describes the software architecture and detailed design of the **Regulon Control Systems Library PID Controller Module**. It translates the requirements of RON-SRS-001 into a structured, implementation-agnostic design that guides developers during the coding phase and provides a reference for verification and maintenance activities.
+This document describes the software architecture and detailed design of the **Regulon Control Systems Library**. It translates the requirements of RON-SRS-001 into a structured, implementation-agnostic design that guides developers during the coding phase and provides a reference for verification and maintenance activities.
 
 Scope
 -----
@@ -98,11 +98,11 @@ Parent Documents
    * - Document ID
      - Title
    * - RON-SRS-001
-     - Software Requirements Specification — PID Controller Module
+     - Software Requirements Specification — Regulon Control Systems Library
    * - RON-IS-001
-     - Implementation Specification (TBD — produced after language selection)
+     - Implementation Specification — Regulon Control Systems Library
    * - RON-TP-001
-     - Test Plan (TBD)
+     - Test Plan — Regulon Control Systems Library
 
 Notation Conventions
 ---------------------

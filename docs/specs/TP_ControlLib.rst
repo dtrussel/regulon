@@ -15,11 +15,11 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.0.0
+**Version:** 1.2.0
 
 **Status:** Draft
 
-**Date:** 2025-04-10
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -52,6 +52,13 @@ Revision History
        RON-TC-LQR-010-FV and RON-TC-LQG-010-FV. Updated requirement coverage
        table and test execution order.
      - TBD
+   * - 1.2.0
+     - 2026-09-26
+     - Recorded RON-TC-CASC-008 – CASC-012, which the C suite already ran
+       but this plan did not define. Removed development-phase wording and
+       corrected the CBMC harness count (27). Earlier unversioned additions
+       are included: RON-TC-QUAL-019 and RON-TC-QUAL-023.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -63,7 +70,7 @@ Purpose
 
 This document specifies the test strategy, test cases, and requirement
 traceability for the **Regulon Control Systems Library**. It ensures that
-every requirement in RON-SRS-001 v1.1.0 is verified by at least one test
+every requirement in RON-SRS-001 is verified by at least one test
 case, and provides the test IDs that are embedded directly into C and Rust
 unit test source code to enable automated, traceable test reports in CI.
 
@@ -743,7 +750,7 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-FR-401
      - Cascade step: outer→inner setpoint
      - IT
-     - RON-TC-CASC-002
+     - RON-TC-CASC-002, RON-TC-CASC-009
    * - RON-FR-402
      - Inner-loop output range constraint
      - IT
@@ -755,15 +762,15 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-FR-404
      - Coordinated mode transitions
      - IT
-     - RON-TC-CASC-005
+     - RON-TC-CASC-005, RON-TC-CASC-008
    * - RON-FR-405
      - Full single-PID feature support in cascade
      - IT
-     - RON-TC-CASC-006
+     - RON-TC-CASC-006, RON-TC-CASC-009, RON-TC-CASC-011, RON-TC-CASC-012
    * - RON-FR-406
      - Unified status word (outer/inner bits)
      - IT
-     - RON-TC-CASC-007
+     - RON-TC-CASC-007, RON-TC-CASC-010
    * - RON-FR-500
      - Trapezoidal velocity profile
      - UT
@@ -1275,7 +1282,7 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-GS-001 – GS-008
      - UT
      - RON-FR-300 – FR-306
-   * - RON-TC-CASC-001 – CASC-007
+   * - RON-TC-CASC-001 – CASC-012
      - IT
      - RON-FR-400 – FR-406
    * - RON-TC-CASC-004-FV
@@ -2207,6 +2214,99 @@ RON-TC-CASC-004-FV — AW Propagation Formal Proof
        when inner loop is saturated.
    * - **Pass Criterion**
      - No assertion violation from CBMC / Kani.
+
+RON-TC-CASC-008 — Bumpless MANUAL→AUTOMATIC Transfer
+-----------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-404
+   * - **Level**
+     - IT / ENV-HOST
+   * - **Stimulus**
+     - ``ron_cascade_set_mode(MANUAL, u_inner=4.0, u_outer=8.0)``, one step;
+       then ``set_mode(AUTOMATIC, 4.0, 8.0)`` and one step at the zero-error
+       operating point :math:`r_{out}=y_{out}=y_{in}=8.0`.
+   * - **Pass Criterion**
+     - Manual step outputs 4.0; both loops report ``RON_MODE_AUTOMATIC``
+       after the switch; the first automatic step outputs 4.0 within
+       ``4 * FLT_EPSILON`` (integrals pre-loaded with the manual values).
+
+RON-TC-CASC-009 — Step and Mode-Switch Argument Guards
+-------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-401, RON-FR-405
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - ``ron_cascade_step`` with a NULL instance, output or status pointer;
+       with either loop uninitialised; and with :math:`dt` = 0, negative,
+       NaN or +Inf. ``ron_cascade_set_mode`` with a NULL or partially
+       initialised instance and with NaN/−Inf manual values.
+   * - **Pass Criterion**
+     - NULL pointers return ``RON_FAULT_NULL_POINTER``; every other case
+       returns ``RON_FAULT_CONFIG_INVALID``.
+
+RON-TC-CASC-010 — Cascade State Query
+--------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-406
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - One saturating cascade step, then ``ron_cascade_get_state``; repeat
+       with NULL output pointers, a NULL instance, and after forcing an outer
+       fault with a NaN setpoint.
+   * - **Pass Criterion**
+     - The reported outer status bits equal those returned by the step;
+       NULL outputs are skipped with ``RON_FAULT_NONE``; a NULL instance
+       returns ``RON_FAULT_NULL_POINTER``; the forced outer fault is
+       reported.
+
+RON-TC-CASC-011 — Fault Clear Covers Both Loops
+------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-405
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Latch a fault in both loops with NaN inputs, then
+       ``ron_cascade_fault_clear``; call it again with NULL.
+   * - **Pass Criterion**
+     - Both loops report ``RON_FAULT_NONE`` after the clear; the NULL call
+       returns ``RON_FAULT_NULL_POINTER``.
+
+RON-TC-CASC-012 — Reset Clears State, Keeps Configuration
+----------------------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-405
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Stimulus**
+     - Build integral state in both loops (10 steps, :math:`K_i=5.0`), then
+       ``ron_cascade_reset``.
+   * - **Pass Criterion**
+     - Integral, last-output and derivative state of both loops are zero;
+       the outer gains are unchanged; a NULL instance returns
+       ``RON_FAULT_NULL_POINTER``.
 
 ------------------------------------------------------------------------
 
@@ -4438,7 +4538,7 @@ Open Items
      - Implementation phase
    * - OI-TP-04
      - ``cargo-nextest`` JUnit XML profile for CI integration to be
-       configured in ``rust/.config/nextest.toml``.
+       configured in ``regulon-rs/.config/nextest.toml``.
      - Implementation phase
    * - OI-TP-05
      - OTAWA static WCET analysis to be evaluated for ARM Cortex-M target;

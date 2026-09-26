@@ -1,17 +1,17 @@
 .. ============================================================
 .. Software Requirements Specification
-.. Regulon — PID Controller Module
+.. Regulon — Control Systems Library
 .. ============================================================
 
 .. meta::
-   :description: Software Requirements Specification for the Regulon, PID Controller Module.
+   :description: Software Requirements Specification for the Regulon Control Systems Library.
    :keywords: PID, control systems, embedded, SRS, requirements, safety-critical
 
 ########################################################################
 Software Requirements Specification
 ########################################################################
 
-**Document Title:** Software Requirements Specification — Regulon, PID Controller Module
+**Document Title:** Software Requirements Specification — Regulon Control Systems Library
 
 **Document ID:** RON-SRS-001
 

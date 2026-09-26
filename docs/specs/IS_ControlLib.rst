@@ -1,25 +1,25 @@
 .. ============================================================
 .. Implementation Specification
-.. Regulon — PID Controller Module
+.. Regulon — Control Systems Library
 .. ============================================================
 
 .. meta::
-   :description: Implementation Specification for the Regulon, PID Controller Module.
+   :description: Implementation Specification for the Regulon Control Systems Library.
    :keywords: PID, control systems, embedded, C, implementation, MISRA, API
 
 ########################################################################
 Implementation Specification
 ########################################################################
 
-**Document Title:** Implementation Specification — Regulon, PID Controller Module
+**Document Title:** Implementation Specification — Regulon Control Systems Library
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.3.1
+**Version:** 1.4.0
 
 **Status:** Draft
 
-**Date:** 2026-08-10
+**Date:** 2026-09-26
 
 .. Furo renders a numbered, nested "On this page" panel in the right sidebar
    for every page, so an inline ``.. contents::`` here would duplicate it --
@@ -79,6 +79,13 @@ Revision History
        and the CONFIG_MINIMAL_LIBC obligation. Documents an integration path
        that was implemented and verified (RON-TC-QUAL-023) but unspecified.
      - TBD
+   * - 1.4.0
+     - 2026-09-26
+     - Scope and titles cover the whole library rather than the PID module.
+       Directory layout matches the repository. The build section states the
+       CMake contract and includes the option and toolchain files verbatim,
+       replacing hand-copied listings that had drifted from the build.
+     - TBD
 
 ------------------------------------------------------------------------
 
@@ -88,7 +95,7 @@ Introduction
 Purpose
 -------
 
-This document is the **Implementation Specification (IS)** for the Regulon Control Systems Library PID Controller Module. It refines the language-agnostic architecture established in RON-SADS-001 into concrete, binding implementation decisions:
+This document is the **Implementation Specification (IS)** for the Regulon Control Systems Library. It refines the language-agnostic architecture established in RON-SADS-001 into concrete, binding implementation decisions:
 
 - The programming language and dialect selection.
 - The applicable coding standard.
@@ -103,11 +110,11 @@ This document, together with RON-SRS-001 and RON-SADS-001, forms the complete sp
 Scope
 -----
 
-This document covers the Regulon PID module only. The current active C11 build
-is intentionally narrowed to the PID vertical slice while future modules remain
-specified but inactive. It does not cover test code or documentation tooling
-except where a concrete verification entrypoint is needed to reproduce the
-active PID quality gates.
+This document covers every module of the Regulon library specified in
+RON-SRS-001. The C11 track implements all of them; the Rust track implements a
+subset (see ``regulon-rs/``). It does not cover test code or documentation
+tooling except where a concrete verification entrypoint is needed to reproduce
+the quality gates.
 
 Parent Documents
 ----------------
@@ -119,9 +126,9 @@ Parent Documents
    * - Document ID
      - Title
    * - RON-SRS-001 v1.0.0
-     - Software Requirements Specification — PID Controller Module
+     - Software Requirements Specification — Regulon Control Systems Library
    * - RON-SADS-001 v1.0.0
-     - Software Architecture and Design Specification — PID Controller Module
+     - Software Architecture and Design Specification — Regulon Control Systems Library
    * - RON-TP-001
      - Test Plan (companion document, produced separately)
 
@@ -175,7 +182,7 @@ comparative evaluation that led to that decision, and the specific rules each
 implementation track must follow.
 
 The two implementations are maintained as sibling crates/libraries within the
-same repository under ``c/`` and ``rust/`` subdirectories respectively. They
+same repository under ``regulon-c/`` and ``regulon-rs/`` subdirectories respectively. They
 share the same documentation, test specifications, and requirement traceability.
 
 Comparative Evaluation
@@ -669,91 +676,58 @@ specifications) live at the root.
 .. code-block:: none
 
    regulon/
-   ├── docs/
-   │   ├── SRS_ControlLib.rst          -- RON-SRS-001
-   │   ├── SADS_ControlLib.rst         -- RON-SADS-001
-   │   ├── IS_ControlLib.rst           -- RON-IS-001 (this document)
-   │   ├── TP_ControlLib.rst           -- RON-TP-001
-   │   └── deviations/
-   │       ├── MISRA_C_deviations.rst
-   │       └── MISRA_Rust_deviations.rst
-   ├── c/                              -- C11 implementation track
-   │   ├── include/
-   │   │   └── ron/
-   │   │       ├── ron.h            -- aggregate convenience header
-   │   │       ├── ron_platform.h
-   │   │       ├── ron_pid_types.h
-   │   │       ├── ron_pid.h
-   │   │       ├── ron_filter.h
-   │   │       ├── ron_feedforward.h
-   │   │       ├── ron_gain_sched.h
-   │   │       ├── ron_cascade.h
-   │   │       ├── ron_trajectory.h
-   │   │       ├── ron_kalman.h
-   │   │       ├── ron_statespace.h
-   │   │       ├── ron_observer.h
-   │   │       ├── ron_autotune.h
-   │   │       ├── ron_health.h
-   │   │       ├── ron_metrics.h
-   │   │       └── ron_modules.h    -- generated by CMake (RON_HAVE_* macros)
+   ├── docs/                           -- Sphinx site (conf.py, index.rst)
+   │   ├── specs/
+   │   │   ├── SRS_ControlLib.rst      -- RON-SRS-001
+   │   │   ├── SADS_ControlLib.rst     -- RON-SADS-001
+   │   │   ├── IS_ControlLib.rst       -- RON-IS-001 (this document)
+   │   │   └── TP_ControlLib.rst       -- RON-TP-001
+   │   ├── deviations/
+   │   │   └── MISRA_C_deviations.rst  -- RON-DEV-C-001
+   │   ├── api/                        -- Breathe API reference pages
+   │   ├── guides/                     -- usage guides
+   │   └── _ext/regulon_trace.py       -- requirement/test ID cross-linking
+   ├── regulon-c/                      -- C11 implementation track
+   │   ├── include/ron/
+   │   │   ├── ron.h                   -- aggregate convenience header
+   │   │   ├── ron_platform.h
+   │   │   ├── ron_pid_types.h
+   │   │   ├── ron_pid.h
+   │   │   ├── ron_<module>.h          -- filter, feedforward, gain_sched,
+   │   │   │                              cascade, trajectory, kalman,
+   │   │   │                              statespace, observer, lqr, lqg,
+   │   │   │                              autotune, health, metrics
+   │   │   └── ron_modules.h           -- generated at build time (RON_HAVE_*)
    │   ├── src/
-   │   │   ├── ron_pid_config.c
-   │   │   ├── ron_pid_core.c
-   │   │   ├── ron_pid_fault.c
-   │   │   ├── ron_pid_api.c
-   │   │   ├── ron_filter.c
-   │   │   ├── ron_feedforward.c
-   │   │   ├── ron_gain_sched.c
-   │   │   ├── ron_cascade.c
-   │   │   ├── ron_trajectory_trap.c
-   │   │   ├── ron_trajectory_scurve.c
-   │   │   ├── ron_kalman.c
-   │   │   ├── ron_statespace.c
-   │   │   ├── ron_observer.c
-   │   │   ├── ron_autotune.c
-   │   │   ├── ron_health.c
-   │   │   └── ron_metrics.c
+   │   │   ├── ron_pid_{api,config,core,fault}.c
+   │   │   ├── ron_trajectory_{trap,scurve}.c
+   │   │   ├── ron_<module>.c          -- one per remaining module
+   │   │   ├── ron_matrix.c            -- internal fixed-size matrix helper
+   │   │   └── ron_*_internal.h        -- internal headers (not installed)
    │   ├── test/
-   │   │   ├── unit/          (test_ron_pid_*.c, test_ron_filter_*.c, ...)
+   │   │   ├── unit/                   -- Unity suites, test_ron_<module>.c
+   │   │   ├── integration/            -- cross-module suite via ron/ron.h
+   │   │   ├── formal/                 -- CBMC harnesses, <name>_proof.c
    │   │   └── framework/unity/
+   │   ├── examples/  bench/
+   │   ├── scripts/                    -- source manifests, CI helper scripts
    │   ├── cmake/
-   │   │   ├── toolchains/
-   │   │   │   ├── arm-none-eabi.cmake
-   │   │   │   ├── armv7-none-eabi-clang.cmake
-   │   │   │   ├── riscv32-unknown-elf.cmake
-   │   │   │   └── host-x86_64.cmake
-   │   │   └── ron_options.cmake
+   │   │   ├── toolchains/             -- ARM (GCC, Clang), RISC-V, host
+   │   │   ├── ron_options.cmake
+   │   │   └── *.in                    -- ron_modules.h, package config, .pc
+   │   ├── Doxyfile                    -- XML backend for the Sphinx site
    │   └── CMakeLists.txt
-   ├── rust/                           -- Rust Edition 2021 track
-   │   ├── Cargo.toml                  -- workspace
-   │   ├── regulon/                    -- #![no_std] library crate
-   │   │   ├── Cargo.toml
-   │   │   └── src/
-   │   │       ├── lib.rs
-   │   │       ├── platform.rs
-   │   │       ├── error.rs
-   │   │       ├── pid/
-   │   │       ├── filter/
-   │   │       ├── feedforward.rs
-   │   │       ├── gain_sched.rs
-   │   │       ├── cascade.rs
-   │   │       ├── trajectory/
-   │   │       ├── kalman.rs
-   │   │       ├── statespace.rs
-   │   │       ├── observer.rs
-   │   │       ├── autotune.rs
-   │   │       ├── health.rs
-   │   │       └── metrics.rs
-   │   ├── regulon-sys/                -- C-ABI wrapper crate
-   │   │   ├── Cargo.toml
-   │   │   └── src/lib.rs
-   │   └── .cargo/config.toml
+   ├── regulon-rs/                     -- Rust Edition 2021 track
+   ├── zephyr/                         -- Zephyr module (Kconfig, build glue,
+   │                                      sample, on-target tests)
+   ├── west.yml                        -- west manifest for the Zephyr CI
    ├── .github/workflows/
-   │   ├── ci_c.yml
-   │   └── ci_rust.yml
+   │   ├── ci_c.yml                    -- per-push gates
+   │   ├── docs_c.yml                  -- documentation publishing
+   │   └── zephyr_nightly.yml
    ├── CHANGELOG.rst
    ├── LICENSE
-   └── README.rst
+   └── README.md
 
 Header Inclusion Model (C Track)
 ---------------------------------
@@ -767,7 +741,7 @@ under ``regulon-c/include/ron/``. For PID-only use:
 
 The headers ``ron_platform.h`` and ``ron_pid_types.h`` are transitively included.
 Internal translation units may include internal headers directly. No internal
-header (e.g., ``ron_pid_core_internal.h``) is installed or part of the public
+header (e.g., ``ron_pid_internal.h``) is installed or part of the public
 API surface.
 
 As an optional convenience, consumers that want the whole library **may**
@@ -2572,143 +2546,53 @@ Build System Specification
 
 C Track — CMake
 ---------------
-
-The C implementation **shall** use **CMake** (version ≥ 3.21) located under
-``c/``. CMake is free, open-source (BSD licence), and supported by all major
-embedded IDEs and CI environments.
+The C implementation **shall** build with **CMake** (version ≥ 3.21) from
+``regulon-c/``. CMake is free, open-source (BSD licence), and supported by all
+major embedded IDEs and CI environments. The build files themselves are the
+reference; this section states the contract they satisfy and includes the
+option and toolchain files verbatim so the two cannot drift.
 
 ``regulon-c/CMakeLists.txt``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: cmake
+The top-level build **shall**:
 
-   cmake_minimum_required(VERSION 3.21)
-
-   project(regulon
-       VERSION     1.0.0
-       DESCRIPTION "Regulon Control Systems Library — C Implementation"
-       LANGUAGES   C
-   )
-
-   set(CMAKE_C_STANDARD          11)
-   set(CMAKE_C_STANDARD_REQUIRED ON)
-   set(CMAKE_C_EXTENSIONS        OFF)
-
-   include(cmake/ron_options.cmake)
-
-   add_library(regulon STATIC
-       src/ron_pid_config.c
-       src/ron_pid_core.c
-       src/ron_pid_fault.c
-       src/ron_pid_api.c
-   )
-
-   # During the PID verification-closure iteration, only the PID slice is
-   # linked into the active library target. Future modules remain specified in
-   # this document but stay out of the active CMake build until their own
-   # implementations and traceability evidence exist.
-
-   target_include_directories(regulon
-       PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
-       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
-   )
-
-   target_compile_options(regulon PRIVATE
-       $<$<C_COMPILER_ID:GNU>:
-           -Wall -Wextra -Wpedantic -Werror
-           -Wconversion -Wshadow -Wundef
-           -fno-common -fstack-usage
-       >
-       $<$<C_COMPILER_ID:Clang>:
-           -Wall -Wextra -Wpedantic -Werror
-           -Wconversion -Wshadow -Wundef
-       >
-   )
-
-   if(RON_USE_DOUBLE)
-       target_compile_definitions(regulon PUBLIC RON_USE_DOUBLE=1)
-   endif()
-
-   if(RON_BUILD_TESTS AND NOT CMAKE_CROSSCOMPILING)
-       enable_testing()
-       add_subdirectory(test)
-   endif()
-
-   install(TARGETS regulon ARCHIVE DESTINATION lib)
-   install(DIRECTORY include/ron DESTINATION include)
+- compile as C11 with extensions off (``CMAKE_C_STANDARD 11``,
+  ``CMAKE_C_EXTENSIONS OFF``) into one static library, ``regulon``, aliased
+  ``regulon::regulon``;
+- always compile the mandatory baseline (``ron_pid_api.c``,
+  ``ron_pid_config.c``, ``ron_pid_core.c``, ``ron_pid_fault.c``,
+  ``ron_feedforward.c``) and add each optional module's sources only when its
+  ``RON_ENABLE_<MODULE>`` option is on, adding the internal matrix helper
+  (``ron_matrix.c``) whenever Kalman, state-space, LQR or LQG is enabled;
+- resolve module dependencies by forcing options on — LQG → LQR → state-space
+  → Kalman — and report each forced option;
+- generate ``ron/ron_modules.h`` from ``cmake/ron_modules.h.in`` with
+  ``RON_HAVE_<MODULE>`` set to ``1`` or ``0``, so ``ron/ron.h`` includes only
+  the headers whose implementations were compiled;
+- treat every warning as an error: ``-Wall -Wextra -Wpedantic -Werror
+  -Wconversion -Wshadow -Wundef`` for GCC and Clang (GCC adds ``-fno-common
+  -fstack-usage``), ``/W4 /WX`` for MSVC;
+- export ``RON_USE_DOUBLE=1`` as a public definition when ``RON_USE_DOUBLE``
+  is on, since ``ron_float_t`` is part of the ABI;
+- build tests, examples and benchmarks only for the host, never when
+  cross-compiling;
+- install the archive, the public headers and the generated
+  ``ron_modules.h``, a relocatable ``find_package(regulon)`` package and a
+  ``regulon.pc`` pkg-config file.
 
 ``regulon-c/cmake/ron_options.cmake``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: cmake
-
-   option(RON_USE_DOUBLE     "Use 64-bit double precision"        OFF)
-   option(RON_BUILD_TESTS    "Build unit and integration tests"   ON)
-   option(RON_BUILD_EXAMPLES "Build host example programs"         OFF)
-   option(RON_ENABLE_ASSERT  "Enable runtime RON_ASSERT checks"    OFF)
-
-   # Per-module selection (default ON → complete library).  The PID core and
-   # its integrated feed-forward path are the mandatory baseline and have no
-   # option.  Dependencies are resolved in CMakeLists.txt: RON_ENABLE_STATESPACE
-   # forces RON_ENABLE_KALMAN, and Kalman / state-space / observer pull in the
-   # internal matrix helper.
-   option(RON_ENABLE_FILTER     "Build signal-conditioning filters"          ON)
-   option(RON_ENABLE_GAIN_SCHED "Build gain scheduling"                      ON)
-   option(RON_ENABLE_TRAJECTORY "Build trajectory generators"                ON)
-   option(RON_ENABLE_CASCADE    "Build cascade controller"                   ON)
-   option(RON_ENABLE_KALMAN     "Build discrete Kalman filter"               ON)
-   option(RON_ENABLE_STATESPACE "Build state-space controller + observer"    ON)
-   option(RON_ENABLE_LQR        "Build LQR optimal state-feedback controller (forces KALMAN+STATESPACE)" OFF)
-   option(RON_ENABLE_LQG        "Build LQG controller (forces KALMAN+LQR)"  OFF)
-   option(RON_ENABLE_AUTOTUNE   "Build relay-feedback auto-tuner"            ON)
-   option(RON_ENABLE_HEALTH     "Build control-loop health monitor"          ON)
-   option(RON_ENABLE_METRICS    "Build runtime performance metrics"          ON)
-
-   if(RON_ENABLE_ASSERT)
-       target_compile_definitions(regulon PRIVATE
-           "RON_ASSERT(cond)=do { if(!(cond)) { __builtin_trap(); } } while(0)"
-       )
-   endif()
+.. literalinclude:: ../../regulon-c/cmake/ron_options.cmake
+   :language: cmake
 
 Each enabled module defines ``RON_HAVE_<MODULE>=1`` in the generated
 ``ron/ron_modules.h`` (``0`` when excluded), which the aggregate ``ron/ron.h``
 uses to include only the available headers.
 
-Example Toolchain File: ``regulon-c/cmake/toolchains/arm-none-eabi.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: cmake
-
-   # Usage: cmake -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake \
-   #              -DCMAKE_C_FLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb" \
-   #              -B build_arm -S c/
-
-   set(CMAKE_SYSTEM_NAME       Generic)
-   set(CMAKE_SYSTEM_PROCESSOR  arm)
-   set(CMAKE_C_COMPILER        arm-none-eabi-gcc)
-   set(CMAKE_AR                arm-none-eabi-ar)
-   set(CMAKE_RANLIB            arm-none-eabi-ranlib)
-   set(CMAKE_SIZE              arm-none-eabi-size)
-   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
-
-Example Toolchain File: ``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: cmake
-
-   # Usage: cmake -G Ninja \
-   #              -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/armv7-none-eabi-clang.cmake \
-   #              -B build_armv7_clang -S c/
-
-   set(CMAKE_SYSTEM_NAME       Generic)
-   set(CMAKE_SYSTEM_PROCESSOR  armv7)
-   set(CMAKE_C_COMPILER_TARGET armv7-none-eabi)
-   set(CMAKE_C_COMPILER        clang)
-   set(CMAKE_AR                llvm-ar)
-   set(CMAKE_RANLIB            llvm-ranlib)
-   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
+Cross-Compile Toolchain Files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 No target C library is required by any of the cross toolchains. Per RON-DC-002
 the library includes only freestanding headers, which the compiler supplies
@@ -2718,28 +2602,30 @@ assertion about it. Each job then runs ``scripts/check_no_libm.sh`` over the
 produced archive, which fails the build if any ``<math.h>`` entry point appears
 among its undefined symbols.
 
-Example Toolchain File: ``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``regulon-c/cmake/toolchains/arm-none-eabi.cmake`` (GCC, Cortex-M):
 
-.. code-block:: cmake
+.. literalinclude:: ../../regulon-c/cmake/toolchains/arm-none-eabi.cmake
+   :language: cmake
 
-   set(CMAKE_SYSTEM_NAME       Generic)
-   set(CMAKE_SYSTEM_PROCESSOR  riscv)
-   set(CMAKE_C_COMPILER        riscv32-unknown-elf-gcc)
-   set(CMAKE_AR                riscv32-unknown-elf-ar)
-   set(CMAKE_RANLIB            riscv32-unknown-elf-ranlib)
-   set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-   set(CMAKE_EXE_LINKER_FLAGS_INIT   "-nostartfiles -nostdlib")
+``regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake`` (Clang, ARMv7):
+
+.. literalinclude:: ../../regulon-c/cmake/toolchains/armv7-none-eabi-clang.cmake
+   :language: cmake
+
+``regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake`` (GCC, ``rv32imc``):
+
+.. literalinclude:: ../../regulon-c/cmake/toolchains/riscv32-unknown-elf.cmake
+   :language: cmake
 
 Rust Track — Cargo
 -------------------
 
 The Rust implementation uses **Cargo** (built-in with ``rustc``, free). Cross-
 compilation targets are managed with ``rustup target add`` and declared in
-``rust/.cargo/config.toml``.
+``regulon-rs/.cargo/config.toml``.
 
-``rust/regulon/Cargo.toml``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``regulon-rs/regulon/Cargo.toml``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
 
@@ -2767,8 +2653,8 @@ compilation targets are managed with ``rustup target add`` and declared in
    lto       = true
    panic     = "abort"     # required for no_std bare-metal
 
-``rust/.cargo/config.toml``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``regulon-rs/.cargo/config.toml``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: toml
 

@@ -71,6 +71,15 @@ Fixed
   change.
 - Latent reStructuredText defects in the specifications surfaced by the
   first rendered build.
+- Specifications: the four documents were titled and scoped as the "PID
+  Controller Module"; the IS directory tree and build section described a
+  PID-only ``c/`` layout, version 1.0.0, LQR/LQG off by default and the wrong
+  RISC-V compiler. The build section now includes the real option and
+  toolchain files. RON-TC-CASC-008 – CASC-012 ran in the C suite but were
+  missing from the test plan; they are now recorded there.
+- ``regulon-c/AGENTS.md`` still limited work to the PID module and gave
+  PID-only lint/analysis/proof commands; it now mirrors the CI gates over
+  the source manifests.
 
 ------------------------------------------------------------------------
 
