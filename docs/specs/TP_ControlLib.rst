@@ -84,7 +84,9 @@ Revision History
      - 2026-09-26
      - Added RON-TC-SS-011, RON-TC-LQR-012 and RON-TC-LQG-012: the
        state-space, LQR and LQG controllers apply the configurable safe-state
-       output policy while a fault is latched (RON-SR-011).
+       output policy while a fault is latched (RON-SR-011). Added the
+       missing RON-TC-SAFE-008 definition; RON-TC-SAFE-011 states the PID
+       ``dt`` rule.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -3840,6 +3842,30 @@ RON-TC-SAFE-007 — All Four Fault Conditions Trigger FAULT Flag
        Safe-state output applied. Fault persists after next ``ron_pid_step``
        without a clear.
 
+RON-TC-SAFE-008 — Safe-State Output Policy
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Sub-cases**
+     - | (a) ``RON_SAFE_HOLD_LAST``: the last output.
+       | (b) ``RON_SAFE_ZERO``: ``0``.
+       | (c) ``RON_SAFE_CONSTANT`` with ``safe_value`` beyond the output
+         limits: the clamped ``safe_value``.
+       | (d) A policy corrupted after init: the last output.
+   * - **Pass Criterion**
+     - While a fault is latched the reported output (C: ``u`` of the step;
+       Rust: ``Pid::output``) follows the policy, clamped to
+       ``[u_min, u_max]``, and the output history (C: ``u_sat_prev``; Rust:
+       ``Pid::last_output``) is not overwritten.
+
+------------------------------------------------------------------------
+
 RON-TC-SAFE-009 — Fault Latch and Explicit Clear
 -------------------------------------------------
 
@@ -3873,7 +3899,10 @@ RON-TC-SAFE-011 — NaN/Inf Detection in All Inputs
        across PID, Kalman, state-space, and observer modules.
    * - **Pass Criterion**
      - ``RON_FAULT_INPUT_NAN`` (or module equivalent) set in all cases.
-       Safe-state output applied. No crash or memory corruption.
+       Safe-state output applied. No crash or memory corruption. For the
+       PID, a non-positive or non-finite ``dt`` is an argument error instead
+       (C: ``RON_FAULT_CONFIG_INVALID``; Rust: ``RonError::InvalidArgument``)
+       and is not latched.
 
 RON-TC-SAFE-012 — Integral Round-Off Drift Over Extended Run
 -------------------------------------------------------------

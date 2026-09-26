@@ -106,6 +106,14 @@ Changed
 - ``check_manifest.sh`` also fails when ``RON_VERSION_*`` in
   ``ron_platform.h`` and ``project(VERSION)`` disagree.
 - ``ron_autotune_apply`` takes ``const ron_autotune_t *`` (source-compatible).
+- **Rust behaviour:** the PID fault path matches C. A latched fault is
+  reported before the arguments are checked; a non-positive or non-finite
+  ``dt`` returns ``RonError::InvalidArgument`` without latching (it latched
+  ``INPUT_NOT_FINITE`` before); and a faulted step no longer overwrites the
+  output history with the safe-state value. The new ``Pid::output()``
+  returns that value, and ``Cascade`` feeds it forward (``Cascade::last_output``
+  is no longer ``const``). Tests: RON-TC-SAFE-008 (Rust test added, and its
+  missing TP definition), RON-TC-SAFE-011, RON-TC-CASC-010.
 - **Behaviour:** ``ron_ss_step``, ``ron_lqr_step`` and ``ron_lqg_step`` now
   latch runtime faults as the PID does (RON-SR-012, SR-013). The fault is
   kept in the existing ``faults`` field, which was never set before; the

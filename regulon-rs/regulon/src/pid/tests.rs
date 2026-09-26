@@ -469,10 +469,47 @@ fn ron_tc_safe_011() {
         Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
     ));
     pid.clear_fault();
-    assert!(matches!(
-        pid.step(0.0, 0.0, RonFloat::INFINITY),
-        Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
-    ));
+    // A bad dt is an argument error, as in C, and does not latch.
+    for dt in [RonFloat::INFINITY, RonFloat::NAN, 0.0, -0.01] {
+        assert!(matches!(
+            pid.step(0.0, 0.0, dt),
+            Err(RonError::InvalidArgument(_))
+        ));
+        assert!(pid.state().fault.is_none());
+    }
+    assert!(pid.step(0.0, 0.0, 0.01).is_ok());
+}
+
+/// RON-TC-SAFE-008 | RON-SR-011
+#[test]
+fn ron_tc_safe_008() {
+    // A proportional controller whose last output is 4.0 before the fault.
+    for (policy, expected) in [
+        (SafePolicy::HoldLast, 4.0),
+        (SafePolicy::DriveZero, 0.0),
+        (SafePolicy::DriveSafeValue, 5.0),
+    ] {
+        let mut pid = Pid::new(PidConfig {
+            output_min: -5.0,
+            output_max: 5.0,
+            safe_policy: policy,
+            safe_value: 20.0, // beyond the limits: clamped
+            ..PidConfig::new_parallel(1.0, 0.0, 0.0)
+        })
+        .unwrap();
+        approx_eq(pid.step(4.0, 0.0, 0.01).unwrap().0, 4.0, 1.0e-5);
+        approx_eq(pid.output(), 4.0, 1.0e-5);
+
+        // Latched: the policy output, with the history untouched.
+        assert!(pid.step(RonFloat::NAN, 0.0, 0.01).is_err());
+        approx_eq(pid.output(), expected, 1.0e-5);
+        assert!(pid.step(4.0, 0.0, 0.01).is_err());
+        approx_eq(pid.output(), expected, 1.0e-5);
+        approx_eq(pid.last_output(), 4.0, 1.0e-5);
+
+        pid.clear_fault();
+        approx_eq(pid.output(), 4.0, 1.0e-5);
+    }
 }
 
 /// RON-TC-SAFE-012 | RON-SR-021

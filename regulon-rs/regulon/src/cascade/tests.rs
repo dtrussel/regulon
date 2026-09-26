@@ -11,7 +11,7 @@
 
 use super::{Cascade, CascadeStatus};
 use crate::{
-    pid::{AntiWindupMode, PidConfig, PidFault, PidMode, PidStatus},
+    pid::{AntiWindupMode, PidConfig, PidFault, PidMode, PidStatus, SafePolicy},
     RonError, RonFloat,
 };
 
@@ -184,6 +184,25 @@ fn ron_tc_casc_010() {
     assert!(!cascade.faults().0.is_none());
     assert!(cascade.faults().1.is_none());
     assert!(cascade.status().outer.contains(PidStatus::FAULT));
+
+    // A faulted loop contributes its safe-state output, not its last output.
+    let mut safe = Cascade::new(
+        PidConfig {
+            safe_policy: SafePolicy::DriveZero,
+            ..loop_config(1.0, 1_000.0)
+        },
+        PidConfig {
+            safe_policy: SafePolicy::DriveSafeValue,
+            safe_value: -1.5,
+            ..loop_config(1.0, 2.0)
+        },
+    )
+    .unwrap();
+    approx_eq(safe.step(1.0, 0.0, 0.0, 0.01).unwrap().0, 1.0, TIGHT);
+    assert!(safe.step(RonFloat::NAN, 0.0, 0.0, 0.01).is_err());
+    approx_eq(safe.last_output(), 0.0, TIGHT); // inner tracks the outer's 0
+    let _ = safe.inner_mut().step(RonFloat::NAN, 0.0, 0.01);
+    approx_eq(safe.last_output(), -1.5, TIGHT);
 }
 
 /// RON-TC-CASC-011 | RON-FR-405

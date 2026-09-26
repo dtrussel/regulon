@@ -169,10 +169,11 @@ impl Cascade {
         (self.outer.state().fault, self.inner.state().fault)
     }
 
-    /// Returns the inner loop's last output, the cascade's actuator command.
+    /// Returns the cascade's actuator command: the inner loop's last output,
+    /// or its safe-state output while the inner loop is faulted.
     #[must_use]
-    pub const fn last_output(&self) -> RonFloat {
-        self.inner.last_output()
+    pub fn last_output(&self) -> RonFloat {
+        self.inner.output()
     }
 
     /// Clears the fault registers of both loops, keeping dynamic state.
@@ -239,6 +240,6 @@ fn loop_result(
 ) -> (RonFloat, PidStatus) {
     match result {
         Ok(output) => output,
-        Err(_) => (pid.last_output(), pid.state().status),
+        Err(_) => (pid.output(), pid.state().status),
     }
 }

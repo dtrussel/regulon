@@ -95,9 +95,16 @@ impl Pid {
 
     /// Executes one PID control step.
     ///
+    /// While a fault is latched the step returns it without running, and
+    /// [`Pid::output`] gives the safe-state output to apply.
+    ///
     /// # Errors
     ///
-    /// Returns an error when an input is invalid or when the controller faults.
+    /// Returns [`RonError::Fault`] with the latched bits when a fault is
+    /// latched or this step latches one (a non-finite setpoint or
+    /// measurement, a non-finite output, integral overflow), and
+    /// [`RonError::InvalidArgument`] without latching when `dt` is not
+    /// positive and finite.
     pub fn step(
         &mut self,
         setpoint: RonFloat,
@@ -305,6 +312,20 @@ impl Pid {
     #[must_use]
     pub const fn last_output(&self) -> RonFloat {
         self.state.output_prev
+    }
+
+    /// Returns the output to apply: the last output, or while a fault is
+    /// latched the safe-state output selected by `safe_policy` (clamped to the
+    /// output limits). The output history itself is never overwritten.
+    ///
+    /// **Satisfies:** RON-SR-011
+    #[must_use]
+    pub fn output(&self) -> RonFloat {
+        if self.state.fault.is_none() {
+            self.state.output_prev
+        } else {
+            core::safe_state_output(self.config, self.state.output_prev)
+        }
     }
 
     /// Returns the last filtered derivative value.

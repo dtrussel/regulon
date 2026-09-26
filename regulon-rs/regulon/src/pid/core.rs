@@ -59,13 +59,21 @@ pub(crate) fn step(
     dt: RonFloat,
     external_feed_forward: Option<RonFloat>,
 ) -> Result<(RonFloat, PidStatus), RonError> {
-    validate_inputs(dt, setpoint, measurement)?;
+    // Same order as the C `ron_pid_step`: a latched fault is reported first
+    // (the output history is kept; `Pid::output` gives the safe-state value),
+    // then a bad `dt` is rejected without latching, then the signals are
+    // checked and a non-finite one latches in `Pid::run_step`.
     if !state.fault.is_none() {
-        state.output_prev = safe_state_output(config, state.output_prev);
         state.status = PidStatus::FAULT;
         return Err(RonError::Fault(state.fault));
     }
+    if !is_finite(dt) || dt <= 0.0 {
+        return Err(RonError::InvalidArgument("dt must be positive and finite"));
+    }
     let external_feed_forward = validate_external_feed_forward(config, external_feed_forward)?;
+    if !is_finite(setpoint) || !is_finite(measurement) {
+        return Err(RonError::Fault(PidFault::INPUT_NOT_FINITE));
+    }
     if matches!(state.mode, PidMode::Manual) {
         state.output_prev = clamp(state.output_prev, config.output_min, config.output_max);
         state.status = PidStatus::MANUAL_MODE;
@@ -104,17 +112,6 @@ fn validate_external_feed_forward(
         )),
         (_, None) => Ok(0.0),
     }
-}
-
-fn validate_inputs(
-    dt: RonFloat,
-    setpoint: RonFloat,
-    measurement: RonFloat,
-) -> Result<(), RonError> {
-    if !is_finite(setpoint) || !is_finite(measurement) || !is_finite(dt) || dt <= 0.0 {
-        return Err(RonError::Fault(PidFault::INPUT_NOT_FINITE));
-    }
-    Ok(())
 }
 
 fn compute_signals(
@@ -426,12 +423,12 @@ fn complete_step(
     outputs: StepOutputs,
 ) -> Result<(RonFloat, PidStatus), RonError> {
     if !is_finite(outputs.output_raw) || !is_finite(outputs.output_final) {
-        return latch_fault(config, state, PidFault::OUTPUT_NOT_FINITE);
+        return latch_fault(state, PidFault::OUTPUT_NOT_FINITE);
     }
     if config.integral_overflow_threshold > 0.0
         && abs(outputs.integral) > config.integral_overflow_threshold
     {
-        return latch_fault(config, state, PidFault::INTEGRAL_OVERFLOW);
+        return latch_fault(state, PidFault::INTEGRAL_OVERFLOW);
     }
 
     state.integral = outputs.integral;
@@ -450,23 +447,22 @@ fn complete_step(
     state.ff_acceleration_prev = outputs.feed_forward.acceleration_prev;
     state.status = outputs.status;
     if !is_finite(setpoint_raw) || !is_finite(measurement_raw) {
-        return latch_fault(config, state, PidFault::INPUT_NOT_FINITE);
+        return latch_fault(state, PidFault::INPUT_NOT_FINITE);
     }
     Ok((outputs.output_final, outputs.status))
 }
 
-fn latch_fault(
-    config: PidConfig,
-    state: &mut PidRuntime,
-    fault: PidFault,
-) -> Result<(RonFloat, PidStatus), RonError> {
+fn latch_fault(state: &mut PidRuntime, fault: PidFault) -> Result<(RonFloat, PidStatus), RonError> {
     state.fault |= fault;
     state.status = PidStatus::FAULT;
-    state.output_prev = safe_state_output(config, state.output_prev);
     Err(RonError::Fault(state.fault))
 }
 
-fn safe_state_output(config: PidConfig, last_output: RonFloat) -> RonFloat {
+/// Safe-state output while a fault is latched (RON-SR-011): computed from
+/// the last output, never written back to it.
+///
+/// **Satisfies:** RON-SR-011
+pub(crate) fn safe_state_output(config: PidConfig, last_output: RonFloat) -> RonFloat {
     match config.safe_policy {
         SafePolicy::HoldLast => clamp(last_output, config.output_min, config.output_max),
         SafePolicy::DriveZero => clamp(0.0, config.output_min, config.output_max),
