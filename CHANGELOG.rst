@@ -203,6 +203,13 @@ Added
   optional integral augmentation, saturation, rate limiting and runtime
   gain updates, over an embedded ``Estimator``. A step whose output would
   overflow leaves the integral untouched (C winds it before the check).
+- Rust: MIMO LQR ``Lqr<N, U, Y>`` (RON-FR-730 – FR-739, RON-TC-LQR-001 –
+  LQR-009): pre-computed or DARE-solved gain (``solve_dare``, bounded value
+  iteration, reusable by LQG), per-input integral augmentation, saturation
+  and rate limiting, runtime gain updates and the DARE solution ``P``. DARE
+  failures return ``RonError::Numerical``. ``A``/``B`` are only required
+  for the DARE solve; C also requires them whenever an embedded estimator
+  is used, although the estimator carries its own model.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
