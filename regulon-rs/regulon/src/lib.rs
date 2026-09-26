@@ -17,6 +17,7 @@ pub mod cascade;
 pub mod error;
 pub mod filter;
 pub mod gain_sched;
+pub mod health;
 pub mod pid;
 pub mod platform;
 pub mod trajectory;
@@ -27,6 +28,7 @@ pub use filter::{
     FilterFault, FilterSnapshot, FilterStatus, Lp1, Lp1Config, RateLimiter, RateLimiterConfig,
 };
 pub use gain_sched::{GainSchedule, ScheduleMode, GS_MAX_BREAKPOINTS};
+pub use health::{HealthCallback, HealthConfig, HealthMonitor, HealthStatus};
 pub use pid::{
     AntiWindupMode, DerivativeMode, FeedForwardConfig, FeedForwardMode, IntegrationMethod,
     NormalizationConfig, NormalizationRange, Pid, PidConfig, PidFault, PidMode, PidSnapshot,

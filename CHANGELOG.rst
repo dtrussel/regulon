@@ -161,6 +161,12 @@ Added
   and full state read-back, using the same bounded, libm-free Newton roots
   as C (``platform::sqrt``). RON-TC-TRAJ-001 – TRAJ-010 run in the Rust
   suite.
+- Rust: loop-health monitor (``health``, RON-FR-900 – FR-905).
+  ``HealthMonitor`` latches output-stuck, diverging, oscillating,
+  sensor-dropout and setpoint-unreachable conditions, calls an optional
+  ``fn`` callback on each first activation and also returns the newly
+  latched bits from ``step``. RON-TC-HLTH-001 – HLTH-010 run in the Rust
+  suite.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
