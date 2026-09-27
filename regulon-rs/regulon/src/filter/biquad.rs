@@ -282,7 +282,7 @@ fn design(
             (b0, (1.0 - c) * norm, b0)
         }
         Response::HighPass => {
-            let b0 = (1.0 + c) * 0.5 * norm;
+            let b0 = RonFloat::midpoint(1.0, c) * norm;
             (b0, -(1.0 + c) * norm, b0)
         }
         Response::BandPass => (alpha * norm, 0.0, -alpha * norm),

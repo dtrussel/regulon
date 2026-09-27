@@ -286,6 +286,9 @@ Removed
 
 Fixed
 -----
+- Rust: clippy 1.98's pedantic ``manual_midpoint`` lint failed the biquad
+  high-pass design and the libm-free square root; both use
+  ``RonFloat::midpoint`` (overflow-safe; stable since Rust 1.85).
 - Rust: the biquad design helpers failed pedantic clippy in
   ``double_precision`` builds (``useless_conversion`` on the ``f64`` widening).
 - ``ron_lqr_init`` / ``ron_lqg_init`` documented a failed DARE as

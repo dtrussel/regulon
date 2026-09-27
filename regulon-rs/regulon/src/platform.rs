@@ -78,7 +78,7 @@ pub fn is_near_zero(value: RonFloat) -> bool {
 pub fn sqrt(value: RonFloat) -> RonFloat {
     let mut estimate = if value > 1.0 { value } else { 1.0 };
     for _ in 0..SQRT_STEPS {
-        estimate = 0.5 * (estimate + (value / estimate));
+        estimate = RonFloat::midpoint(estimate, value / estimate);
     }
     estimate
 }
