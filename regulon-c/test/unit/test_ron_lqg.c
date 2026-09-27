@@ -196,27 +196,95 @@ void test_ron_tc_lqg_005(void)
 /* RON-TC-LQG-006 — DARE at Init Time (Both Gains)                         */
 /* ----------------------------------------------------------------------- */
 
+/* Double-integrator LQG with both gains to be solved at init. */
+/* Satisfies: RON-FR-756 | Test: RON-TC-LQG-006 */
+static ron_lqg_config_t make_dare_both_cfg(void)
+{
+    ron_lqg_config_t cfg = make_base_cfg();
+
+    cfg.gain_mode     = RON_LQG_GAIN_DARE_BOTH;
+    cfg.Q_cost[0][0]  = RON_FLOAT_C(1.0);
+    cfg.Q_cost[1][1]  = RON_FLOAT_C(1.0);
+    cfg.R_cost[0][0]  = RON_FLOAT_C(1.0);
+    cfg.dare_max_iter = 500U;
+    cfg.dare_tol      = RON_FLOAT_C(1e-6);
+
+    return cfg;
+}
+
 /* RON-TC-LQG-006 | RON-FR-756 */
 void test_ron_tc_lqg_006(void)
 {
     ron_lqg_t lqg;
-    ron_lqg_config_t cfg = make_base_cfg();
+    ron_lqg_config_t cfg = make_dare_both_cfg();
+    ron_float_t k_tv[2]  = {RON_FLOAT_C(0.0), RON_FLOAT_C(0.0)};
+    uint16_t cycle;
 
+    /* (a) Both gains solved at init and matching the offline references. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(0.422082), lqg.K_solved[0][0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(1.243929), lqg.K_solved[0][1]);
+    TEST_ASSERT_TRUE(lqg.kalman.cfg.steady_state);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(0.368686), lqg.kalman.cfg.K_inf[0][0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), RON_FLOAT_C(0.079455), lqg.kalman.cfg.K_inf[1][0]);
+
+    /* (b) A time-varying filter converges to the same gain. */
+    {
+        ron_lqg_t tv;
+        ron_lqg_config_t tv_cfg                 = make_dare_both_cfg();
+        ron_float_t u0[RON_LQR_MAX_INPUTS]      = {RON_FLOAT_C(0.0)};
+        ron_float_t z0[RON_KF_MAX_MEASUREMENTS] = {RON_FLOAT_C(0.0)};
+
+        tv_cfg.gain_mode = RON_LQG_GAIN_DARE;
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&tv, &tv_cfg));
+        TEST_ASSERT_FALSE(tv.kalman.cfg.steady_state);
+        for (cycle = 0U; cycle < 200U; cycle++) {
+            ron_float_t s;
+
+            TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_predict(&tv, u0));
+            s       = tv.kalman.state.P[0][0] + tv_cfg.R_noise[0][0];
+            k_tv[0] = tv.kalman.state.P[0][0] / s;
+            k_tv[1] = tv.kalman.state.P[1][0] / s;
+            TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_update(&tv, z0, true));
+        }
+    }
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), lqg.kalman.cfg.K_inf[0][0], k_tv[0]);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1e-3), lqg.kalman.cfg.K_inf[1][0], k_tv[1]);
+
+    /* (c) DARE mode still uses a supplied steady-state gain unchanged. */
+    cfg                     = make_dare_both_cfg();
     cfg.gain_mode           = RON_LQG_GAIN_DARE;
-    cfg.Q_cost[0][0]        = RON_FLOAT_C(1.0);
-    cfg.Q_cost[1][1]        = RON_FLOAT_C(1.0);
-    cfg.R_cost[0][0]        = RON_FLOAT_C(1.0);
-    cfg.dare_max_iter       = 200U;
-    cfg.dare_tol            = RON_FLOAT_C(1e-4);
     cfg.use_kf_steady_state = true;
     cfg.K_f_inf[0][0]       = RON_FLOAT_C(0.5);
     cfg.K_f_inf[1][0]       = RON_FLOAT_C(0.2);
-
     TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
-    TEST_ASSERT_TRUE(lqg.kalman.state.is_initialised);
     TEST_ASSERT_TRUE(lqg.kalman.cfg.steady_state);
     TEST_ASSERT_FLOAT_WITHIN(LQG_TOL, RON_FLOAT_C(0.5), lqg.kalman.cfg.K_inf[0][0]);
     TEST_ASSERT_FLOAT_WITHIN(LQG_TOL, RON_FLOAT_C(0.2), lqg.kalman.cfg.K_inf[1][0]);
+
+    /* (d) Rejected estimator designs. */
+    cfg         = make_dare_both_cfg();
+    cfg.H[0][1] = lqg_make_nan();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg               = make_dare_both_cfg();
+    cfg.Q_noise[1][1] = lqg_make_inf();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg               = make_dare_both_cfg();
+    cfg.R_noise[0][0] = lqg_make_nan();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg               = make_dare_both_cfg();
+    cfg.Q_noise[0][0] = RON_FLOAT_C(-2.0); /* R + H Q H^T = -1 */
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+
+    /* Scalar plant, loose tolerance: the estimator DARE stops after one
+     * step on P = -2.1, so H P H^T + R_noise = -1.1 cannot be factored. */
+    cfg               = make_dare_both_cfg();
+    cfg.n             = 1U;
+    cfg.A[0][0]       = RON_FLOAT_C(1.0);
+    cfg.B[0][0]       = RON_FLOAT_C(1.0);
+    cfg.Q_noise[0][0] = RON_FLOAT_C(-0.6);
+    cfg.dare_tol      = RON_FLOAT_C(10.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
 }
 
 /* ----------------------------------------------------------------------- */
@@ -249,8 +317,8 @@ void test_ron_tc_lqg_007(void)
 
         lqr_cfg.n             = 2U;
         lqr_cfg.m             = 1U;
-        lqr_cfg.est.source        = RON_ESTIMATOR_EXTERNAL;
-        lqr_cfg.est.x_ext         = x_ext;
+        lqr_cfg.est.source    = RON_ESTIMATOR_EXTERNAL;
+        lqr_cfg.est.x_ext     = x_ext;
         lqr_cfg.gain_mode     = RON_LQR_GAIN_DARE;
         lqr_cfg.A[0][0]       = RON_FLOAT_C(1.0);
         lqr_cfg.A[0][1]       = RON_FLOAT_C(1.0);
@@ -336,7 +404,9 @@ void test_ron_tc_lqg_009(void)
                       ron_lqg_step(&lqg, NULL, RON_FLOAT_C(0.01), u, &status));
     TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, NULL));
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, lqg_make_nan(), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
     TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.0), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
     {
         ron_float_t bad_r[RON_LQR_MAX_INPUTS] = {lqg_make_inf()};
 
@@ -565,6 +635,117 @@ void test_ron_tc_lqg_validation(void)
 }
 
 /* ----------------------------------------------------------------------- */
+/* RON-TC-LQG-011 — Fault Latch and Explicit Clear                         */
+/* ----------------------------------------------------------------------- */
+
+/* RON-TC-LQG-011 | RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013 */
+void test_ron_tc_lqg_011(void)
+{
+    ron_lqg_t lqg;
+    ron_lqg_t fresh                       = {0};
+    ron_lqg_config_t cfg                  = make_base_cfg();
+    ron_float_t r[RON_LQR_MAX_INPUTS]     = {RON_FLOAT_C(1.0)};
+    ron_float_t bad_r[RON_LQR_MAX_INPUTS] = {RON_FLOAT_C(0.0)};
+    ron_float_t u[RON_LQR_MAX_INPUTS]     = {RON_FLOAT_C(0.0)};
+    ron_status_t status                   = RON_STATUS_OK;
+
+    bad_r[0]  = lqg_make_nan();
+    cfg.Kr[0] = RON_FLOAT_C(2.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), u[0]);
+
+    /* The fault latches: the last output is held and FAULT reported. */
+    r[0] = RON_FLOAT_C(3.0);
+    u[0] = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                      ron_lqg_step(&lqg, bad_r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, lqg.faults);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), u[0]);
+    TEST_ASSERT_EQUAL(RON_STATUS_FAULT, status);
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), lqg.u_prev[0]);
+
+    /* Finite inputs do not clear it. */
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(2.0), u[0]);
+    TEST_ASSERT_EQUAL(RON_STATUS_FAULT, status);
+
+    /* An explicit clear resumes normal stepping. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+    TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(6.0), u[0]);
+    TEST_ASSERT_EQUAL(0, status & RON_STATUS_FAULT);
+
+    /* Reset clears a latched fault too. */
+    TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN, ron_lqg_step(&lqg, r, lqg_make_nan(), u, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_reset(&lqg));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, lqg.faults);
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+
+    /* Defensive paths; argument faults are not latched. */
+    TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER, ron_lqg_fault_clear(NULL));
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_fault_clear(&fresh));
+    TEST_ASSERT_EQUAL(RON_FAULT_NULL_POINTER,
+                      ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), NULL, &status));
+    TEST_ASSERT_EQUAL(RON_FAULT_NONE, lqg.faults);
+}
+
+/* ----------------------------------------------------------------------- */
+/* RON-TC-LQG-012 — Safe-State Output Policy                               */
+/* ----------------------------------------------------------------------- */
+
+/* RON-TC-LQG-012 | RON-FR-757, RON-SR-011 */
+void test_ron_tc_lqg_012(void)
+{
+    const ron_safe_policy_t policies[3] = {RON_SAFE_HOLD_LAST, RON_SAFE_ZERO, RON_SAFE_CONSTANT};
+    /* du_max = 1/s at dt = 0.01 s: the output moves 0.01 per step. */
+    const ron_float_t expected[3]         = {RON_FLOAT_C(0.01), RON_FLOAT_C(0.0), RON_FLOAT_C(5.0)};
+    ron_float_t r[RON_LQR_MAX_INPUTS]     = {RON_FLOAT_C(1.0)};
+    ron_float_t bad_r[RON_LQR_MAX_INPUTS] = {RON_FLOAT_C(0.0)};
+    ron_float_t u[RON_LQR_MAX_INPUTS];
+    ron_lqg_t lqg;
+    ron_lqg_config_t cfg;
+    ron_status_t status;
+    uint8_t i;
+
+    bad_r[0] = lqg_make_nan();
+    for (i = 0U; i < 3U; i++) {
+        cfg               = make_base_cfg();
+        cfg.Kr[0]         = RON_FLOAT_C(2.0);
+        cfg.u_min[0]      = RON_FLOAT_C(-5.0);
+        cfg.u_max[0]      = RON_FLOAT_C(5.0);
+        cfg.du_max[0]     = RON_FLOAT_C(1.0);
+        cfg.safe_policy   = policies[i];
+        cfg.safe_value[0] = RON_FLOAT_C(9.0); /* beyond u_max: clamped */
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_init(&lqg, &cfg));
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(0.01), u[0]);
+
+        /* Latched: the policy output, twice, with the history untouched. */
+        TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                          ron_lqg_step(&lqg, bad_r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), expected[i], u[0]);
+        TEST_ASSERT_EQUAL(RON_FAULT_INPUT_NAN,
+                          ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), expected[i], u[0]);
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(0.01), lqg.u_prev[0]);
+
+        /* After the clear, rate limiting continues from the last output. */
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_fault_clear(&lqg));
+        TEST_ASSERT_EQUAL(RON_FAULT_NONE, ron_lqg_step(&lqg, r, RON_FLOAT_C(0.01), u, &status));
+        TEST_ASSERT_FLOAT_WITHIN(RON_FLOAT_C(1.0e-5), RON_FLOAT_C(0.02), u[0]);
+    }
+
+    /* Invalid safe-state configuration. */
+    cfg               = make_base_cfg();
+    cfg.safe_value[0] = lqg_make_inf();
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+    cfg.safe_value[0] = RON_FLOAT_C(0.0);
+    cfg.safe_policy   = (ron_safe_policy_t) 7;
+    TEST_ASSERT_EQUAL(RON_FAULT_CONFIG_INVALID, ron_lqg_init(&lqg, &cfg));
+}
+
+/* ----------------------------------------------------------------------- */
 /* Test runner                                                             */
 /* ----------------------------------------------------------------------- */
 
@@ -581,5 +762,7 @@ int main(void)
     RUN_TEST(test_ron_tc_lqg_008);
     RUN_TEST(test_ron_tc_lqg_009);
     RUN_TEST(test_ron_tc_lqg_validation);
+    RUN_TEST(test_ron_tc_lqg_011);
+    RUN_TEST(test_ron_tc_lqg_012);
     return UNITY_END();
 }

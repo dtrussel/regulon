@@ -15,7 +15,7 @@ Implementation Specification
 
 **Document ID:** RON-IS-001
 
-**Version:** 1.5.0
+**Version:** 1.6.0
 
 **Status:** Draft
 
@@ -97,6 +97,14 @@ Revision History
        per-controller source enums, estimator fields and wrappers of
        ``ron_statespace.h`` and ``ron_lqr.h``.
      - dtrussel
+   * - 1.6.0
+     - 2026-09-26
+     - Rust track: every SRS module is implemented in ``regulon-rs/`` and
+       gated by ``ci_rust.yml``. The planned ``regulon-sys`` C-ABI crate is
+       dropped: the Rust crate serves Rust-native users only, and C users
+       use the C11 track. Crate tree, ``unsafe`` rule and traceability rows
+       updated accordingly.
+     - dtrussel
 
 ------------------------------------------------------------------------
 
@@ -122,8 +130,8 @@ Scope
 -----
 
 This document covers every module of the Regulon library specified in
-RON-SRS-001. The C11 track implements all of them; the Rust track implements a
-subset (see ``regulon-rs/``). It does not cover test code or documentation
+RON-SRS-001. Both tracks implement all of them: the C11 track in
+``regulon-c/`` and the Rust track in ``regulon-rs/``. It does not cover test code or documentation
 tooling except where a concrete verification entrypoint is needed to reproduce
 the quality gates.
 
@@ -429,12 +437,12 @@ Rust Implementation Track
 
 .. note::
 
-   This track describes the **target** Rust implementation. ``regulon-rs/``
-   currently implements the PID and filter modules only (see
-   ``docs/plans/rust/rust-first-rollout.md``). Artefacts named below that do
-   not exist yet — the other module files, the ``regulon-sys`` C-ABI crate,
-   a ``ci_rust.yml`` workflow, ``rustfmt.toml`` and
-   ``docs/deviations/MISRA_Rust_deviations.rst`` — are planned, not missing.
+   ``regulon-rs/`` implements every module specified in RON-SRS-001 and is
+   gated in CI by ``.github/workflows/ci_rust.yml`` (see
+   ``docs/plans/rust/rust-first-rollout.md``). The crate serves Rust-native
+   users only: there is no C-ABI wrapper crate, and C or C++ firmware uses the
+   C11 track. ``rustfmt.toml`` and ``docs/deviations/MISRA_Rust_deviations.rst``
+   remain planned; the crate currently uses the default ``rustfmt`` style.
 
 Language Standard
 -----------------
@@ -454,49 +462,40 @@ Crate and Module Structure
 
 .. code-block:: none
 
-   rust/
+   regulon-rs/
    ├── Cargo.toml                      -- workspace root
-   ├── regulon/                        -- main library crate
-   │   ├── Cargo.toml
-   │   └── src/
-   │       ├── lib.rs                  -- crate root; re-exports all public API
-   │       ├── platform.rs             -- float type alias, math helpers, assert macros
-   │       ├── error.rs                -- RonError enum (mirrors ron_fault_t)
-   │       ├── pid/
-   │       │   ├── mod.rs
-   │       │   ├── config.rs
-   │       │   ├── core.rs
-   │       │   └── types.rs
-   │       ├── filter/
-   │       │   ├── mod.rs
-   │       │   ├── lp1.rs
-   │       │   ├── moving_avg.rs
-   │       │   ├── biquad.rs
-   │       │   └── rate_limiter.rs
-   │       ├── feedforward.rs
-   │       ├── gain_sched.rs
-   │       ├── cascade.rs
-   │       ├── trajectory/
-   │       │   ├── mod.rs
-   │       │   ├── trapezoidal.rs
-   │       │   └── scurve.rs
-   │       ├── kalman.rs
-   │       ├── statespace.rs
-   │       ├── observer.rs
-   │       ├── autotune.rs
-   │       ├── health.rs
-   │       └── metrics.rs
-   └── regulon-sys/                    -- optional C-ABI wrapper crate
+   ├── .cargo/config.toml              -- cross-compilation targets
+   └── regulon/                        -- the library crate (#![no_std])
        ├── Cargo.toml
        └── src/
-           └── lib.rs                  -- #[no_mangle] extern "C" functions
+           ├── lib.rs                  -- crate root; re-exports the public API
+           ├── platform.rs             -- float type alias, bounded math helpers
+           ├── error.rs                -- RonError
+           ├── matrix.rs               -- const-generic Matrix<R, C>, Cholesky
+           ├── pid/                    -- PID incl. feed-forward (types, config, core)
+           ├── filter/                 -- LP1, moving average, biquad, rate limiter
+           ├── gain_sched/
+           ├── cascade/
+           ├── trajectory/             -- trapezoidal.rs, scurve.rs
+           ├── observer/
+           ├── kalman/
+           ├── estimator/              -- shared state-estimate source
+           ├── statespace/
+           ├── lqr/                    -- incl. solve_dare
+           ├── lqg/
+           ├── autotune/
+           ├── health/
+           └── metrics/
+
+Each module directory holds ``mod.rs``, a ``tests.rs`` of traceable unit
+tests and, where formal proofs exist, a ``proofs.rs`` of Kani harnesses
+compiled only under ``cfg(kani)``.
 
 Rust Naming Conventions
 -----------------------
 
 Rust idioms are used rather than mechanically mapping from C. The ``ron``
-abbreviation is used as the crate/module prefix in ``use`` statements and
-in the C-ABI wrapper.
+abbreviation is used as the crate/module prefix in ``use`` statements.
 
 .. list-table::
    :header-rows: 1
@@ -520,9 +519,6 @@ in the C-ABI wrapper.
    * - Modules
      - ``snake_case``
      - ``ron::gain_sched``, ``ron::trajectory``
-   * - C-ABI exported symbols
-     - ``ron_<module>_<verb>`` (matching C track)
-     - ``ron_pid_step``, ``ron_kf_update``
 
 Key Rust Design Patterns
 ------------------------
@@ -573,13 +569,11 @@ significant safety value:
        pub fn to_automatic(self) -> Pid<Automatic> { ... }  // bumpless transfer
    }
 
-**No ``unsafe`` in library code (goal):**
+**No ``unsafe``:**
 
-All Regulon library code shall be written in safe Rust. The sole permissible
-use of ``unsafe`` is in the C-ABI wrapper crate (``regulon-sys``) for
-``extern "C"`` function bodies that must dereference raw pointers from C
-callers. Each such block shall be individually justified with a safety
-comment.
+All Regulon Rust code shall be written in safe Rust; the crate contains no
+``unsafe`` blocks. Because there is no C-ABI wrapper, no raw pointers cross
+the crate boundary.
 
 **``#[no_std]`` compatibility:**
 
@@ -620,9 +614,6 @@ In addition, the following rules are mandated:
    * - Explicit integer widths
      - Use ``u8``, ``u16``, ``u32``, ``i32``, ``f32``/``f64`` etc.
        explicitly; avoid ``usize`` for control-system quantities.
-   * - ``#[repr(C)]`` on ABI-boundary types
-     - Any type exposed through the C-ABI wrapper shall be annotated
-       ``#[repr(C)]`` to guarantee layout compatibility.
    * - File-level documentation
      - Every ``.rs`` file shall begin with a ``//!`` module doc comment
        including: purpose, document ID (RON-IS-001), requirement IDs
@@ -2217,12 +2208,14 @@ update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
        ron_float_t        C_out[RON_SS_MAX_STATES];
        ron_float_t        i_min, i_max;
        ron_float_t        u_min, u_max, du_max;
+       ron_safe_policy_t  safe_policy;  /* RON-SR-011; 0 = HOLD_LAST       */
+       ron_float_t        safe_value;   /* for RON_SAFE_CONSTANT; clamped  */
    } ron_ss_config_t;
 
    typedef struct {
        ron_float_t  integral;
        ron_float_t  u_prev;
-       ron_fault_t  faults;
+       ron_fault_t  faults;          /* latched until cleared (RON-SR-012) */
        bool         is_initialised;
    } ron_ss_state_t;
 
@@ -2232,6 +2225,7 @@ update calls return ``RON_FAULT_CONFIG_INVALID`` for any other source.
 
    ron_fault_t ron_ss_init           (ron_ss_t *ss, const ron_ss_config_t *cfg);
    ron_fault_t ron_ss_reset          (ron_ss_t *ss);
+   ron_fault_t ron_ss_fault_clear    (ron_ss_t *ss);
    ron_fault_t ron_ss_step           (ron_ss_t *ss, ron_float_t r, ron_float_t dt,
                                          ron_float_t *u, ron_status_t *status);
    ron_fault_t ron_ss_set_gains      (ron_ss_t *ss,
@@ -2255,6 +2249,17 @@ in ``status`` (``RON-FR-703``).  ``K`` and ``Kr`` may be replaced at run time vi
 ``ron_ss_set_gains`` (``RON-FR-704``).  The embedded observer / Kalman estimators
 are advanced through ``ron_estimator.h`` on ``&ss.est`` before the consuming
 ``ron_ss_step`` call.
+
+Runtime faults latch as for the PID module (``RON-SR-012``, ``RON-SR-013``): the
+fault is ORed into the ``faults`` register, the step writes the safe-state
+output to ``u`` and ``RON_STATUS_FAULT`` to ``status``, and the controller state
+is left unchanged.  The safe-state output follows ``safe_policy`` as for the PID
+(``RON-SR-011``): the last output (``RON_SAFE_HOLD_LAST``, the zero-initialised
+default), ``0`` (``RON_SAFE_ZERO``) or ``safe_value`` (``RON_SAFE_CONSTANT``),
+clamped to ``[u_min, u_max]``; LQR and LQG apply it per input with a
+``safe_value`` per input.  The output history is not overwritten, so rate
+limiting resumes from the last committed output once the fault is cleared. Later steps repeat this until ``ron_ss_fault_clear`` or ``ron_ss_reset`` clears the
+register. Null-pointer and uninitialised calls return without latching.
 
 ``ron_lqr.h`` — Discrete-Time MIMO LQR Controller
 --------------------------------------------------
@@ -2306,6 +2311,8 @@ transitively).
        ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input lower sat limit. */
        ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input upper sat limit. */
        ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit.      */
+       ron_safe_policy_t safe_policy;          /**< RON-SR-011; 0 = HOLD_LAST. */
+       ron_float_t safe_value[RON_LQR_MAX_INPUTS]; /**< For CONSTANT; clamped. */
    } ron_lqr_config_t;
 
    /* Satisfies: RON-FR-737..FR-739 | Test: RON-TC-LQR-001, RON-TC-LQR-010 */
@@ -2314,7 +2321,7 @@ transitively).
        ron_float_t P_solved[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];
        ron_float_t integral[RON_LQR_MAX_INPUTS];
        ron_float_t u_prev[RON_LQR_MAX_INPUTS];
-       ron_fault_t faults;
+       ron_fault_t faults;           /* latched until cleared (RON-SR-012) */
        bool        dare_converged;
        bool        is_initialised;
    } ron_lqr_state_t;
@@ -2329,10 +2336,13 @@ transitively).
    /* Satisfies: RON-FR-730, RON-FR-733 | Test: RON-TC-LQR-001, RON-TC-LQR-003 */
    ron_fault_t ron_lqr_init(ron_lqr_t *lqr, const ron_lqr_config_t *cfg);
 
-   /* Satisfies: RON-FR-736 | Test: RON-TC-LQR-006 */
+   /* Satisfies: RON-FR-736, RON-SR-012 | Test: RON-TC-LQR-006, RON-TC-LQR-011 */
    ron_fault_t ron_lqr_reset(ron_lqr_t *lqr);
 
-   /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736 | Test: RON-TC-LQR-001..007 */
+   /* Satisfies: RON-SR-012 | Test: RON-TC-LQR-011 */
+   ron_fault_t ron_lqr_fault_clear(ron_lqr_t *lqr);
+
+   /* Satisfies: RON-FR-730, RON-FR-735, RON-FR-736, RON-SR-012 | Test: RON-TC-LQR-001..007, RON-TC-LQR-011 */
    ron_fault_t ron_lqr_step(ron_lqr_t *lqr,
                              const ron_float_t r[RON_LQR_MAX_INPUTS],
                              ron_float_t dt,
@@ -2360,6 +2370,8 @@ In PRECOMPUTED mode the supplied ``K`` is copied directly.  The embedded
 observer or Kalman filter is also initialised if the corresponding source is
 selected.  As for the state-space controller, the application advances it
 through ``ron_estimator.h`` on ``&lqr.est`` before ``ron_lqr_step`` each cycle.
+Runtime faults latch exactly as for ``ron_ss_step``; ``ron_lqr_fault_clear`` or
+``ron_lqr_reset`` clears them.
 
 ``ron_lqg.h`` — Discrete-Time MIMO LQG Controller
 --------------------------------------------------
@@ -2380,8 +2392,9 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
 
    /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
    typedef enum {
-       RON_LQG_GAIN_PRECOMPUTED = 0,
-       RON_LQG_GAIN_DARE        = 1
+       RON_LQG_GAIN_PRECOMPUTED = 0,  /* K supplied                            */
+       RON_LQG_GAIN_DARE        = 1,  /* K solved at init                      */
+       RON_LQG_GAIN_DARE_BOTH   = 2   /* K and steady-state K_f solved at init */
    } ron_lqg_gain_mode_t;
 
    /* Satisfies: RON-FR-750..FR-759 | Test: RON-TC-LQG-001..RON-TC-LQG-010 */
@@ -2389,7 +2402,7 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
        uint8_t            n;          /**< State dim  (1..RON_LQR_MAX_STATES). */
        uint8_t            m;          /**< Input dim  (1..RON_LQR_MAX_INPUTS). */
        uint8_t            p;          /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS). */
-       ron_lqg_gain_mode_t gain_mode; /**< Pre-computed or DARE.               */
+       ron_lqg_gain_mode_t gain_mode; /**< Pre-computed, DARE, or DARE for both. */
 
        ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];              /**< System.    */
        ron_float_t B[RON_LQR_MAX_STATES][RON_LQR_MAX_INPUTS];               /**< Input.     */
@@ -2412,6 +2425,8 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
        ron_float_t u_min[RON_LQR_MAX_INPUTS];
        ron_float_t u_max[RON_LQR_MAX_INPUTS];
        ron_float_t du_max[RON_LQR_MAX_INPUTS];
+       ron_safe_policy_t safe_policy;               /* RON-SR-011 */
+       ron_float_t safe_value[RON_LQR_MAX_INPUTS];
    } ron_lqg_config_t;
 
    /* Satisfies: RON-FR-759 | Test: RON-TC-LQG-001, RON-TC-LQG-010 */
@@ -2421,15 +2436,18 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
        ron_float_t      K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES];
        ron_float_t      P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];
        ron_float_t      u_prev[RON_LQR_MAX_INPUTS];
-       ron_fault_t      faults;
+       ron_fault_t      faults;      /* latched until cleared (RON-SR-012) */
        bool             is_initialised;
    } ron_lqg_t;
 
    /* Satisfies: RON-FR-750, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
    ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
 
-   /* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+   /* Satisfies: RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
    ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
+
+   /* Satisfies: RON-SR-012 | Test: RON-TC-LQG-011 */
+   ron_fault_t ron_lqg_fault_clear(ron_lqg_t *lqg);
 
    /* Satisfies: RON-FR-753 | Test: RON-TC-LQG-002 */
    ron_fault_t ron_lqg_predict(ron_lqg_t *lqg,
@@ -2440,7 +2458,7 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
                                const ron_float_t z[RON_KF_MAX_MEASUREMENTS],
                                bool z_valid);
 
-   /* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
+   /* Satisfies: RON-FR-755, RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-005, RON-TC-LQG-008, RON-TC-LQG-011 */
    ron_fault_t ron_lqg_step(ron_lqg_t *lqg,
                              const ron_float_t r[RON_LQR_MAX_INPUTS],
                              ron_float_t dt,
@@ -2459,10 +2477,18 @@ Satisfies RON-FR-750 – RON-FR-759.  Requires ``ron_kalman.h`` (pulls in
 
 ``ron_lqg_init`` solves the LQR DARE (or copies the pre-computed K) and
 initialises the embedded ``ron_kf_t`` from the system matrices and noise
-covariances.  The typical per-step call sequence is:
+covariances.  In ``RON_LQG_GAIN_DARE_BOTH`` mode it also solves the dual
+(estimator) DARE in ``(A^T, H^T, Q_noise, R_noise)`` for the steady-state
+a-priori covariance ``P`` and runs the filter on the fixed gain
+``K_f = P H^T (H P H^T + R_noise)^-1``, so neither gain is recomputed per
+step (``RON-FR-756``); ``use_kf_steady_state`` and ``K_f_inf`` are then
+ignored.  The other modes leave the filter on its time-varying gain, or on a
+supplied ``K_f_inf``.  The typical per-step call sequence is:
 ``ron_lqg_predict`` → ``ron_lqg_update`` → ``ron_lqg_step``.  The predict and
 update steps are separate to accommodate sample-rate mismatches between
-control and sensing.
+control and sensing.  Runtime faults in ``ron_lqg_step`` latch exactly as for
+``ron_ss_step``; ``ron_lqg_fault_clear`` or ``ron_lqg_reset`` clears them, and
+a latched fault does not block ``ron_lqg_predict`` / ``ron_lqg_update``.
 
 ``ron_autotune.h`` — Relay Feedback Auto-Tuning
 -------------------------------------------------
@@ -2917,9 +2943,6 @@ clippy`` enforce them automatically):
    * - Modules
      - ``snake_case``
      - ``ron::gain_sched``, ``ron::trajectory``
-   * - C-ABI exported symbols (``regulon-sys``)
-     - ``ron_<module>_<verb>`` (mirrors C track)
-     - ``ron_pid_step``, ``ron_kf_update``
 
 Rust Track — Comment Style
 ---------------------------
@@ -3218,9 +3241,9 @@ denote track-specific deliverables.
      - RON-FR-600 – FR-607
    * - State-space + observer API (both)
      - RON-FR-700 – FR-723
-   * - LQR controller API (C)
+   * - LQR controller API (both)
      - RON-FR-730 – FR-739
-   * - LQG controller API (C)
+   * - LQG controller API (both)
      - RON-FR-750 – FR-759
    * - Auto-tuning API (both)
      - RON-FR-800 – FR-807
@@ -3232,7 +3255,7 @@ denote track-specific deliverables.
      - RON-DC-005, RON-QR-004
    * - Cargo workspace + ``.cargo/config.toml`` cross targets (Rust)
      - RON-DC-005, RON-QR-004
-   * - ``extern "C"`` guards in C headers / ``regulon-sys`` C-ABI crate (both)
+   * - ``extern "C"`` guards in C headers (C)
      - RON-QR-001
    * - No heap allocation in either track (both)
      - RON-DC-002, RON-SR-003
@@ -3285,11 +3308,11 @@ Open Items
        governance. Both tracks shall carry the same licence.
      - Project governance
    * - OI-08
-     - ``regulon-sys`` C-ABI wrapper crate ABI stability policy to be
-       defined: semantic versioning constraints, ``#[repr(C)]`` audit,
-       and interoperability test suite against the C track headers.
-     - Implementation phase
+     - Closed in v1.6.0: no ``regulon-sys`` C-ABI wrapper crate will be
+       built. The Rust crate serves Rust-native users; C and C++ firmware
+       uses the C11 track, so no cross-track ABI policy is needed.
+     - Closed
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-IS-001 v1.1.0*
+*End of Document — RON-IS-001 v1.6.0*

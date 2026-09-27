@@ -11,8 +11,10 @@
  * double-integrator plant to a setpoint from an exact external state. Part 2
  * solves the same problem with ron_lqg, which additionally estimates the
  * state from noisy position-only measurements via an embedded Kalman filter
- * (separation principle, RON-FR-756) instead of assuming perfect state
- * knowledge.  Uses only the aggregate header <ron/ron.h>.  Host-only
+ * instead of assuming perfect state knowledge.  RON_LQG_GAIN_DARE_BOTH solves
+ * both gains once at init - the LQR gain from the control DARE and the
+ * steady-state Kalman gain from the dual (estimator) DARE - designed
+ * independently by the separation principle (RON-FR-752, RON-FR-756).  Uses only the aggregate header <ron/ron.h>.  Host-only
  * documentation example (uses printf/rand); excluded from all production
  * gates and cross-compile builds.
  *
@@ -43,8 +45,8 @@ static int run_lqr(void)
 
     cfg.n             = 2U;
     cfg.m             = 1U;
-    cfg.est.source        = RON_ESTIMATOR_EXTERNAL;
-    cfg.est.x_ext         = x;
+    cfg.est.source    = RON_ESTIMATOR_EXTERNAL;
+    cfg.est.x_ext     = x;
     cfg.gain_mode     = RON_LQR_GAIN_DARE;
     cfg.A[0][0]       = RON_FLOAT_C(1.0);
     cfg.A[0][1]       = RON_FLOAT_C(1.0);
@@ -95,7 +97,7 @@ static int run_lqr(void)
 
 /* Part 2: LQG — the same plant and cost, but the controller only sees noisy
  * position measurements and estimates the full state via an embedded
- * Kalman filter. */
+ * Kalman filter running on a steady-state gain solved at init. */
 static int run_lqg(void)
 {
     ron_lqg_t lqg;
@@ -108,7 +110,7 @@ static int run_lqg(void)
     cfg.n             = 2U;
     cfg.m             = 1U;
     cfg.p             = 1U;
-    cfg.gain_mode     = RON_LQG_GAIN_DARE;
+    cfg.gain_mode     = RON_LQG_GAIN_DARE_BOTH;
     cfg.A[0][0]       = RON_FLOAT_C(1.0);
     cfg.A[0][1]       = RON_FLOAT_C(1.0);
     cfg.A[1][1]       = RON_FLOAT_C(1.0);
@@ -139,6 +141,12 @@ static int run_lqg(void)
         return 1;
     }
     srand(1U); /* deterministic demo output */
+
+    (void) printf("Part 2: LQG gains solved at init\n"
+                  "  LQR    K   = [%.4f, %.4f]\n"
+                  "  Kalman K_f = [%.4f, %.4f]^T\n",
+                  (double) lqg.K_solved[0][0], (double) lqg.K_solved[0][1],
+                  (double) lqg.kalman.cfg.K_inf[0][0], (double) lqg.kalman.cfg.K_inf[1][0]);
 
     (void) printf("Part 2: LQG (noisy measurement)\n step   position   estimate   command\n");
     for (k = 0U; k < 30U; ++k) {

@@ -6,10 +6,10 @@
 # used, and every requirement to be verified by a test. This script enforces
 # both mechanically so neither can drift silently:
 #
-#   1. Every RON-TC-* ID referenced by the C sources, headers or tests is
-#      defined in TP_ControlLib.rst.
-#   2. Every requirement ID cited by the C sources, headers or tests is defined
-#      in SRS_ControlLib.rst.
+#   1. Every RON-TC-* ID referenced by the C sources, headers or tests, or by
+#      the Rust crate, is defined in TP_ControlLib.rst.
+#   2. Every requirement ID cited by the C sources, headers or tests, or by the
+#      Rust crate, is defined in SRS_ControlLib.rst.
 #   3. Every SRS requirement (FR/SR/PR/QR/DC) is referenced by TP_ControlLib.rst.
 #
 # Functional requirements that no C source cites are reported but do not fail
@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SRS = ROOT / "docs" / "specs" / "SRS_ControlLib.rst"
 TP = ROOT / "docs" / "specs" / "TP_ControlLib.rst"
 CODE_DIRS = [ROOT / "regulon-c" / d for d in ("src", "include", "test")]
+RUST_DIRS = [ROOT / "regulon-rs"]
 
 REQ_KINDS = ("FR", "SR", "PR", "QR", "DC")
 REQ = r"RON-(?:%s)-\d{3}" % "|".join(REQ_KINDS)
@@ -83,11 +84,19 @@ def main() -> int:
     code_files = sorted(
         p for d in CODE_DIRS for p in d.rglob("*") if p.suffix in (".c", ".h")
     )
+    rust_files = sorted(
+        p
+        for d in RUST_DIRS
+        for p in d.rglob("*.rs")
+        if "target" not in p.relative_to(d).parts
+    )
     code = "\n".join(p.read_text(encoding="utf-8") for p in code_files)
-    # Unity test functions carry their ID in the name: test_ron_tc_pid_015[_x].
-    code_tc = explicit(code, TC) | {
+    rust = "\n".join(p.read_text(encoding="utf-8") for p in rust_files)
+    # Test functions carry their ID in the name: test_ron_tc_pid_015[_x] in
+    # Unity, ron_tc_pid_015[_x] in cargo test.
+    code_tc = explicit(code + rust, TC) | {
         "RON-TC-%s-%s" % (m.group(1).upper(), m.group(2))
-        for m in re.finditer(r"\btest_ron_tc_([a-z]+)_(\d{3})", code)
+        for m in re.finditer(r"\b(?:test_)?ron_tc_([a-z]+)_(\d{3})", code + rust)
     }
 
     req_defined = defined_in(srs, REQ)
@@ -100,7 +109,7 @@ def main() -> int:
         "Test IDs used in code but not defined in TP_ControlLib.rst":
             code_tc - tc_defined,
         "Requirement IDs cited in code but not defined in SRS_ControlLib.rst":
-            explicit(code, REQ) - req_defined,
+            explicit(code + rust, REQ) - req_defined,
         "SRS requirements not referenced by TP_ControlLib.rst":
             req_defined - expand(tp, REQ),
     }
@@ -120,7 +129,8 @@ def main() -> int:
     if status == 0:
         print(
             f"traceability OK: {len(req_defined)} requirements, "
-            f"{len(tc_defined)} test IDs, {len(code_files)} C files"
+            f"{len(tc_defined)} test IDs, {len(code_files)} C files, "
+            f"{len(rust_files)} Rust files"
         )
     return status
 

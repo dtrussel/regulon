@@ -9,9 +9,8 @@
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
 
 use super::{
-    AntiWindupMode, DerivativeMode, FeedForwardConfig, FeedForwardMode, IntegrationMethod,
-    NormalizationConfig, NormalizationRange, Pid, PidConfig, PidFault, PidMode, PidStatus,
-    SafePolicy,
+    AntiWindupMode, DerivativeMode, IntegrationMethod, NormalizationConfig, NormalizationRange,
+    Pid, PidConfig, PidFault, PidMode, PidStatus, SafePolicy,
 };
 use crate::{RonError, RonFloat};
 use std::format;
@@ -143,50 +142,6 @@ fn ron_tc_pid_010() {
     let (output, status) = pid.step(10.0, 5.0, 0.01).unwrap();
     approx_eq(output, 100.0, 0.001);
     assert!(status.contains(PidStatus::NORMALIZED));
-}
-
-/// RON-TC-FF-002 | RON-FR-201
-#[test]
-fn ron_tc_ff_002() {
-    let mut pid = Pid::new(PidConfig {
-        kp: 1.0,
-        feed_forward: FeedForwardConfig {
-            mode: FeedForwardMode::StaticGain,
-            static_gain: 0.5,
-        },
-        ..base_config()
-    })
-    .unwrap();
-    let (output, status) = pid.step(2.0, 0.0, 0.01).unwrap();
-    approx_eq(output, 3.0, 4.0 * RonFloat::EPSILON);
-    assert!(status.contains(PidStatus::FEED_FORWARD_ACTIVE));
-    approx_eq(pid.state().last_feed_forward, 1.0, 4.0 * RonFloat::EPSILON);
-}
-
-/// RON-TC-FF-008 | RON-FR-204
-#[test]
-fn ron_tc_ff_008() {
-    let mut disabled = Pid::new(PidConfig {
-        kp: 1.0,
-        feed_forward: FeedForwardConfig {
-            mode: FeedForwardMode::Disabled,
-            static_gain: 0.0,
-        },
-        ..base_config()
-    })
-    .unwrap();
-    let mut legacy = Pid::new(PidConfig {
-        kp: 1.0,
-        ..base_config()
-    })
-    .unwrap();
-    for _ in 0..1_000 {
-        let (disabled_output, disabled_status) = disabled.step(0.5, 0.1, 0.01).unwrap();
-        let (legacy_output, legacy_status) = legacy.step(0.5, 0.1, 0.01).unwrap();
-        approx_eq(disabled_output, legacy_output, 4.0 * RonFloat::EPSILON);
-        assert_eq!(disabled_status, legacy_status);
-    }
-    assert_eq!(disabled.state().last_feed_forward, 0.0);
 }
 
 /// RON-TC-PID-015 | RON-FR-020
@@ -514,10 +469,47 @@ fn ron_tc_safe_011() {
         Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
     ));
     pid.clear_fault();
-    assert!(matches!(
-        pid.step(0.0, 0.0, RonFloat::INFINITY),
-        Err(RonError::Fault(PidFault::INPUT_NOT_FINITE))
-    ));
+    // A bad dt is an argument error, as in C, and does not latch.
+    for dt in [RonFloat::INFINITY, RonFloat::NAN, 0.0, -0.01] {
+        assert!(matches!(
+            pid.step(0.0, 0.0, dt),
+            Err(RonError::InvalidArgument(_))
+        ));
+        assert!(pid.state().fault.is_none());
+    }
+    assert!(pid.step(0.0, 0.0, 0.01).is_ok());
+}
+
+/// RON-TC-SAFE-008 | RON-SR-011
+#[test]
+fn ron_tc_safe_008() {
+    // A proportional controller whose last output is 4.0 before the fault.
+    for (policy, expected) in [
+        (SafePolicy::HoldLast, 4.0),
+        (SafePolicy::DriveZero, 0.0),
+        (SafePolicy::DriveSafeValue, 5.0),
+    ] {
+        let mut pid = Pid::new(PidConfig {
+            output_min: -5.0,
+            output_max: 5.0,
+            safe_policy: policy,
+            safe_value: 20.0, // beyond the limits: clamped
+            ..PidConfig::new_parallel(1.0, 0.0, 0.0)
+        })
+        .unwrap();
+        approx_eq(pid.step(4.0, 0.0, 0.01).unwrap().0, 4.0, 1.0e-5);
+        approx_eq(pid.output(), 4.0, 1.0e-5);
+
+        // Latched: the policy output, with the history untouched.
+        assert!(pid.step(RonFloat::NAN, 0.0, 0.01).is_err());
+        approx_eq(pid.output(), expected, 1.0e-5);
+        assert!(pid.step(4.0, 0.0, 0.01).is_err());
+        approx_eq(pid.output(), expected, 1.0e-5);
+        approx_eq(pid.last_output(), 4.0, 1.0e-5);
+
+        pid.clear_fault();
+        approx_eq(pid.output(), 4.0, 1.0e-5);
+    }
 }
 
 /// RON-TC-SAFE-012 | RON-SR-021
@@ -535,6 +527,25 @@ fn ron_tc_safe_012() {
     let true_integral = 1.0;
     let relative_error = ((state.integral - true_integral) / true_integral).abs();
     assert!(relative_error < 0.001);
+}
+
+/// RON-TC-SAFE-012 | RON-SR-021
+#[test]
+fn ron_tc_safe_012_overflowed_increment_does_not_poison_state() {
+    let mut pid = Pid::new(PidConfig {
+        ki: 10.0,
+        ..base_config()
+    })
+    .unwrap();
+    // A finite error whose integral increment overflows: the integral clamps
+    // and the output stays finite, so the step itself succeeds.
+    let (output, _) = pid.step(RonFloat::MAX, 0.0, 1.0).unwrap();
+    approx_eq(output, 1_000.0, 4.0 * RonFloat::EPSILON);
+    // The compensated-sum carry must not hold inf - inf = NaN into the next,
+    // ordinary step.
+    let (output, _) = pid.step(0.0, 0.0, 0.01).unwrap();
+    assert!(output.is_finite());
+    approx_eq(pid.integral(), 1_000.0, 4.0 * RonFloat::EPSILON);
 }
 
 /// RON-TC-SAFE-013 | RON-SR-001-RON-SR-006

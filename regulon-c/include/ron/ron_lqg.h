@@ -23,9 +23,13 @@
  *   - The Kalman gain is determined by Q_noise, R_noise, A, H.
  *   - The LQR gain K is determined by Q_cost, R_cost, A, B.
  *
- * Both gains are solved via DARE at init time (RON-FR-756) and are not
- * recomputed per step.  Pre-computed gains may be supplied directly to
- * bypass the DARE solver (RON_LQG_GAIN_PRECOMPUTED).
+ * RON_LQG_GAIN_DARE_BOTH solves both gains once at init time (RON-FR-756):
+ * the LQR gain K from the control DARE, and the steady-state Kalman gain
+ * from the dual (estimator) DARE; neither is recomputed per step.  The other
+ * two modes resolve only K - solved via DARE (RON_LQG_GAIN_DARE) or supplied
+ * (RON_LQG_GAIN_PRECOMPUTED) - and leave the embedded Kalman filter on its
+ * time-varying gain, or on the caller-supplied steady-state gain K_f_inf
+ * when use_kf_steady_state is set.
  *
  * All storage resides in the caller-owned ron_lqg_t instance; no dynamic
  * allocation, recursion, or VLAs are used (RON-FR-759).
@@ -74,8 +78,11 @@ extern "C" {
 
 /* Satisfies: RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 typedef enum {
-    RON_LQG_GAIN_PRECOMPUTED = 0, /**< K and K_f_inf supplied; DARE skipped. */
-    RON_LQG_GAIN_DARE        = 1  /**< Both gains computed via DARE at init. */
+    RON_LQG_GAIN_PRECOMPUTED = 0, /**< LQR gain K supplied; DARE skipped.   */
+    RON_LQG_GAIN_DARE        = 1, /**< LQR gain K solved via DARE at init.  */
+    /** K and the steady-state Kalman gain both solved via DARE at init;
+     *  @c use_kf_steady_state and @c K_f_inf are ignored. */
+    RON_LQG_GAIN_DARE_BOTH = 2
 } ron_lqg_gain_mode_t;
 
 /* =========================================================================
@@ -89,7 +96,7 @@ typedef struct {
     uint8_t n;                     /**< State dim  (1..RON_LQR_MAX_STATES).       */
     uint8_t m;                     /**< Input dim  (1..RON_LQR_MAX_INPUTS).       */
     uint8_t p;                     /**< Meas  dim  (1..RON_KF_MAX_MEASUREMENTS).  */
-    ron_lqg_gain_mode_t gain_mode; /**< Pre-computed or DARE.                     */
+    ron_lqg_gain_mode_t gain_mode; /**< Pre-computed, DARE, or DARE for both.     */
 
     /* System matrices — shared by Kalman predictor and LQR law (RON-FR-751). */
     ron_float_t A[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];      /**< State transition.   */
@@ -120,6 +127,10 @@ typedef struct {
     ron_float_t u_min[RON_LQR_MAX_INPUTS];  /**< Per-input sat lower bound.  */
     ron_float_t u_max[RON_LQR_MAX_INPUTS];  /**< Per-input sat upper bound.  */
     ron_float_t du_max[RON_LQR_MAX_INPUTS]; /**< Per-input rate limit (≤ 0 disables). */
+
+    /* Safe-state output while a fault is latched (RON-SR-011). */
+    ron_safe_policy_t safe_policy;              /**< Hold last (default), zero, constant. */
+    ron_float_t safe_value[RON_LQR_MAX_INPUTS]; /**< Per input, for CONSTANT; clamped.   */
 } ron_lqg_config_t;
 
 /* =========================================================================
@@ -133,7 +144,7 @@ typedef struct {
     ron_float_t K_solved[RON_LQR_MAX_INPUTS][RON_LQR_MAX_STATES]; /**< LQR gain in use.  */
     ron_float_t P_lqr[RON_LQR_MAX_STATES][RON_LQR_MAX_STATES];    /**< LQR DARE solution.*/
     ron_float_t u_prev[RON_LQR_MAX_INPUTS]; /**< Previous output (rate limiting).        */
-    ron_fault_t faults;                     /**< Latched fault register.                 */
+    ron_fault_t faults;                     /**< Latched faults (RON-SR-013).            */
     bool is_initialised;                    /**< Set by ron_lqg_init.                    */
 } ron_lqg_t;
 
@@ -146,9 +157,14 @@ typedef struct {
  *
  * LQG is the separation principle made concrete: an LQR control law driven by
  * a Kalman state estimate, with the two designed independently. This call
- * therefore performs two solves - the control Riccati equation from @c A,
- * @c B, @c Q_cost and @c R_cost, and the estimator, delegated to
- * ron_kf_init() with the noise model in @c Q_noise and @c R_noise.
+ * therefore sets up two parts - the control gain (in RON_LQG_GAIN_DARE mode
+ * the control Riccati equation is solved from @c A, @c B, @c Q_cost and
+ * @c R_cost; otherwise @c K is copied), and the estimator, delegated to
+ * ron_kf_init() with the noise model in @c Q_noise and @c R_noise. In
+ * RON_LQG_GAIN_DARE_BOTH mode the estimator's steady-state gain is solved
+ * here too, from the dual Riccati equation in @c A, @c H, @c Q_noise and
+ * @c R_noise, and the filter runs on it; otherwise the filter uses its
+ * time-varying gain, or @c K_f_inf when @c use_kf_steady_state is set.
  *
  * The estimator is always the embedded Kalman filter; unlike
  * ron_lqr_init() there is no choice of estimate source, because
@@ -164,10 +180,10 @@ typedef struct {
  * @retval RON_FAULT_NONE           Controller ready to step.
  * @retval RON_FAULT_NULL_POINTER   @p lqg or @p cfg was NULL.
  * @retval RON_FAULT_CONFIG_INVALID A dimension, matrix, cost or limit was
- *                                  invalid, or ron_kf_init() rejected the
- *                                  estimator configuration.
- * @retval RON_FAULT_OUTPUT_NAN     The control DARE failed to converge or
- *                                  produced a non-finite result.
+ *                                  invalid, ron_kf_init() rejected the
+ *                                  estimator configuration, or a DARE failed
+ *                                  to converge or met a matrix that is not
+ *                                  positive definite.
  */
 /* Satisfies: RON-FR-750, RON-FR-756 | Test: RON-TC-LQG-001, RON-TC-LQG-006 */
 ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
@@ -175,9 +191,9 @@ ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
 /**
  * @brief Return the controller and its estimator to post-initialisation state.
  *
- * Clears the integral accumulator, output history and any latched fault, and
- * resets the embedded Kalman filter to its configured @c x0 and @c P0. Both
- * solved gains are kept, so neither Riccati solve is repeated.
+ * Clears the output history and latched faults, and resets the embedded
+ * Kalman filter to its configured @c x0 and @c P0. The LQR gain is kept, so the control Riccati
+ * solve is not repeated.
  *
  * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
  *
@@ -185,8 +201,23 @@ ron_fault_t ron_lqg_init(ron_lqg_t *lqg, const ron_lqg_config_t *cfg);
  * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
  * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  */
-/* Satisfies: RON-FR-757 | Test: RON-TC-LQG-009 */
+/* Satisfies: RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-009, RON-TC-LQG-011 */
 ron_fault_t ron_lqg_reset(ron_lqg_t *lqg);
+
+/**
+ * @brief Clear the latched faults so stepping can resume.
+ *
+ * Only the fault register is cleared; the output history and Kalman filter are left as they were when the
+ * fault latched.
+ *
+ * @param[in,out] lqg  Initialised controller instance. Must not be NULL.
+ *
+ * @retval RON_FAULT_NONE           Faults cleared.
+ * @retval RON_FAULT_NULL_POINTER   @p lqg was NULL.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
+ */
+/* Satisfies: RON-SR-012 | Test: RON-TC-LQG-011 */
+ron_fault_t ron_lqg_fault_clear(ron_lqg_t *lqg);
 
 /* Advance the embedded Kalman filter prediction step (RON-FR-753). */
 /**
@@ -249,16 +280,26 @@ ron_fault_t ron_lqg_update(ron_lqg_t *lqg, const ron_float_t z[RON_KF_MAX_MEASUR
  *                        be NULL.
  * @param[out]    status  Receives the status word. Must not be NULL.
  *
+ * Runtime faults latch (RON-SR-012): the fault is ORed into @c faults, the
+ * step writes the safe-state output vector selected by @c cfg.safe_policy
+ * (RON-SR-011; clamped per input) to @p u, reports ::RON_STATUS_FAULT in
+ * @p status and leaves the output history unchanged. Every later step does
+ * the same and returns the latched fault until ron_lqg_fault_clear() or
+ * ron_lqg_reset() is called. Null-pointer and uninitialised calls are
+ * rejected without latching and write neither @p u nor @p status. The
+ * estimator calls (ron_lqg_predict(), ron_lqg_update()) are not blocked by a
+ * latched fault.
+ *
  * @retval RON_FAULT_NONE           Output computed normally.
  * @retval RON_FAULT_NULL_POINTER   @p lqg, @p r, @p u or @p status was NULL.
- * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised, or
- *                                  @p dt was not positive.
+ * @retval RON_FAULT_CONFIG_INVALID The controller was never initialised.
  * @retval RON_FAULT_INPUT_NAN      An entry of @p r, or the state estimate,
- *                                  was not finite; the fault latches.
- * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite; the
- *                                  fault latches.
+ *                                  was not finite, or @p dt was not positive
+ *                                  and finite.
+ * @retval RON_FAULT_OUTPUT_NAN     A computed output was not finite.
+ * @retval other                    The faults latched by an earlier step.
  */
-/* Satisfies: RON-FR-755, RON-FR-757 | Test: RON-TC-LQG-005, RON-TC-LQG-008 */
+/* Satisfies: RON-FR-755, RON-FR-757, RON-SR-012 | Test: RON-TC-LQG-005, RON-TC-LQG-008, RON-TC-LQG-011 */
 ron_fault_t ron_lqg_step(ron_lqg_t *lqg, const ron_float_t r[RON_LQR_MAX_INPUTS], ron_float_t dt,
                          ron_float_t u[RON_LQR_MAX_INPUTS], ron_status_t *status);
 

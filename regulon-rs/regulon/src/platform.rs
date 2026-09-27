@@ -3,7 +3,8 @@
 //! Shared numeric helpers and compile-time platform assertions.
 //!
 //! **Document:** RON-IS-001
-//! **Requirements:** RON-PR-010, RON-PR-011, RON-PR-021, RON-QR-001, RON-QR-003
+//! **Requirements:** RON-PR-010, RON-PR-011, RON-PR-021, RON-QR-001, RON-QR-003,
+//! RON-FR-500, RON-FR-503
 //! **SPDX-License-Identifier:** MIT
 
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
@@ -23,6 +24,11 @@ const _: [(); 8] = [(); size_of::<RonFloat>()];
 
 #[cfg(not(feature = "double_precision"))]
 const _: [(); 4] = [(); size_of::<RonFloat>()];
+
+/// Newton iterations for [`sqrt`]: enough to converge from the initial guess
+/// `max(value, 1)` for the finite inputs the modules pass, as in the C
+/// `ron_util_sqrt`.
+const SQRT_STEPS: u8 = 30;
 
 /// Smallest practical non-zero magnitude for divisor checks.
 pub const DIVISOR_EPSILON: RonFloat = 1.0e-9 as RonFloat;
@@ -61,4 +67,56 @@ pub fn same_sign_nonzero(lhs: RonFloat, rhs: RonFloat) -> bool {
 #[must_use]
 pub fn is_near_zero(value: RonFloat) -> bool {
     abs(value) <= DIVISOR_EPSILON
+}
+
+/// Square root by a fixed number of Newton iterations, so `no_std` builds need
+/// no math library and the cost is bounded. Callers pass non-negative finite
+/// values.
+///
+/// **Satisfies:** RON-FR-500
+#[must_use]
+pub fn sqrt(value: RonFloat) -> RonFloat {
+    let mut estimate = if value > 1.0 { value } else { 1.0 };
+    for _ in 0..SQRT_STEPS {
+        estimate = RonFloat::midpoint(estimate, value / estimate);
+    }
+    estimate
+}
+
+/// Returns `-1` for negative values and `1` otherwise (including zero).
+///
+/// **Satisfies:** RON-FR-503
+#[must_use]
+pub fn sign_nonzero(value: RonFloat) -> RonFloat {
+    if value < 0.0 {
+        -1.0
+    } else {
+        1.0
+    }
+}
+
+/// Limits the change from `previous` to `value` to `max_rate * dt`. A
+/// non-positive `max_rate` disables limiting. Returns the limited value and
+/// whether limiting was applied.
+///
+/// **Satisfies:** RON-FR-022, RON-FR-703
+#[must_use]
+pub fn rate_limit(
+    value: RonFloat,
+    previous: RonFloat,
+    max_rate: RonFloat,
+    dt: RonFloat,
+) -> (RonFloat, bool) {
+    if max_rate <= 0.0 {
+        return (value, false);
+    }
+    let max_delta = max_rate * dt;
+    let delta = value - previous;
+    if delta > max_delta {
+        (previous + max_delta, true)
+    } else if delta < -max_delta {
+        (previous - max_delta, true)
+    } else {
+        (value, false)
+    }
 }

@@ -164,6 +164,18 @@ static void trap_integrate_active(ron_trap_t *t, ron_float_t dt)
     t->state.pos += t->state.vel * dt;
 }
 
+/*
+ * True when every kinematic setpoint of the state is finite.  Checked in
+ * integration order (acc feeds vel feeds pos) so each term can be the first
+ * non-finite one.
+ */
+/* Satisfies: RON-FR-502 | Test: RON-TC-TRAJ-007 */
+static bool trap_kinematics_finite(const ron_trap_state_t *state)
+{
+    return ron_util_isfinite(state->acc) && ron_util_isfinite(state->vel) &&
+           ron_util_isfinite(state->pos);
+}
+
 /* Satisfies: RON-FR-512 | Test: RON-TC-TRAJ-007 */
 static void trap_finish_if_reached(ron_trap_t *t, ron_float_t dt)
 {
@@ -244,6 +256,7 @@ ron_fault_t ron_trap_step(ron_trap_t *t, ron_float_t dt, ron_float_t *pos, ron_f
                           ron_float_t *acc, bool *finished)
 {
     ron_fault_t fault;
+    ron_trap_state_t prev;
 
     fault = trap_check_step_args(t, pos, vel, acc, finished);
     if (fault != RON_FAULT_NONE) {
@@ -258,10 +271,20 @@ ron_fault_t ron_trap_step(ron_trap_t *t, ron_float_t dt, ron_float_t *pos, ron_f
         return fault;
     }
 
+    /* Integrate on the instance, but keep the last finite state so a
+     * non-finite result is never committed (the outputs hold it instead). */
+    prev = t->state;
     trap_integrate_active(t, dt);
-    trap_finish_if_reached(t, dt);
+    if (!trap_kinematics_finite(&t->state)) {
+        t->state            = prev;
+        t->state.fault_code = RON_FAULT_OUTPUT_NAN;
+        t->state.status     = RON_STATUS_FAULT;
+        fault               = RON_FAULT_OUTPUT_NAN;
+    } else {
+        trap_finish_if_reached(t, dt);
+    }
     trap_write_outputs(t, pos, vel, acc, finished);
-    return RON_FAULT_NONE;
+    return fault;
 }
 
 /* Satisfies: RON-FR-513 | Test: RON-TC-TRAJ-008 */

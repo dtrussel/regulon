@@ -351,6 +351,18 @@ static bool scurve_step_bypass(ron_scurve_t *t, ron_float_t *pos, ron_float_t *v
     return false;
 }
 
+/*
+ * True when every kinematic setpoint of the state is finite.  Checked in
+ * integration order (jrk feeds acc feeds vel feeds pos) so each term can be
+ * the first non-finite one.
+ */
+/* Satisfies: RON-FR-511 | Test: RON-TC-TRAJ-007 */
+static bool scurve_kinematics_finite(const ron_scurve_state_t *state)
+{
+    return ron_util_isfinite(state->jrk) && ron_util_isfinite(state->acc) &&
+           ron_util_isfinite(state->vel) && ron_util_isfinite(state->pos);
+}
+
 /* Satisfies: RON-FR-512 | Test: RON-TC-TRAJ-007 */
 static void scurve_finish_if_done(ron_scurve_t *t)
 {
@@ -365,6 +377,7 @@ ron_fault_t ron_scurve_step(ron_scurve_t *t, ron_float_t dt, ron_float_t *pos, r
                             ron_float_t *acc, ron_float_t *jrk, bool *finished)
 {
     ron_fault_t fault;
+    ron_scurve_state_t prev;
 
     fault = scurve_check_step_args(t, pos, vel, acc, jrk, finished);
     if (fault != RON_FAULT_NONE) {
@@ -379,10 +392,20 @@ ron_fault_t ron_scurve_step(ron_scurve_t *t, ron_float_t dt, ron_float_t *pos, r
         return fault;
     }
 
+    /* Integrate on the instance, but keep the last finite state so a
+     * non-finite result is never committed (the outputs hold it instead). */
+    prev = t->state;
     scurve_integrate_step(t, dt);
-    scurve_finish_if_done(t);
+    if (!scurve_kinematics_finite(&t->state)) {
+        t->state            = prev;
+        t->state.fault_code = RON_FAULT_OUTPUT_NAN;
+        t->state.status     = RON_STATUS_FAULT;
+        fault               = RON_FAULT_OUTPUT_NAN;
+    } else {
+        scurve_finish_if_done(t);
+    }
     scurve_write_outputs(t, pos, vel, acc, jrk, finished);
-    return RON_FAULT_NONE;
+    return fault;
 }
 
 /* Satisfies: RON-FR-513 | Test: RON-TC-TRAJ-008 */

@@ -115,7 +115,7 @@ ron_fault_t ron_obs_init(ron_obs_t *obs, const ron_obs_config_t *cfg);
 /**
  * @brief Return the observer to its post-initialisation state.
  *
- * Restores the estimate to the configured @c x0 and clears any latched fault.
+ * Restores the estimate to the configured @c x0.
  *
  * @param[in,out] obs  Initialised observer instance. Must not be NULL.
  *
@@ -146,8 +146,9 @@ ron_fault_t ron_obs_reset(ron_obs_t *obs);
  *                                  while @c p > 0.
  * @retval RON_FAULT_CONFIG_INVALID The observer was never initialised.
  * @retval RON_FAULT_INPUT_NAN      An entry of @p y or @p u was not finite.
- * @retval RON_FAULT_OUTPUT_NAN     The updated estimate was not finite; the
- *                                  fault latches.
+ * @retval RON_FAULT_OUTPUT_NAN     The updated estimate was not finite; it
+ *                                  is discarded and the estimate is left
+ *                                  unchanged.
  */
 /* Satisfies: RON-FR-720 | Test: RON-TC-SS-006, RON-TC-SS-007 */
 ron_fault_t ron_obs_step(ron_obs_t *obs, const ron_float_t y[RON_SS_MAX_OUTPUTS],

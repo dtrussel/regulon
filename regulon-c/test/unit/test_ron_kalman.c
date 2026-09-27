@@ -562,7 +562,7 @@ void test_ron_tc_kf_007(void)
     uint16_t cycle;
 
     kf_scalar_config(&cfg);
-    cfg.steady_state = true;
+    cfg.steady_state  = true;
     cfg.K_inf[0][0]  = k_inf;
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_init(&kf, &cfg));
 
@@ -625,6 +625,7 @@ void test_ron_tc_kf_008(void)
     ron_float_t u[RON_KF_MAX_INPUTS];
     ron_float_t z[RON_KF_MAX_MEASUREMENTS];
     ron_fault_t fault;
+    ron_float_t p_prev;
     uint8_t i;
     uint16_t cycle;
 
@@ -674,7 +675,9 @@ void test_ron_tc_kf_008(void)
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_INPUT_NAN, ron_kf_update(&kf, z, true));
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_update(&kf, NULL, false));
 
-    /* Non-finite estimate / covariance is detected and reported. */
+    /* Non-finite estimate / covariance is detected and reported, and the
+     * rejected step leaves the state as it was. Predict: the covariance
+     * overflows first (x stays 0). */
     kf_zero_config(&cfg);
     cfg.n        = 1U;
     cfg.m        = 1U;
@@ -682,16 +685,52 @@ void test_ron_tc_kf_008(void)
     cfg.A[0][0]  = RON_FLOAT_C(1.0e30);
     cfg.H[0][0]  = RON_FLOAT_C(1.0);
     cfg.R[0][0]  = RON_FLOAT_C(1.0);
-    cfg.x0[0]    = RON_FLOAT_C(1.0);
+    cfg.x0[0]    = RON_FLOAT_C(0.0);
     cfg.P0[0][0] = RON_FLOAT_C(1.0);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_init(&kf, &cfg));
     fault = RON_FAULT_NONE;
+    p_prev = kf.state.P[0][0];
     for (cycle = 0U; (cycle < 40U) && (fault == RON_FAULT_NONE); cycle++) {
-        fault = ron_kf_predict(&kf, NULL);
+        p_prev = kf.state.P[0][0];
+        fault  = ron_kf_predict(&kf, NULL);
     }
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, fault);
+    TEST_ASSERT_TRUE(RON_ISFINITE(kf.state.P[0][0]));
+    TEST_ASSERT_TRUE(kf.state.P[0][0] == p_prev);
+    TEST_ASSERT_TRUE(kf.state.x_hat[0] == RON_FLOAT_C(0.0));
+    /* The filter was not poisoned: a finite measurement still corrects it. */
+    z[0] = RON_FLOAT_C(0.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_update(&kf, z, true));
+    TEST_ASSERT_TRUE(RON_ISFINITE(kf.state.x_hat[0]));
+    TEST_ASSERT_TRUE(RON_ISFINITE(kf.state.P[0][0]));
+
+    /* Predict: the estimate overflows while the covariance stays finite. */
+    cfg.A[0][0] = RON_FLOAT_C(10.0);
+    cfg.x0[0]   = RON_FLOAT_MAX;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_init(&kf, &cfg));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_kf_predict(&kf, NULL));
+    TEST_ASSERT_TRUE(kf.state.x_hat[0] == RON_FLOAT_MAX);
+    TEST_ASSERT_TRUE(kf.state.P[0][0] == RON_FLOAT_C(1.0));
+
+    /* Update: the innovation overflows the estimate. */
+    cfg.A[0][0] = RON_FLOAT_C(1.0);
+    cfg.x0[0]   = -RON_FLOAT_MAX;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_init(&kf, &cfg));
+    z[0] = RON_FLOAT_MAX;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_kf_update(&kf, z, true));
+    TEST_ASSERT_TRUE(kf.state.x_hat[0] == -RON_FLOAT_MAX);
+    TEST_ASSERT_TRUE(kf.state.P[0][0] == RON_FLOAT_C(1.0));
+
+    /* Update: a huge fixed gain overflows the covariance only. */
+    cfg.x0[0]        = RON_FLOAT_C(0.0);
+    cfg.P0[0][0]     = RON_FLOAT_MAX;
+    cfg.steady_state  = true;
+    cfg.K_inf[0][0]  = RON_FLOAT_C(1.0e30);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_kf_init(&kf, &cfg));
     z[0] = RON_FLOAT_C(0.0);
     TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_kf_update(&kf, z, true));
+    TEST_ASSERT_TRUE(kf.state.x_hat[0] == RON_FLOAT_C(0.0));
+    TEST_ASSERT_TRUE(kf.state.P[0][0] == RON_FLOAT_MAX);
 }
 
 /* ----------------------------------------------------------------------- */

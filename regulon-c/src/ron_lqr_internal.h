@@ -19,6 +19,8 @@
 
 #include "ron/ron_lqr.h"
 
+#include "ron_matrix_internal.h"
+
 /**
  * @brief Solve the discrete algebraic Riccati equation via iterative value
  * recursion (SADS DD-19 — no Schur decomposition) and return the optimal
@@ -42,5 +44,20 @@
 ron_fault_t ron_lqr_dare_solve(const ron_float_t *a, const ron_float_t *b, const ron_float_t *q,
                                const ron_float_t *r, uint8_t n, uint8_t m, uint16_t max_iter,
                                ron_float_t tol, ron_float_t *k_out, ron_float_t *p_out);
+
+/**
+ * @brief The same solver on caller-loaded working matrices, for callers
+ * whose operands do not use the LQR strides - ron_lqg solves the dual
+ * (estimator) DARE with A^T, H^T, Q_noise and R_noise, where the "input"
+ * dimension @p m is the measurement count (up to ::RON_MAT_MAX_DIM).
+ *
+ * @p a, @p q, @p p_out are n x n; @p b is n x m; @p r is m x m; @p k_out is
+ * m x n.  Outputs are written only on convergence.
+ *
+ * Satisfies: RON-FR-731, RON-FR-733, RON-FR-756 | Test: RON-TC-LQR-003, RON-TC-LQG-006
+ */
+ron_fault_t ron_lqr_dare_solve_mat(ron_mat_t a, ron_mat_t b, ron_mat_t q, ron_mat_t r, uint8_t n,
+                                   uint8_t m, uint16_t max_iter, ron_float_t tol, ron_mat_t k_out,
+                                   ron_mat_t p_out);
 
 #endif /* RON_LQR_INTERNAL_H */

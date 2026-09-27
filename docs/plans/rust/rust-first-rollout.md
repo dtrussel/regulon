@@ -106,13 +106,71 @@ Iteration 3 evidence so far:
   - Regions: 84.69%
   - Lines: 88.70%
 
-Remaining Iteration 3 scope:
-- Story FF-02 remains open.
-- Story GS-01 remains open.
-- Coverage is still below the spec target and needs additional branch/test closure work in later slices.
+Story FF-02 current status:
+- Implemented: velocity, acceleration and external feed-forward modes, the
+  independent feed-forward derivative filter (`derivative_filter`, `N_ff` in C),
+  a signed gain, `Pid::step_with_feed_forward`, `Pid::set_feed_forward` and
+  `Pid::last_feed_forward`.
+- Traceable tests cover `RON-TC-FF-001` to `RON-TC-FF-009`.
+
+Story GS-01 current status:
+- Implemented as `gain_sched::GainSchedule<N>` with hard-switch and
+  linear-interpolation modes and optional integral reset on switch.
+- Traceable tests cover `RON-TC-GS-001` to `RON-TC-GS-008`.
+
+Iteration 3 is complete. Coverage was still below the spec target at its
+close and needs branch/test closure work in later slices.
+
+### Iteration 4
+
+Status: scalar modules implemented; matrix/state modules open
+
+Implemented (each module ports the C behaviour and runs the C test IDs):
+- `cascade` (`RON-FR-400` to `RON-FR-406`, `RON-TC-CASC-001` to `012`)
+- `trajectory` trapezoidal and S-curve (`RON-FR-500` to `503`, `510` to `515`,
+  `RON-TC-TRAJ-001` to `010`)
+- `health` (`RON-FR-900` to `905`, `RON-TC-HLTH-001` to `010`)
+- `metrics` (`RON-FR-950` to `954`, `RON-TC-MET-001` to `007`)
+- `autotune` (`RON-FR-800` to `807`, `RON-TC-AT-001` to `008`, Kani harness
+  `RON-TC-AT-007-FV`)
+- `check_traceability.py` now also scans `regulon-rs/`.
+
+Iteration 4 evidence (Linux host):
+- `cargo fmt --check`: passes
+- `cargo test --workspace`: 113 tests pass, `f32` and `double_precision`
+- `cargo clippy -- -D warnings -D clippy::pedantic`: passes
+- `cargo build --target thumbv7em-none-eabihf`: passes
+- `python3 regulon-c/scripts/check_traceability.py`: passes
+- `cargo kani --workspace` (Kani 0.68): first run of the Rust proofs; all
+  three harnesses verify. The first run failed `ron_tc_pid_015_fv` with a
+  "NaN on subtraction" in `pid::core::compute_integral_candidate` (an
+  overflowed increment left `inf - inf` in the compensated-sum carry); the
+  carry is now guarded, and the harness uses the RON-TC-PID-015-FV bounds.
+- `cargo audit` and `cargo llvm-cov` were not available on this host.
+
+Matrix and state-estimation modules (implemented after the scalar batch):
+- `matrix` (const-generic `Matrix<R, C>`, Cholesky), `observer`
+  (`RON-TC-SS-006` to `009`), `kalman` (`RON-TC-KF-001` to `008`),
+  `estimator` (`RON-TC-EST-001` to `003`), `statespace` (`RON-TC-SS-001` to
+  `005`, `009`), `lqr` (`RON-TC-LQR-001` to `009`) and `lqg`
+  (`RON-TC-LQG-001` to `009`).
+- 160 tests pass in both precisions; all three Kani harnesses verify.
+- The filter module then gained the moving average and the biquad cascade
+  (`RON-TC-FILT-008` to `015`, Kani `FILT-009-FV`, `FILT-012-FV`): 169 tests
+  and five Kani harnesses pass. Every SRS module now has a Rust port.
+
+Remaining for parity with C:
+- None for module parity. `.github/workflows/ci_rust.yml` gates the crate
+  (fmt, pedantic clippy in both precisions, tests on stable/beta and both
+  precisions, `thumbv7em-none-eabihf` build, Kani, `cargo audit`, coverage
+  report, traceability).
+- Decision: no `regulon-sys` C-ABI crate. `regulon-rs` is for Rust-native
+  users; C and C++ firmware uses the C11 track.
+- Open: raising Rust coverage to the RON-TC-QUAL-014 target and enforcing
+  it in CI; `rustfmt.toml` and the MISRA Rust deviation record.
 
 ## Notes
 
 - The anti-windup recovery test in the Rust PID suite uses a simple plant surrogate to measure recovery improvement versus no anti-windup. This keeps the test aligned with the intended behavioral contrast while remaining deterministic on the host.
-- Formal verification remains part of the plan, but local execution of Kani is blocked by host-platform support rather than missing code hooks.
+- Kani was unavailable on the original Windows host; it runs on Linux (see Iteration 4 evidence).
 - Iteration 3 is intentionally starting with static-gain feed-forward only. The higher-order feed-forward modes and gain scheduling remain planned work, not implied parity commitments in the current code.

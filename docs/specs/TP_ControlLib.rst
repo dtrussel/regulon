@@ -15,7 +15,7 @@ Test Plan and Specification
 
 **Document ID:** RON-TP-001
 
-**Version:** 1.3.0
+**Version:** 1.6.0
 
 **Status:** Draft
 
@@ -64,6 +64,29 @@ Revision History
      - RON-TC-PID-002 now exercises ``ron_pid_config_from_isa``; added
        RON-TC-TRAJ-009/-010 and RON-TC-EST-001 – EST-003; RON-TC-QUAL-015
        (MC/DC) is enforced in CI; the Rust CI pipeline is marked as planned.
+     - dtrussel
+   * - 1.4.0
+     - 2026-09-26
+     - The Rust track runs every module's test IDs and the Kani harnesses
+       for RON-TC-PID-015-FV, SAFE-011-FV, AT-007-FV, FILT-009-FV and
+       FILT-012-FV; its CI pipeline (``ci_rust.yml``) exists and is
+       described below.
+     - dtrussel
+   * - 1.5.0
+     - 2026-09-26
+     - Added RON-TC-SS-010, RON-TC-LQR-011 and RON-TC-LQG-011: the
+       state-space, LQR and LQG controllers latch runtime faults until
+       cleared (RON-SR-012, SR-013). RON-TC-LQG-006 now checks both gains
+       solved at init (``RON_LQG_GAIN_DARE_BOTH``) against reference values
+       and against the gain a time-varying filter converges to.
+     - dtrussel
+   * - 1.6.0
+     - 2026-09-26
+     - Added RON-TC-SS-011, RON-TC-LQR-012 and RON-TC-LQG-012: the
+       state-space, LQR and LQG controllers apply the configurable safe-state
+       output policy while a fault is latched (RON-SR-011). Added the
+       missing RON-TC-SAFE-008 definition; RON-TC-SAFE-011 states the PID
+       ``dt`` rule.
      - dtrussel
 
 ------------------------------------------------------------------------
@@ -425,35 +448,42 @@ locally on Windows.
          coverage_html/
          cppcheck_results.xml
 
-**Rust track CI pipeline** (planned ``ci_rust.yml``; the workflow does not
-exist yet, see ``docs/plans/rust/rust-first-rollout.md``):
+**Rust track CI pipeline** (``.github/workflows/ci_rust.yml``, run from
+``regulon-rs/`` on every push or pull request touching the crate, the
+specifications or the traceability script):
 
-.. code-block:: yaml
+.. list-table::
+   :header-rows: 1
+   :widths: 22 48 30
 
-   - name: Run tests with nextest (JUnit XML)
-     run: |
-       cargo nextest run --workspace \
-         --profile ci \
-         --test-output immediate-final
-     working-directory: rust/
-
-   - name: Kani formal verification
-     run: cargo kani --workspace
-     working-directory: rust/
-
-   - name: Coverage (llvm-cov)
-     run: |
-       cargo llvm-cov nextest --workspace \
-         --lcov --output-path coverage.lcov \
-         --mcdc
-     working-directory: rust/
-
-   - uses: actions/upload-artifact@v4
-     with:
-       name: test-reports-rust
-       path: |
-         rust/target/nextest/ci/junit.xml
-         rust/coverage.lcov
+   * - Job
+     - Command
+     - Test case
+   * - ``fmt``
+     - ``cargo fmt --all --check``
+     - RON-TC-QUAL-001
+   * - ``clippy`` (single, double)
+     - ``cargo clippy --workspace [--features double_precision] --
+       -D warnings -D clippy::all -D clippy::pedantic``
+     - RON-TC-QUAL-001
+   * - ``test`` (stable single/double, beta single)
+     - ``cargo test --workspace [--features double_precision]``
+     - all Rust unit tests; RON-TC-QUAL-008
+   * - ``cross``
+     - ``cargo build --workspace --release --target thumbv7em-none-eabihf``
+     - RON-TC-QUAL-022
+   * - ``kani``
+     - ``cargo kani --workspace`` (``model-checking/kani-github-action``)
+     - all ``-FV`` cases with a Rust harness
+   * - ``audit``
+     - ``cargo audit``
+     - RON-TC-QUAL-004
+   * - ``coverage``
+     - ``cargo llvm-cov --workspace --lcov`` (reported, not yet enforced)
+     - RON-TC-QUAL-014
+   * - ``traceability``
+     - ``python3 regulon-c/scripts/check_traceability.py``
+     - requirement / test-ID traceability
 
 Coverage Requirements
 ---------------------
@@ -996,15 +1026,15 @@ that verify it. Every requirement **shall** appear in at least one row.
    * - RON-SR-011
      - Safe-state output policy
      - UT
-     - RON-TC-SAFE-008
+     - RON-TC-SAFE-008, RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012
    * - RON-SR-012
      - Fault state latches until cleared
      - UT
-     - RON-TC-SAFE-009
+     - RON-TC-SAFE-009, RON-TC-SS-010, RON-TC-LQR-011, RON-TC-LQG-011
    * - RON-SR-013
      - Fault code register
      - UT
-     - RON-TC-SAFE-010
+     - RON-TC-SAFE-010, RON-TC-SS-010, RON-TC-LQR-011, RON-TC-LQG-011
    * - RON-SR-020
      - NaN / Inf detection in all inputs
      - UT, FV
@@ -1318,6 +1348,12 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-SS-001 – SS-009
      - UT
      - RON-FR-700 – FR-723
+   * - RON-TC-SS-010
+     - UT
+     - RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013
+   * - RON-TC-SS-011
+     - UT
+     - RON-FR-703, RON-SR-011
    * - RON-TC-EST-001 – EST-003
      - UT
      - RON-FR-701, RON-FR-734
@@ -1330,12 +1366,24 @@ Test-to-Requirement Traceability Matrix
    * - RON-TC-LQR-010-FV
      - FV
      - RON-FR-736, RON-FR-737, RON-SR-003
+   * - RON-TC-LQR-011
+     - UT
+     - RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013
+   * - RON-TC-LQR-012
+     - UT
+     - RON-FR-736, RON-SR-011
    * - RON-TC-LQG-001 – LQG-009
      - UT / IT
      - RON-FR-750 – FR-759
    * - RON-TC-LQG-010-FV
      - FV
      - RON-FR-757, RON-FR-759, RON-SR-003
+   * - RON-TC-LQG-011
+     - UT
+     - RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013
+   * - RON-TC-LQG-012
+     - UT
+     - RON-FR-757, RON-SR-011
    * - RON-TC-AT-001 – AT-008
      - UT / IT
      - RON-FR-800 – FR-807
@@ -1683,10 +1731,15 @@ RON-TC-FILT-004 - Filter Coefficient and Input Validation
    * - **Stimulus**
      - Attempt invalid LP1 alpha, invalid moving-average window length,
        unstable biquad denominator, invalid rate limits, and non-finite runtime
-       input.
+       input. Feed a moving average (``M = 3``) and a two-section biquad
+       cascade (unity section, then ``b0`` at the float maximum) a finite
+       input whose output overflows.
    * - **Pass Criterion**
      - Invalid configurations return ``RON_FAULT_CONFIG_INVALID`` and
-       non-finite runtime input latches ``RON_FAULT_INPUT_NAN``.
+       non-finite runtime input latches ``RON_FAULT_INPUT_NAN``. The
+       overflowing step latches ``RON_FAULT_OUTPUT_NAN``, returns the previous
+       output, and leaves the moving-average buffer, index, count and running
+       sum, and every biquad section's ``w1`` / ``w2``, exactly as before.
 
 RON-TC-FILT-005 — First-Order LP Filter Step Response
 ------------------------------------------------------
@@ -2472,9 +2525,18 @@ RON-TC-TRAJ-007 - Finished Flag
      - Valid trapezoidal and S-curve configurations.
    * - **Stimulus**
      - Command zero-distance and non-zero-distance moves for both generators.
+       Then, with valid finite limits, command a move whose integration
+       overflows (a target near the float range limit with a long ``dt``),
+       and poison the acceleration / velocity (and, for the S-curve, the jerk)
+       state directly so each setpoint is in turn the first non-finite one.
    * - **Pass Criterion**
      - ``finished`` is true for zero-distance commands and false while a
        non-zero move is active; it becomes true again at target convergence.
+       A step whose computed setpoint is not finite returns
+       ``RON_FAULT_OUTPUT_NAN``, latches it in ``fault_code`` with status
+       ``RON_STATUS_FAULT``, never reports ``finished``, and keeps the last
+       finite setpoints in both the state and the outputs; later steps return
+       the latched fault.
 
 RON-TC-TRAJ-008 - Hold Mode
 ----------------------------
@@ -2730,25 +2792,31 @@ RON-TC-KF-008 — Bounded Storage, Defensive Paths, Finite Checks
      - A maximum-dimension configuration
        (``n = RON_KF_MAX_STATES``, ``m = RON_KF_MAX_MEASUREMENTS``,
        ``p = RON_KF_MAX_INPUTS``) using only caller-owned storage in a
-       single ``ron_kf_t``.  A second scalar configuration with
-       ``A = 1.0e30`` to provoke numeric overflow.
+       single ``ron_kf_t``.  Scalar overflow configurations: ``A = 1.0e30``
+       with ``x0 = 0`` (covariance overflows on predict); ``A = 10`` with
+       ``x0`` at the float maximum (estimate overflows on predict);
+       ``x0`` at the negative float maximum with ``z`` at the positive one
+       (estimate overflows on update); steady-state gain ``K_inf = 1.0e30``
+       with ``P0`` at the float maximum (covariance overflows on update).
    * - **Stimulus**
      - Run five predict–update cycles on the max-dimension instance.  Call
        every public entry point with ``NULL`` arguments, with an
        uninitialised instance, with a control vector containing ``NaN``,
-       and with a measurement vector containing ``+inf``.  Drive the
-       overflow instance through repeated predicts until the estimate or
-       covariance becomes non-finite, then call ``ron_kf_update`` with a
-       finite measurement.
+       and with a measurement vector containing ``+inf``.  Drive the first
+       overflow instance through repeated predicts until the covariance
+       would become non-finite, then call ``ron_kf_update`` with a finite
+       measurement; run one predict or update on each other overflow
+       instance.
    * - **Pass Criterion**
      - The max-dimension run completes with finite outputs and no heap
        allocation.  Null-argument calls return ``RON_FAULT_NULL_POINTER``;
        uninitialised-instance calls return ``RON_FAULT_CONFIG_INVALID``;
        non-finite control/measurement inputs return
        ``RON_FAULT_INPUT_NAN``; a dropout call with ``z = NULL`` returns
-       ``RON_FAULT_NONE``.  The overflow scenario yields
-       ``RON_FAULT_OUTPUT_NAN`` from both ``ron_kf_predict`` and
-       ``ron_kf_update`` once the state becomes non-finite.
+       ``RON_FAULT_NONE``.  Every overflowing predict or update returns
+       ``RON_FAULT_OUTPUT_NAN`` and leaves the estimate and covariance
+       exactly as they were (finite); the update that follows the rejected
+       predict returns ``RON_FAULT_NONE`` with a finite state.
 
 RON-TC-KF-008-FV — No Heap Allocation in Kalman (Formal)
 ---------------------------------------------------------
@@ -2990,13 +3058,80 @@ RON-TC-SS-009 — Compile-Time Bounds, Validation, and Storage
        dimensions, invalid source enum, non-finite gains / limits,
        embedded-estimator dimension mismatch and invalid embedded config;
        reject non-positive ``dt`` and non-finite ``r``; drive a controller
-       and an observer into numeric overflow.
+       (without and with integral augmentation) and an observer into numeric
+       overflow, then step the integrating controller once with a finite
+       state.
    * - **Pass Criterion**
      - Max-dimension runs complete with finite outputs and no heap.
        Invalid configurations return ``RON_FAULT_CONFIG_INVALID``; null
        arguments ``RON_FAULT_NULL_POINTER``; non-finite ``r`` / non-positive
        ``dt`` ``RON_FAULT_INPUT_NAN``; overflow yields
-       ``RON_FAULT_OUTPUT_NAN``.
+       ``RON_FAULT_OUTPUT_NAN``, and an overflowing observer step leaves the
+       previous finite estimate in place. The rejected controller step leaves
+       the integral and output history unchanged; after
+       ``ron_ss_fault_clear()`` the following finite step advances the
+       integral by exactly one ``Ki_aug * dt * e``.
+
+------------------------------------------------------------------------
+
+RON-TC-SS-010 — Fault Latch and Explicit Clear
+----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-703, RON-SR-010, RON-SR-012, RON-SR-013
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = 1``, ``K = 1``, ``x_ext = 1``, rate
+       limiting disabled.
+   * - **Stimulus**
+     - Step once with finite inputs; step with a non-finite reference;
+       step again with finite inputs; call ``ron_ss_fault_clear()`` and step;
+       latch a fault again and call ``ron_ss_reset()``; call
+       ``ron_ss_fault_clear()`` with ``NULL`` and on an uninitialised
+       instance; step with a ``NULL`` output pointer.
+   * - **Pass Criterion**
+     - The faulting step returns ``RON_FAULT_INPUT_NAN``, sets it in the
+       fault register, writes the last output to ``u`` and
+       ``RON_STATUS_FAULT`` to ``status``, and leaves the output history
+       unchanged. The following finite step returns the same latched fault
+       with the same held output. After ``ron_ss_fault_clear()`` (or
+       ``ron_ss_reset()``) the next finite step returns ``RON_FAULT_NONE``
+       without ``RON_STATUS_FAULT``. ``ron_ss_fault_clear()`` returns
+       ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
+       / uninitialised. A ``NULL``-argument step returns
+       ``RON_FAULT_NULL_POINTER`` without latching.
+
+------------------------------------------------------------------------
+
+RON-TC-SS-011 — Safe-State Output Policy
+----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-703, RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = 1``, ``K = 1``, ``x_ext = 1``,
+       ``u_min = -5``, ``u_max = 5``.
+   * - **Stimulus**
+     - For each ``safe_policy`` (``HOLD_LAST``, ``ZERO``, ``CONSTANT`` with a
+       ``safe_value`` beyond ``u_max``): step once with finite inputs, then
+       latch a fault with a non-finite reference and step again. Initialise
+       with a non-finite ``safe_value`` and with an out-of-range
+       ``safe_policy``.
+   * - **Pass Criterion**
+     - While latched, ``u`` is the last output, ``0`` or ``u_max`` (the
+       clamped ``safe_value``) respectively, and the output history and integral
+       is unchanged, so after ``ron_ss_fault_clear()`` the next step
+       rate-limits from the last committed output. The invalid
+       configurations return ``RON_FAULT_CONFIG_INVALID``.
 
 ------------------------------------------------------------------------
 
@@ -3195,10 +3330,17 @@ RON-TC-LQR-006 — Fault Detection: Null Pointer and Uninitialised
        (b) Call ``ron_lqr_step`` with ``lqr == NULL``.
        (c) Call ``ron_lqr_step`` on an instance that has not been initialised.
        (d) Call ``ron_lqr_step`` with ``u == NULL``.
+       (e) With integral augmentation enabled, call ``ron_lqr_step`` with a
+           gain and external state whose product overflows, then call
+           ``ron_lqr_fault_clear()`` and step again with a finite state.
    * - **Pass Criterion**
      - (a) and (b) return ``RON_FAULT_NULL_POINTER``.
        (c) returns ``RON_FAULT_CONFIG_INVALID``.
        (d) returns ``RON_FAULT_NULL_POINTER``. No crash in any case.
+       (e) The overflowing step returns ``RON_FAULT_OUTPUT_NAN`` and leaves
+       the integral and output history unchanged; after the clear, the finite
+       step returns ``RON_FAULT_NONE`` and advances the integral by exactly
+       one ``Ki_aug * dt * e``.
 
 RON-TC-LQR-007 — Integral Augmentation: Steady-State Tracking
 --------------------------------------------------------------
@@ -3282,6 +3424,67 @@ RON-TC-LQR-010-FV — Output Bounded and No Heap (Formal)
        No heap allocation (``malloc`` / ``calloc`` / ``free``) is reachable.
    * - **Pass Criterion**
      - CBMC reports no property violations within the unwind bound.
+
+------------------------------------------------------------------------
+
+RON-TC-LQR-011 — Fault Latch and Explicit Clear
+-----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736, RON-SR-010, RON-SR-012, RON-SR-013
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = m = 1``, ``K = 1``, ``x_ext = 1``,
+       rate limiting disabled.
+   * - **Stimulus**
+     - Step once with finite inputs; step with a non-finite reference;
+       step again with finite inputs; call ``ron_lqr_fault_clear()`` and step;
+       latch a fault again and call ``ron_lqr_reset()``; call
+       ``ron_lqr_fault_clear()`` with ``NULL`` and on an uninitialised
+       instance; step with a ``NULL`` output pointer.
+   * - **Pass Criterion**
+     - The faulting step returns ``RON_FAULT_INPUT_NAN``, sets it in the
+       fault register, writes the last output vector to ``u`` and
+       ``RON_STATUS_FAULT`` to ``status``, and leaves the output history
+       unchanged. The following finite step returns the same latched fault
+       with the same held output. After ``ron_lqr_fault_clear()`` (or
+       ``ron_lqr_reset()``) the next finite step returns ``RON_FAULT_NONE``
+       without ``RON_STATUS_FAULT``. ``ron_lqr_fault_clear()`` returns
+       ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
+       / uninitialised. A ``NULL``-argument step returns
+       ``RON_FAULT_NULL_POINTER`` without latching.
+
+------------------------------------------------------------------------
+
+RON-TC-LQR-012 — Safe-State Output Policy
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-736, RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - External-source controller, ``n = m = 1``, ``K = 1``,
+       ``x_ext = 1``, ``u_min = -5``, ``u_max = 5``.
+   * - **Stimulus**
+     - For each ``safe_policy`` (``HOLD_LAST``, ``ZERO``, ``CONSTANT`` with a
+       ``safe_value`` beyond ``u_max``): step once with finite inputs, then
+       latch a fault with a non-finite reference and step again. Initialise
+       with a non-finite ``safe_value`` and with an out-of-range
+       ``safe_policy``.
+   * - **Pass Criterion**
+     - While latched, ``u[0]`` is the last output, ``0`` or ``u_max`` (the
+       clamped ``safe_value``) respectively, and the output history and integral
+       is unchanged, so after ``ron_lqr_fault_clear()`` the next step
+       rate-limits from the last committed output. The invalid
+       configurations return ``RON_FAULT_CONFIG_INVALID``.
 
 ------------------------------------------------------------------------
 
@@ -3393,16 +3596,31 @@ RON-TC-LQG-006 — DARE at Init Time (Both Gains)
    * - **Level**
      - UT / ENV-HOST
    * - **Preconditions**
-     - Double-integrator system with noise covariances
-       ``Q_noise = diag(0.01, 0.01)``, ``R_noise = {{1.0}}``,
-       ``Q_cost = diag(1.0, 1.0)``, ``R_cost = {{1.0}}``.
-       Gain mode = DARE.
+     - Double-integrator system (``A = {{1, 1}, {0, 1}}``, ``B = {0, 1}^T``,
+       ``H = {1, 0}``) with noise covariances ``Q_noise = diag(0.01, 0.01)``,
+       ``R_noise = {{1.0}}`` and costs ``Q_cost = diag(1.0, 1.0)``,
+       ``R_cost = {{1.0}}``; ``dare_tol = 1e-6``. Reference values, from an
+       offline double-precision Riccati iteration: LQR gain
+       ``K = {0.422082, 1.243929}``; steady-state Kalman gain
+       ``K_f = {0.368686, 0.079455}^T``.
    * - **Stimulus**
-     - Call ``ron_lqg_init``.
+     - (a) Call ``ron_lqg_init`` in ``RON_LQG_GAIN_DARE_BOTH`` mode.
+       (b) Run a time-varying filter (``RON_LQG_GAIN_DARE``, no steady-state
+           gain) through 200 predict/update cycles and form its gain
+           ``P H^T (H P H^T + R_noise)^-1`` from the predicted covariance.
+       (c) In ``RON_LQG_GAIN_DARE`` mode with ``use_kf_steady_state = true``,
+           supply ``K_f_inf``.
+       (d) In ``RON_LQG_GAIN_DARE_BOTH`` mode, make ``H``, ``Q_noise`` or
+           ``R_noise`` non-finite; make ``R_noise + H Q_noise H^T``
+           indefinite; and, on a scalar plant with ``dare_tol = 10``, let the
+           estimator DARE stop on an iterate for which
+           ``H P H^T + R_noise`` is indefinite.
    * - **Pass Criterion**
-     - Returns ``RON_FAULT_NONE``. ``K_solved`` matches the known LQR gain
-       within ``1e-4``. Kalman filter is initialised with the converged
-       steady-state gain when ``use_kf_steady_state = true``.
+     - (a) Returns ``RON_FAULT_NONE``; ``K_solved`` and the filter's
+       ``K_inf`` match the reference values within ``1e-3``, and the filter
+       runs in steady-state mode. (b) The time-varying gain matches the
+       solved ``K_inf`` within ``1e-3``. (c) The supplied ``K_f_inf`` is used
+       unchanged. (d) Each case returns ``RON_FAULT_CONFIG_INVALID``.
 
 RON-TC-LQG-007 — Separation Principle
 --------------------------------------
@@ -3485,6 +3703,67 @@ RON-TC-LQG-010-FV — No Heap and Output Bounded (Formal)
 
 ------------------------------------------------------------------------
 
+RON-TC-LQG-011 — Fault Latch and Explicit Clear
+-----------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757, RON-SR-010, RON-SR-012, RON-SR-013
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Double-integrator LQG with pre-computed ``K``, ``Kr = 2``, ``x0 = 0``,
+       rate limiting disabled.
+   * - **Stimulus**
+     - Step once with finite inputs; step with a non-finite reference;
+       step again with finite inputs; call ``ron_lqg_fault_clear()`` and step;
+       latch a fault again and call ``ron_lqg_reset()``; call
+       ``ron_lqg_fault_clear()`` with ``NULL`` and on an uninitialised
+       instance; step with a ``NULL`` output pointer.
+   * - **Pass Criterion**
+     - The faulting step returns ``RON_FAULT_INPUT_NAN``, sets it in the
+       fault register, writes the last output vector to ``u`` and
+       ``RON_STATUS_FAULT`` to ``status``, and leaves the output history
+       unchanged. The following finite step returns the same latched fault
+       with the same held output. After ``ron_lqg_fault_clear()`` (or
+       ``ron_lqg_reset()``) the next finite step returns ``RON_FAULT_NONE``
+       without ``RON_STATUS_FAULT``. ``ron_lqg_fault_clear()`` returns
+       ``RON_FAULT_NULL_POINTER`` / ``RON_FAULT_CONFIG_INVALID`` for ``NULL``
+       / uninitialised. A ``NULL``-argument step returns
+       ``RON_FAULT_NULL_POINTER`` without latching.
+
+------------------------------------------------------------------------
+
+RON-TC-LQG-012 — Safe-State Output Policy
+-----------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-FR-757, RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Preconditions**
+     - Double-integrator LQG with pre-computed ``K``, ``Kr = 2``,
+       ``u_min = -5``, ``u_max = 5``.
+   * - **Stimulus**
+     - For each ``safe_policy`` (``HOLD_LAST``, ``ZERO``, ``CONSTANT`` with a
+       ``safe_value`` beyond ``u_max``): step once with finite inputs, then
+       latch a fault with a non-finite reference and step again. Initialise
+       with a non-finite ``safe_value`` and with an out-of-range
+       ``safe_policy``.
+   * - **Pass Criterion**
+     - While latched, ``u[0]`` is the last output, ``0`` or ``u_max`` (the
+       clamped ``safe_value``) respectively, and the output history
+       is unchanged, so after ``ron_lqg_fault_clear()`` the next step
+       rate-limits from the last committed output. The invalid
+       configurations return ``RON_FAULT_CONFIG_INVALID``.
+
+------------------------------------------------------------------------
+
 Safety and Fault Tests (RON-TC-SAFE-xxx)
 ==========================================
 
@@ -3563,6 +3842,30 @@ RON-TC-SAFE-007 — All Four Fault Conditions Trigger FAULT Flag
        Safe-state output applied. Fault persists after next ``ron_pid_step``
        without a clear.
 
+RON-TC-SAFE-008 — Safe-State Output Policy
+------------------------------------------
+
+.. list-table::
+   :widths: 20 80
+
+   * - **Requirement**
+     - RON-SR-011
+   * - **Level**
+     - UT / ENV-HOST
+   * - **Sub-cases**
+     - | (a) ``RON_SAFE_HOLD_LAST``: the last output.
+       | (b) ``RON_SAFE_ZERO``: ``0``.
+       | (c) ``RON_SAFE_CONSTANT`` with ``safe_value`` beyond the output
+         limits: the clamped ``safe_value``.
+       | (d) A policy corrupted after init: the last output.
+   * - **Pass Criterion**
+     - While a fault is latched the reported output (C: ``u`` of the step;
+       Rust: ``Pid::output``) follows the policy, clamped to
+       ``[u_min, u_max]``, and the output history (C: ``u_sat_prev``; Rust:
+       ``Pid::last_output``) is not overwritten.
+
+------------------------------------------------------------------------
+
 RON-TC-SAFE-009 — Fault Latch and Explicit Clear
 -------------------------------------------------
 
@@ -3596,7 +3899,10 @@ RON-TC-SAFE-011 — NaN/Inf Detection in All Inputs
        across PID, Kalman, state-space, and observer modules.
    * - **Pass Criterion**
      - ``RON_FAULT_INPUT_NAN`` (or module equivalent) set in all cases.
-       Safe-state output applied. No crash or memory corruption.
+       Safe-state output applied. No crash or memory corruption. For the
+       PID, a non-positive or non-finite ``dt`` is an argument error instead
+       (C: ``RON_FAULT_CONFIG_INVALID``; Rust: ``RonError::InvalidArgument``)
+       and is not latched.
 
 RON-TC-SAFE-012 — Integral Round-Off Drift Over Extended Run
 -------------------------------------------------------------
@@ -4729,4 +5035,4 @@ Open Items
 
 ------------------------------------------------------------------------
 
-*End of Document — RON-TP-001 v1.1.0*
+*End of Document — RON-TP-001 v1.6.0*

@@ -3,7 +3,8 @@
  * @brief    Internal scalar helpers shared by every module (no allocation).
  * @module   ron_util
  * @doc      RON-IS-001
- * @req      RON-SR-020, RON-FR-022, RON-FR-026, RON-FR-500, RON-FR-603
+ * @req      RON-SR-011, RON-SR-020, RON-FR-022, RON-FR-026, RON-FR-500,
+ *           RON-FR-603
  * @version  1.0.0
  * SPDX-License-Identifier: MIT
  *
@@ -19,7 +20,7 @@
 #ifndef RON_UTIL_INTERNAL_H
 #define RON_UTIL_INTERNAL_H
 
-#include "ron/ron_platform.h"
+#include "ron/ron_pid_types.h" /* ron_safe_policy_t (pulls in ron_platform.h) */
 
 /** Pi in the configured precision (no <math.h> dependency). */
 #define RON_UTIL_PI RON_FLOAT_C(3.14159265358979323846)
@@ -64,5 +65,23 @@ ron_float_t ron_util_sqrt(ron_float_t value);
  */
 /* Satisfies: RON-FR-503 | Test: RON-TC-TRAJ-004 */
 ron_float_t ron_util_sign_nonzero(ron_float_t value);
+
+/**
+ * @brief True iff policy is one of the ron_safe_policy_t values.
+ *
+ * Satisfies: RON-SR-011 | Test: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012
+ */
+/* Satisfies: RON-SR-011 | Test: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012 */
+bool ron_util_safe_policy_valid(ron_safe_policy_t policy);
+
+/**
+ * @brief Safe-state output for one channel (RON-SR-011): the last output,
+ * zero, or safe_value by policy, clamped to [lo, hi].
+ *
+ * Satisfies: RON-SR-011 | Test: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012
+ */
+/* Satisfies: RON-SR-011 | Test: RON-TC-SS-011, RON-TC-LQR-012, RON-TC-LQG-012 */
+ron_float_t ron_util_safe_output(ron_safe_policy_t policy, ron_float_t last, ron_float_t safe_value,
+                                 ron_float_t lo, ron_float_t hi);
 
 #endif /* RON_UTIL_INTERNAL_H */

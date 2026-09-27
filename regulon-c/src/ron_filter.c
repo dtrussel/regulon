@@ -266,14 +266,29 @@ static ron_float_t filter_lp1_apply(ron_lp1_t *f, ron_float_t x)
     return (f->cfg.alpha * x) + ((RON_FLOAT_C(1.0) - f->cfg.alpha) * f->state.y_prev);
 }
 
-/* Satisfies: RON-FR-115, RON-FR-117 | Test: RON-TC-FILT-008, RON-TC-FILT-010 */
-static ron_float_t filter_ma_apply(ron_ma_t *f, ron_float_t x)
+/*
+ * Boxcar mean with x replacing the oldest sample.  Nothing is stored: the
+ * advanced running sum is returned through sum_next for filter_ma_commit(),
+ * so a rejected output leaves the window untouched.
+ */
+/* Satisfies: RON-FR-115, RON-FR-117 | Test: RON-TC-FILT-004, RON-TC-FILT-008, RON-TC-FILT-010 */
+static ron_float_t filter_ma_apply(const ron_ma_t *f, ron_float_t x, ron_float_t *sum_next)
 {
     ron_float_t oldest;
     ron_float_t denominator;
 
-    oldest                     = f->state.buf[f->state.idx];
-    f->state.sum               = (f->state.sum + x) - oldest;
+    oldest      = f->state.buf[f->state.idx];
+    *sum_next   = (f->state.sum + x) - oldest;
+    denominator = (ron_float_t) f->cfg.M;
+
+    return *sum_next / denominator;
+}
+
+/* Store an accepted sample: replace the oldest entry and advance the ring. */
+/* Satisfies: RON-FR-115, RON-FR-117 | Test: RON-TC-FILT-008, RON-TC-FILT-010 */
+static void filter_ma_commit(ron_ma_t *f, ron_float_t x, ron_float_t sum_next)
+{
+    f->state.sum               = sum_next;
     f->state.buf[f->state.idx] = x;
     f->state.idx++;
     if (f->state.idx >= f->cfg.M) {
@@ -282,13 +297,12 @@ static ron_float_t filter_ma_apply(ron_ma_t *f, ron_float_t x)
     if (f->state.count < f->cfg.M) {
         f->state.count++;
     }
-    denominator = (ron_float_t) f->cfg.M;
-
-    return f->state.sum / denominator;
 }
 
+/* One direct-form II section; its new w0 is returned through w0_next. */
 /* Satisfies: RON-FR-120 | Test: RON-TC-FILT-011 */
-static ron_float_t filter_biquad_section_step(ron_biquad_t *f, uint8_t idx, ron_float_t input)
+static ron_float_t filter_biquad_section_step(const ron_biquad_t *f, uint8_t idx, ron_float_t input,
+                                              ron_float_t *w0_next)
 {
     const ron_biquad_section_t *section;
     ron_float_t w0;
@@ -298,14 +312,18 @@ static ron_float_t filter_biquad_section_step(ron_biquad_t *f, uint8_t idx, ron_
     w0      = (input - (section->a1 * f->state.w1[idx])) - (section->a2 * f->state.w2[idx]);
     output =
         ((section->b0 * w0) + (section->b1 * f->state.w1[idx])) + (section->b2 * f->state.w2[idx]);
-    f->state.w2[idx] = f->state.w1[idx];
-    f->state.w1[idx] = w0;
+    *w0_next = w0;
 
     return output;
 }
 
-/* Satisfies: RON-FR-120, RON-FR-121 | Test: RON-TC-FILT-011, RON-TC-FILT-012 */
-static ron_float_t filter_biquad_apply(ron_biquad_t *f, ron_float_t x)
+/*
+ * Run the cascade without storing: each section's new w0 lands in w0_next
+ * for filter_biquad_commit(), so a rejected output leaves every section's
+ * delay line untouched.
+ */
+/* Satisfies: RON-FR-120, RON-FR-121 | Test: RON-TC-FILT-004, RON-TC-FILT-011, RON-TC-FILT-012 */
+static ron_float_t filter_biquad_apply(const ron_biquad_t *f, ron_float_t x, ron_float_t *w0_next)
 {
     ron_float_t output;
     uint8_t idx;
@@ -313,11 +331,25 @@ static ron_float_t filter_biquad_apply(ron_biquad_t *f, ron_float_t x)
     output = x;
     idx    = 0U;
     while (idx < f->cfg.n_sections) {
-        output = filter_biquad_section_step(f, idx, output);
+        output = filter_biquad_section_step(f, idx, output, &w0_next[idx]);
         idx++;
     }
 
     return output;
+}
+
+/* Shift every section's delay line by one accepted sample. */
+/* Satisfies: RON-FR-120, RON-FR-121 | Test: RON-TC-FILT-011, RON-TC-FILT-012 */
+static void filter_biquad_commit(ron_biquad_t *f, const ron_float_t *w0_next)
+{
+    uint8_t idx;
+
+    idx = 0U;
+    while (idx < f->cfg.n_sections) {
+        f->state.w2[idx] = f->state.w1[idx];
+        f->state.w1[idx] = w0_next[idx];
+        idx++;
+    }
 }
 
 /* Satisfies: RON-FR-102 | Test: RON-TC-FILT-003 */
@@ -488,10 +520,11 @@ ron_fault_t ron_ma_reset(ron_ma_t *f)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-115, RON-FR-117 | Test: RON-TC-FILT-008, RON-TC-FILT-010 */
+/* Satisfies: RON-FR-115, RON-FR-117 | Test: RON-TC-FILT-004, RON-TC-FILT-008, RON-TC-FILT-010 */
 ron_fault_t ron_ma_step(ron_ma_t *f, ron_float_t x, ron_float_t *y)
 {
     ron_float_t y_new;
+    ron_float_t sum_next;
 
     if ((f == NULL) || (y == NULL)) {
         return RON_FAULT_NULL_POINTER;
@@ -509,12 +542,13 @@ ron_fault_t ron_ma_step(ron_ma_t *f, ron_float_t x, ron_float_t *y)
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
 
-    y_new = filter_ma_apply(f, x);
+    y_new = filter_ma_apply(f, x, &sum_next);
     if (!ron_util_isfinite(y_new)) {
         f->state.fault_code = RON_FAULT_OUTPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
+    filter_ma_commit(f, x, sum_next);
     f->state.y_prev = y_new;
     f->state.status = RON_STATUS_OK;
     *y              = y_new;
@@ -566,10 +600,11 @@ ron_fault_t ron_biquad_reset(ron_biquad_t *f)
     return RON_FAULT_NONE;
 }
 
-/* Satisfies: RON-FR-120, RON-FR-121 | Test: RON-TC-FILT-011, RON-TC-FILT-012 */
+/* Satisfies: RON-FR-120, RON-FR-121 | Test: RON-TC-FILT-004, RON-TC-FILT-011, RON-TC-FILT-012 */
 ron_fault_t ron_biquad_step(ron_biquad_t *f, ron_float_t x, ron_float_t *y)
 {
     ron_float_t y_new;
+    ron_float_t w0_next[RON_BIQUAD_MAX_SECTIONS];
 
     if ((f == NULL) || (y == NULL)) {
         return RON_FAULT_NULL_POINTER;
@@ -587,12 +622,13 @@ ron_fault_t ron_biquad_step(ron_biquad_t *f, ron_float_t x, ron_float_t *y)
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
 
-    y_new = filter_biquad_apply(f, x);
+    y_new = filter_biquad_apply(f, x, w0_next);
     if (!ron_util_isfinite(y_new)) {
         f->state.fault_code = RON_FAULT_OUTPUT_NAN;
         *y                  = f->state.y_prev;
         return filter_step_fault(f->state.fault_code, &f->state.status);
     }
+    filter_biquad_commit(f, w0_next);
     f->state.y_prev = y_new;
     f->state.status = RON_STATUS_OK;
     *y              = y_new;

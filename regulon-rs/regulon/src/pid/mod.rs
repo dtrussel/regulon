@@ -16,6 +16,9 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod feed_forward_tests;
+
 #[cfg(kani)]
 mod proofs;
 
@@ -92,16 +95,90 @@ impl Pid {
 
     /// Executes one PID control step.
     ///
+    /// While a fault is latched the step returns it without running, and
+    /// [`Pid::output`] gives the safe-state output to apply.
+    ///
     /// # Errors
     ///
-    /// Returns an error when an input is invalid or when the controller faults.
+    /// Returns [`RonError::Fault`] with the latched bits when a fault is
+    /// latched or this step latches one (a non-finite setpoint or
+    /// measurement, a non-finite output, integral overflow), and
+    /// [`RonError::InvalidArgument`] without latching when `dt` is not
+    /// positive and finite.
     pub fn step(
         &mut self,
         setpoint: RonFloat,
         measurement: RonFloat,
         dt: RonFloat,
     ) -> Result<(RonFloat, PidStatus), RonError> {
-        match core::step(self.config, &mut self.state, setpoint, measurement, dt) {
+        self.run_step(setpoint, measurement, dt, None)
+    }
+
+    /// Executes one PID control step with a caller-supplied feed-forward term.
+    ///
+    /// Only valid when the configured feed-forward mode is
+    /// [`FeedForwardMode::External`]; `external_feed_forward` is added to the
+    /// PID sum ahead of saturation and rate limiting.
+    ///
+    /// **Satisfies:** RON-FR-200, RON-FR-201, RON-FR-203
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RonError::ConfigInvalid`] when the external mode is not
+    /// configured, [`RonError::InvalidArgument`] when `external_feed_forward`
+    /// is non-finite, and otherwise the same errors as [`Pid::step`].
+    pub fn step_with_feed_forward(
+        &mut self,
+        setpoint: RonFloat,
+        measurement: RonFloat,
+        dt: RonFloat,
+        external_feed_forward: RonFloat,
+    ) -> Result<(RonFloat, PidStatus), RonError> {
+        self.run_step(setpoint, measurement, dt, Some(external_feed_forward))
+    }
+
+    /// Replaces the feed-forward configuration and clears the feed-forward
+    /// filter state. A rejected configuration leaves the controller unchanged.
+    ///
+    /// **Satisfies:** RON-FR-201, RON-FR-202, RON-FR-204
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the feed-forward configuration is invalid.
+    pub fn set_feed_forward(&mut self, feed_forward: FeedForwardConfig) -> Result<(), RonError> {
+        feed_forward.validate()?;
+        self.config.feed_forward = feed_forward;
+        self.state.feed_forward_prev = 0.0;
+        self.state.ff_setpoint_prev = 0.0;
+        self.state.ff_velocity_prev = 0.0;
+        self.state.ff_acceleration_prev = 0.0;
+        self.state.status &= !PidStatus::FEED_FORWARD_ACTIVE;
+        Ok(())
+    }
+
+    /// Returns the feed-forward contribution applied by the last step.
+    ///
+    /// **Satisfies:** RON-FR-205
+    #[must_use]
+    pub const fn last_feed_forward(&self) -> RonFloat {
+        self.state.feed_forward_prev
+    }
+
+    fn run_step(
+        &mut self,
+        setpoint: RonFloat,
+        measurement: RonFloat,
+        dt: RonFloat,
+        external_feed_forward: Option<RonFloat>,
+    ) -> Result<(RonFloat, PidStatus), RonError> {
+        match core::step(
+            self.config,
+            &mut self.state,
+            setpoint,
+            measurement,
+            dt,
+            external_feed_forward,
+        ) {
             Ok(result) => Ok(result),
             Err(RonError::Fault(fault)) => {
                 self.state.fault |= fault;
@@ -235,6 +312,20 @@ impl Pid {
     #[must_use]
     pub const fn last_output(&self) -> RonFloat {
         self.state.output_prev
+    }
+
+    /// Returns the output to apply: the last output, or while a fault is
+    /// latched the safe-state output selected by `safe_policy` (clamped to the
+    /// output limits). The output history itself is never overwritten.
+    ///
+    /// **Satisfies:** RON-SR-011
+    #[must_use]
+    pub fn output(&self) -> RonFloat {
+        if self.state.fault.is_none() {
+            self.state.output_prev
+        } else {
+            core::safe_state_output(self.config, self.state.output_prev)
+        }
     }
 
     /// Returns the last filtered derivative value.

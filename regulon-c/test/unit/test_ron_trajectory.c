@@ -304,6 +304,115 @@ void test_ron_tc_traj_007(void)
     TEST_ASSERT_TRUE(finished);
 }
 
+/*
+ * RON-TC-TRAJ-007 | RON-FR-512 — a move whose integration overflows never
+ * finishes: the step returns RON_FAULT_OUTPUT_NAN, the fault latches, and the
+ * state and outputs keep the last finite setpoints.  The limits are valid
+ * (finite, positive); only the far target and the long dt make the position
+ * overflow.  The remaining cases poison the state directly so each kinematic
+ * term is, in turn, the first non-finite one.
+ */
+void test_ron_tc_traj_007_output_nan(void)
+{
+    const ron_float_t huge_dt          = RON_FLOAT_MAX / RON_FLOAT_C(1.0e10);
+    const ron_float_t scurve_dt        = RON_FLOAT_C(5.0e12);
+    const ron_float_t scurve_start_mag = RON_FLOAT_MAX * RON_FLOAT_C(0.5);
+    ron_trap_config_t trap_cfg;
+    ron_scurve_config_t scurve_cfg;
+    ron_trap_t trap;
+    ron_scurve_t scurve;
+    ron_float_t pos = RON_FLOAT_C(0.0);
+    ron_float_t vel = RON_FLOAT_C(0.0);
+    ron_float_t acc = RON_FLOAT_C(0.0);
+    ron_float_t jrk = RON_FLOAT_C(0.0);
+    bool finished   = true;
+
+    /* Trapezoid: v_peak = sqrt(a_max * distance) is finite, but v_peak * dt
+     * is not, so the position alone overflows. */
+    trap_cfg.v_max = RON_FLOAT_MAX;
+    trap_cfg.a_max = RON_FLOAT_C(1.0);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_trap_init(&trap, &trap_cfg, RON_FLOAT_C(0.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_trap_set_target(&trap, RON_FLOAT_MAX));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN,
+                            ron_trap_step(&trap, huge_dt, &pos, &vel, &acc, &finished));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, trap.state.fault_code);
+    TEST_ASSERT_EQUAL_INT(RON_STATUS_FAULT, (int) trap.state.status);
+    TEST_ASSERT_FALSE(finished);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), pos);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), vel);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), acc);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), trap.state.pos);
+    /* Latched: a normal step keeps failing and keeps the finite hold. */
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN,
+                            ron_trap_step(&trap, TEST_TRAJ_DT, &pos, &vel, &acc, &finished));
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), pos);
+    TEST_ASSERT_FALSE(finished);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_trap_set_target(&trap, RON_FLOAT_C(1.0)));
+
+    /* Trapezoid, acceleration first non-finite (NaN direction). */
+    trap_cfg = test_traj_trap_cfg();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_trap_init(&trap, &trap_cfg, RON_FLOAT_C(0.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_trap_set_target(&trap, RON_FLOAT_C(10.0)));
+    trap.state.direction = test_traj_make_nan();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN,
+                            ron_trap_step(&trap, TEST_TRAJ_DT, &pos, &vel, &acc, &finished));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, trap.state.fault_code);
+
+    /* Trapezoid, velocity first non-finite (acceleration stays finite). */
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_trap_init(&trap, &trap_cfg, RON_FLOAT_C(0.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_trap_set_target(&trap, RON_FLOAT_C(10.0)));
+    trap.state.vel = test_traj_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN,
+                            ron_trap_step(&trap, TEST_TRAJ_DT, &pos, &vel, &acc, &finished));
+    TEST_ASSERT_EQUAL_UINT8(RON_STATUS_FAULT, (uint8_t) trap.state.status);
+
+    /* S-curve: the start-to-target distance overflows, so the cruise phase is
+     * unbounded, and cruising at v_max for dt overflows the position alone
+     * (dt is kept below cbrt(max) so the h^2 / h^3 terms stay finite). */
+    scurve_cfg.v_max = RON_FLOAT_MAX / RON_FLOAT_C(1.0e12);
+    scurve_cfg.a_max = scurve_cfg.v_max;
+    scurve_cfg.j_max = scurve_cfg.v_max;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE,
+                            ron_scurve_init(&scurve, &scurve_cfg, -scurve_start_mag));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_set_target(&scurve, RON_FLOAT_MAX));
+    finished = true;
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_scurve_step(&scurve, scurve_dt, &pos, &vel,
+                                                                  &acc, &jrk, &finished));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, scurve.state.fault_code);
+    TEST_ASSERT_EQUAL_INT(RON_STATUS_FAULT, (int) scurve.state.status);
+    TEST_ASSERT_FALSE(finished);
+    TEST_ASSERT_TRUE(pos == -scurve_start_mag);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), vel);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), acc);
+    TEST_ASSERT_FLOAT_WITHIN(TEST_TRAJ_TOL, RON_FLOAT_C(0.0), jrk);
+    TEST_ASSERT_TRUE(scurve.state.pos == -scurve_start_mag);
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_scurve_step(&scurve, TEST_TRAJ_DT, &pos,
+                                                                  &vel, &acc, &jrk, &finished));
+    TEST_ASSERT_TRUE(pos == -scurve_start_mag);
+    TEST_ASSERT_FALSE(finished);
+
+    /* S-curve, jerk / acceleration / velocity each first non-finite. */
+    scurve_cfg = test_traj_scurve_cfg();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_init(&scurve, &scurve_cfg, RON_FLOAT_C(0.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_set_target(&scurve, RON_FLOAT_C(10.0)));
+    scurve.cfg.j_max = test_traj_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_scurve_step(&scurve, TEST_TRAJ_DT, &pos,
+                                                                  &vel, &acc, &jrk, &finished));
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_init(&scurve, &scurve_cfg, RON_FLOAT_C(0.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_set_target(&scurve, RON_FLOAT_C(10.0)));
+    scurve.state.acc = test_traj_make_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_scurve_step(&scurve, TEST_TRAJ_DT, &pos,
+                                                                  &vel, &acc, &jrk, &finished));
+
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_init(&scurve, &scurve_cfg, RON_FLOAT_C(0.0)));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_NONE, ron_scurve_set_target(&scurve, RON_FLOAT_C(10.0)));
+    scurve.state.vel = test_traj_make_neg_inf();
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, ron_scurve_step(&scurve, TEST_TRAJ_DT, &pos,
+                                                                  &vel, &acc, &jrk, &finished));
+    TEST_ASSERT_EQUAL_UINT8(RON_FAULT_OUTPUT_NAN, scurve.state.fault_code);
+}
+
 /* RON-TC-TRAJ-008 | RON-FR-513 */
 void test_ron_tc_traj_008(void)
 {
@@ -782,6 +891,7 @@ int main(void)
     RUN_TEST(test_ron_tc_traj_005);
     RUN_TEST(test_ron_tc_traj_006);
     RUN_TEST(test_ron_tc_traj_007);
+    RUN_TEST(test_ron_tc_traj_007_output_nan);
     RUN_TEST(test_ron_tc_traj_008);
     RUN_TEST(test_ron_tc_traj_009);
     RUN_TEST(test_ron_tc_traj_010);

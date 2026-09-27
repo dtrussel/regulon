@@ -19,14 +19,29 @@
 #endif
 
 /* =========================================================================
- * Kalman-specific finite check
+ * Kalman-specific finite check and commit
  * ========================================================================= */
 
+/*
+ * Commit a candidate estimate and covariance only if both are finite; on
+ * failure the instance is left untouched so a numeric blow-up never becomes
+ * the filter's state.
+ */
 /* Satisfies: RON-SR-020 | Test: RON-TC-KF-008 */
-static bool kf_state_finite(const ron_kf_t *kf, uint8_t n)
+static ron_fault_t kf_commit(ron_kf_t *kf, const ron_float_t *x_next, ron_mat_t p_next, uint8_t n)
 {
-    return ron_mat_vec_finite(&kf->state.x_hat[0], n) &&
-           ron_mat_strided_finite(&kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
+    uint8_t i;
+
+    if (!ron_mat_vec_finite(x_next, n) ||
+        !ron_mat_strided_finite(&p_next[0][0], (uint8_t) RON_MAT_MAX_DIM, n, n)) {
+        return RON_FAULT_OUTPUT_NAN;
+    }
+
+    for (i = 0U; i < n; i++) {
+        kf->state.x_hat[i] = x_next[i];
+    }
+    ron_mat_store(&kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, p_next, n, n);
+    return RON_FAULT_NONE;
 }
 
 /* =========================================================================
@@ -83,7 +98,8 @@ static ron_fault_t kf_validate_config(const ron_kf_config_t *cfg)
  * ========================================================================= */
 
 /* Satisfies: RON-FR-600, RON-FR-602 | Test: RON-TC-KF-001, RON-TC-KF-003 */
-static void kf_predict_state(ron_kf_t *kf, const ron_float_t *u, uint8_t n, uint8_t p)
+static void kf_predict_state(const ron_kf_t *kf, const ron_float_t *u, uint8_t n, uint8_t p,
+                             ron_vec_t x_next)
 {
     ron_mat_t a_work;
     ron_vec_t ax;
@@ -104,34 +120,33 @@ static void kf_predict_state(ron_kf_t *kf, const ron_float_t *u, uint8_t n, uint
     }
 
     for (i = 0U; i < n; i++) {
-        kf->state.x_hat[i] = ax[i] + bu[i];
+        x_next[i] = ax[i] + bu[i];
     }
 }
 
 /* Satisfies: RON-FR-602 | Test: RON-TC-KF-001, RON-TC-KF-003, RON-TC-KF-006 */
-static void kf_predict_cov(ron_kf_t *kf, uint8_t n)
+static void kf_predict_cov(const ron_kf_t *kf, uint8_t n, ron_mat_t p_next)
 {
     ron_mat_t a_work;
-    ron_mat_t p_work;
     ron_mat_t q_work;
     ron_mat_t ap;
 
     ron_mat_load(a_work, &kf->cfg.A[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
-    ron_mat_load(p_work, &kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
+    ron_mat_load(p_next, &kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
     ron_mat_load(q_work, &kf->cfg.Q[0][0], (uint8_t) RON_KF_MAX_STATES, n, n);
 
-    /* p_work is dead as an input once A P exists, so A P A^T lands back in it
-     * rather than in a fifth scratch matrix. */
-    ron_mat_mul(ap, a_work, p_work, n, n, n);
-    ron_mat_mul_t(p_work, ap, a_work, n, n, n);
-    ron_mat_add(p_work, p_work, q_work, n, n);
-
-    ron_mat_store(&kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, p_work, n, n);
+    /* p_next holds P only until A P exists, so A P A^T lands back in it
+     * rather than in another scratch matrix. */
+    ron_mat_mul(ap, a_work, p_next, n, n, n);
+    ron_mat_mul_t(p_next, ap, a_work, n, n, n);
+    ron_mat_add(p_next, p_next, q_work, n, n);
 }
 
 /* Satisfies: RON-FR-600, RON-FR-602 | Test: RON-TC-KF-001, RON-TC-KF-003, RON-TC-KF-006 */
 ron_fault_t ron_kf_predict(ron_kf_t *kf, const ron_float_t u[RON_KF_MAX_INPUTS])
 {
+    ron_vec_t x_next;
+    ron_mat_t p_next;
     uint8_t n;
     uint8_t p;
 
@@ -154,14 +169,10 @@ ron_fault_t ron_kf_predict(ron_kf_t *kf, const ron_float_t u[RON_KF_MAX_INPUTS])
         }
     }
 
-    kf_predict_state(kf, u, n, p);
-    kf_predict_cov(kf, n);
+    kf_predict_state(kf, u, n, p, x_next);
+    kf_predict_cov(kf, n, p_next);
 
-    if (!kf_state_finite(kf, n)) {
-        return RON_FAULT_OUTPUT_NAN;
-    }
-
-    return RON_FAULT_NONE;
+    return kf_commit(kf, x_next, p_next, n);
 }
 
 /* =========================================================================
@@ -225,8 +236,8 @@ static ron_fault_t kf_resolve_gain(const ron_kf_t *kf, ron_mat_t h_work, ron_mat
 }
 
 /* Satisfies: RON-FR-602 | Test: RON-TC-KF-001, RON-TC-KF-003 */
-static void kf_apply_innovation(ron_kf_t *kf, ron_mat_t h_work, ron_mat_t gain,
-                                const ron_float_t *z, uint8_t n, uint8_t m)
+static void kf_apply_innovation(const ron_kf_t *kf, ron_mat_t h_work, ron_mat_t gain,
+                                const ron_float_t *z, uint8_t n, uint8_t m, ron_vec_t x_next)
 {
     ron_vec_t hx;
     ron_vec_t innov;
@@ -239,18 +250,18 @@ static void kf_apply_innovation(ron_kf_t *kf, ron_mat_t h_work, ron_mat_t gain,
     }
     ron_mat_vec(dx, gain, innov, n, m);
     for (i = 0U; i < n; i++) {
-        kf->state.x_hat[i] += dx[i];
+        x_next[i] = kf->state.x_hat[i] + dx[i];
     }
 }
 
+/* Writes the corrected covariance into p_next. */
 /* Satisfies: RON-FR-604 | Test: RON-TC-KF-004, RON-TC-KF-005 */
-static void kf_update_cov(ron_kf_t *kf, ron_mat_t h_work, ron_mat_t r_work, ron_mat_t gain,
-                          bool joseph, uint8_t n, uint8_t m)
+static void kf_update_cov(const ron_kf_t *kf, ron_mat_t h_work, ron_mat_t r_work, ron_mat_t gain,
+                          bool joseph, uint8_t n, uint8_t m, ron_mat_t p_next)
 {
     ron_mat_t p_work;
     ron_mat_t kh;
     ron_mat_t ikh;
-    ron_mat_t ikhp;
     uint8_t i;
     uint8_t j;
 
@@ -263,19 +274,17 @@ static void kf_update_cov(ron_kf_t *kf, ron_mat_t h_work, ron_mat_t r_work, ron_
             ikh[i][j] = eye - kh[i][j];
         }
     }
-    ron_mat_mul(ikhp, ikh, p_work, n, n, n);
+    ron_mat_mul(p_next, ikh, p_work, n, n, n); /* (I-KH) P */
 
     if (joseph) {
         /* Joseph form needs three more products but no more storage: kh and
-         * p_work are both dead by here, and ikhp is dead the moment its
+         * p_work are both dead by here, and p_next is dead the moment its
          * contribution has been folded into kh. */
-        ron_mat_mul_t(kh, ikhp, ikh, n, n, n);      /* (I-KH) P (I-KH)^T */
-        ron_mat_mul(p_work, gain, r_work, n, m, m); /* K R               */
-        ron_mat_mul_t(ikhp, p_work, gain, n, m, n); /* K R K^T           */
-        ron_mat_add(ikhp, kh, ikhp, n, n);
+        ron_mat_mul_t(kh, p_next, ikh, n, n, n);      /* (I-KH) P (I-KH)^T */
+        ron_mat_mul(p_work, gain, r_work, n, m, m);   /* K R               */
+        ron_mat_mul_t(p_next, p_work, gain, n, m, n); /* K R K^T           */
+        ron_mat_add(p_next, kh, p_next, n, n);
     }
-
-    ron_mat_store(&kf->state.P[0][0], (uint8_t) RON_KF_MAX_STATES, ikhp, n, n);
 }
 
 /* Satisfies: RON-FR-602, RON-FR-603, RON-FR-604, RON-FR-606 | Test: RON-TC-KF-001, RON-TC-KF-004, RON-TC-KF-005, RON-TC-KF-007 */
@@ -285,6 +294,7 @@ static ron_fault_t kf_do_update(ron_kf_t *kf, const ron_float_t *z, uint8_t n, u
     ron_mat_t r_work;
     ron_mat_t p_work;
     ron_mat_t gain;
+    ron_vec_t x_next;
     ron_fault_t fault;
 
     ron_mat_load(h_work, &kf->cfg.H[0][0], (uint8_t) RON_KF_MAX_STATES, m, n);
@@ -296,14 +306,12 @@ static ron_fault_t kf_do_update(ron_kf_t *kf, const ron_float_t *z, uint8_t n, u
         return fault;
     }
 
-    kf_apply_innovation(kf, h_work, gain, z, n, m);
-    kf_update_cov(kf, h_work, r_work, gain, kf->cfg.use_joseph_form, n, m);
+    /* p_work (the prior P) is dead once the gain exists; it takes the
+     * corrected covariance. */
+    kf_apply_innovation(kf, h_work, gain, z, n, m, x_next);
+    kf_update_cov(kf, h_work, r_work, gain, kf->cfg.use_joseph_form, n, m, p_work);
 
-    if (!kf_state_finite(kf, n)) {
-        return RON_FAULT_OUTPUT_NAN;
-    }
-
-    return RON_FAULT_NONE;
+    return kf_commit(kf, x_next, p_work, n);
 }
 
 /* Satisfies: RON-FR-602, RON-FR-603, RON-FR-604, RON-FR-605, RON-FR-606 | Test: RON-TC-KF-001, RON-TC-KF-004, RON-TC-KF-005, RON-TC-KF-006, RON-TC-KF-007 */

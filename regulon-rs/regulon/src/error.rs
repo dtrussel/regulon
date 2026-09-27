@@ -21,6 +21,9 @@ pub enum RonError {
     InvalidArgument(&'static str),
     /// A fault has been latched by the controller.
     Fault(PidFault),
+    /// A computation produced a non-finite result or met a matrix that is not
+    /// positive definite; the component's state was left unchanged.
+    Numerical(&'static str),
 }
 
 impl fmt::Display for RonError {
@@ -33,6 +36,7 @@ impl fmt::Display for RonError {
                 write!(formatter, "invalid PID argument: {message}")
             }
             Self::Fault(fault) => write!(formatter, "PID fault latched: {}", fault.bits()),
+            Self::Numerical(message) => write!(formatter, "numerical failure: {message}"),
         }
     }
 }

@@ -4,21 +4,31 @@
 //!
 //! **Document:** RON-IS-001
 //! **Requirements:** RON-FR-100-RON-FR-103, RON-FR-110-RON-FR-111,
-//! RON-FR-130-RON-FR-131, RON-PR-001-RON-PR-004, RON-PR-022
+//! RON-FR-115-RON-FR-117, RON-FR-120-RON-FR-123, RON-FR-130-RON-FR-131,
+//! RON-PR-001-RON-PR-004, RON-PR-022
 //! **SPDX-License-Identifier:** MIT
 
 #![deny(clippy::all, clippy::pedantic, missing_docs)]
 
+mod biquad;
+mod moving_average;
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(kani)]
+mod proofs;
+
+pub use biquad::{Biquad, BiquadSection, BIQUAD_MAX_SECTIONS};
+pub use moving_average::{MovingAverage, MA_MAX_WINDOW};
 
 use crate::platform::{abs, is_finite, is_near_zero, RonFloat};
 
 #[cfg(feature = "double_precision")]
-const TWO_PI: RonFloat = core::f64::consts::PI * 2.0;
+pub(crate) const TWO_PI: RonFloat = core::f64::consts::PI * 2.0;
 
 #[cfg(not(feature = "double_precision"))]
-const TWO_PI: RonFloat = core::f32::consts::PI * 2.0;
+pub(crate) const TWO_PI: RonFloat = core::f32::consts::PI * 2.0;
 
 /// Filter fault register.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -31,6 +41,8 @@ impl FilterFault {
     pub const CONFIG_INVALID: Self = Self(0x01);
     /// Input sample is not finite.
     pub const INPUT_NOT_FINITE: Self = Self(0x02);
+    /// The computed output is not finite.
+    pub const OUTPUT_NOT_FINITE: Self = Self(0x04);
 
     /// Returns the raw bitfield.
     #[must_use]

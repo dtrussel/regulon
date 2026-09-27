@@ -120,7 +120,9 @@ ron_fault_t ron_trap_set_target(ron_trap_t *t, ron_float_t target);
  * @retval RON_FAULT_CONFIG_INVALID The generator was never initialised, or
  *                                  @p dt was not positive and finite.
  * @retval RON_FAULT_OUTPUT_NAN     A computed setpoint was not finite; the
- *                                  fault latches.
+ *                                  fault latches, the status becomes
+ *                                  @c RON_STATUS_FAULT, and the state and
+ *                                  outputs keep the last finite setpoints.
  */
 /* Satisfies: RON-FR-500, RON-FR-502, RON-FR-512 | Test: RON-TC-TRAJ-001, RON-TC-TRAJ-003, RON-TC-TRAJ-007 */
 ron_fault_t ron_trap_step(ron_trap_t *t, ron_float_t dt, ron_float_t *pos, ron_float_t *vel,
@@ -286,7 +288,9 @@ ron_fault_t ron_scurve_set_target(ron_scurve_t *t, ron_float_t target);
  * @retval RON_FAULT_CONFIG_INVALID The generator was never initialised, or
  *                                  @p dt was not positive and finite.
  * @retval RON_FAULT_OUTPUT_NAN     A computed setpoint was not finite; the
- *                                  fault latches.
+ *                                  fault latches, the status becomes
+ *                                  @c RON_STATUS_FAULT, and the state and
+ *                                  outputs keep the last finite setpoints.
  */
 /* Satisfies: RON-FR-510, RON-FR-511, RON-FR-512 | Test: RON-TC-TRAJ-005, RON-TC-TRAJ-006, RON-TC-TRAJ-007 */
 ron_fault_t ron_scurve_step(ron_scurve_t *t, ron_float_t dt, ron_float_t *pos, ron_float_t *vel,
