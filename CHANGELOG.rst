@@ -270,7 +270,8 @@ Added
   matrix-level entry point, ``ron_lqr_dare_solve_mat()`` (private), for the
   dual problem's measurement-sized operands. RON-TC-LQG-006 checks both
   gains against reference values and against the gain a time-varying filter
-  converges to.
+  converges to. The ``lqr_lqg_control`` example now uses this mode and prints
+  both solved gains.
 - ``check_traceability.py`` also scans the Rust crate (``regulon-rs/``), so
   Rust tests and annotations are held to the same test-plan and SRS IDs.
 
